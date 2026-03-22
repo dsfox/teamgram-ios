@@ -84,5 +84,6 @@ r3.sh
 .bsp/**
 xcode-files
 .bsp/**
+.sourcekit-lsp/**
 /.claude/
 /buildbox/*
