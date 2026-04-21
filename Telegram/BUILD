@@ -1377,7 +1377,7 @@ plist_fragment(
     <key>CFBundleIdentifier</key>
     <string>{telegram_bundle_id}.BroadcastUpload</string>
     <key>CFBundleName</key>
-    <string>Telegram</string>
+    <string>Teamgram</string>
     <key>CFBundlePackageType</key>
     <string>XPC!</string>
     <key>NSExtension</key>
