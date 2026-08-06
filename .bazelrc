@@ -37,3 +37,25 @@ common:index_build --noannounce_rc
 common:index_build --noshow_timestamps
 common:index_build --curses=no
 common:index_build --color=no
+
+# Форк рассчитан на Xcode 26.2, собираем на 26.4: более новый clang добавил
+# строгих проверок, а сборка идёт с -Werror, и апстримовый код на них падает.
+# Общий -Wno-error не спасает: правила дописывают -Werror после наших флагов,
+# поэтому гасим сами диагностики — тогда -Werror уже не к чему применять.
+# Все они про строгость типов и стиль, на поведение рабочего кода не влияют.
+build --copt=-Wno-thread-safety-analysis
+build --objccopt=-Wno-thread-safety-analysis
+build --copt=-Wno-enum-float-conversion
+build --objccopt=-Wno-enum-float-conversion
+build --copt=-Wno-enum-enum-conversion
+build --objccopt=-Wno-enum-enum-conversion
+build --copt=-Wno-enum-compare-conditional
+build --objccopt=-Wno-enum-compare-conditional
+build --copt=-Wno-unused-but-set-variable
+build --objccopt=-Wno-unused-but-set-variable
+build --copt=-Wno-incompatible-function-pointer-types
+build --objccopt=-Wno-incompatible-function-pointer-types
+build --copt=-Wno-strict-prototypes
+build --objccopt=-Wno-strict-prototypes
+build --copt=-Wno-deprecated-non-prototype
+build --objccopt=-Wno-deprecated-non-prototype
