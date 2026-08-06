@@ -10,7 +10,14 @@ MESON_OPTIONS="--buildtype=release --default-library=static -Denable_tools=false
 CROSSFILE=""
 
 if [ "$ARCH" = "arm64" ]; then
-    CROSSFILE="../package/crossfiles/arm64-iPhoneOS.meson"
+    # В crossfile путь к SDK прописан как /Applications/Xcode.app — подставляем
+    # фактический (у нас Xcode лежит рядом, под именем с версией), иначе
+    # компилятор не находит системные заголовки. Для симулятора это уже сделано ниже.
+    TARGET_CROSSFILE="$BUILD_DIR/dav1d/package/crossfiles/arm64-iPhoneOS-custom.meson"
+    cp "$BUILD_DIR/dav1d/package/crossfiles/arm64-iPhoneOS.meson" "$TARGET_CROSSFILE"
+    custom_xcode_path="$(xcode-select -p)/"
+    sed -i '' "s|/Applications/Xcode.app/Contents/Developer/|$custom_xcode_path|g" "$TARGET_CROSSFILE"
+    CROSSFILE="../package/crossfiles/arm64-iPhoneOS-custom.meson"
 elif [ "$ARCH" = "sim_arm64" ]; then
     rm -f "arm64-iPhoneSimulator-custom.meson"
     TARGET_CROSSFILE="$BUILD_DIR/dav1d/package/crossfiles/arm64-iPhoneSimulator-custom.meson"

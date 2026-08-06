@@ -516,11 +516,18 @@ aps_fragment = "" if telegram_aps_environment == "" else """
 <string>{telegram_aps_environment}</string>
 """.format(telegram_aps_environment=telegram_aps_environment)
 
-app_groups_fragment = """
+# Группу приложений нельзя завести через App Store Connect API, а в сборках без
+# расширений делить контейнер не с кем. Поэтому запрашиваем её только там, где
+# она заведена в аккаунте Telegram, — иначе подпись упадёт на правах, которых
+# нет в профиле. Приложение умеет работать без группы (см. AppDelegate).
+app_groups_entitlement = "" if telegram_bundle_id not in official_bundle_ids else """
     <key>com.apple.security.application-groups</key>
     <array>
         <string>group.{telegram_bundle_id}</string>
     </array>
+""".format(telegram_bundle_id=telegram_bundle_id)
+
+app_groups_fragment = app_groups_entitlement + """
     <key>application-identifier</key>
     <string>{telegram_team_id}.{telegram_bundle_id}</string>
 """.format(

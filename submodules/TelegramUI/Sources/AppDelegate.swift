@@ -289,7 +289,10 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         let appGroupName = "group.\(baseAppBundleId)"
 
         let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
-        configuration.sharedContainerIdentifier = appGroupName
+        // Только если группа реально доступна — иначе фоновая сессия не создастся
+        if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName) != nil {
+            configuration.sharedContainerIdentifier = appGroupName
+        }
         configuration.isDiscretionary = false
         let session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
         self.urlSessions.append(session)
@@ -626,9 +629,19 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             |> runOn(Queue.mainQueue())
         }, autolockDeadine: autolockDeadine, encryptionProvider: OpenSSLEncryptionProvider(), deviceModelName: nil, useBetaFeatures: !buildConfig.isAppStoreBuild, isICloudEnabled: buildConfig.isICloudEnabled)
         
-        guard let appGroupUrl = maybeAppGroupUrl else {
-            self.mainWindow?.presentNative(UIAlertController(title: nil, message: "Error 2", preferredStyle: .alert))
-            return true
+        // Общий контейнер нужен, чтобы приложение и его расширения видели одни данные.
+        // В сборках без расширений группы может не быть (её нельзя завести через
+        // App Store Connect API), и тогда делить контейнер попросту не с кем —
+        // работаем в собственной песочнице вместо того, чтобы падать на старте.
+        let appGroupUrl: URL
+        if let groupUrl = maybeAppGroupUrl {
+            appGroupUrl = groupUrl
+        } else {
+            guard let documentsUrl = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+                self.mainWindow?.presentNative(UIAlertController(title: nil, message: "Error 2", preferredStyle: .alert))
+                return true
+            }
+            appGroupUrl = documentsUrl
         }
         
         var isDebugConfiguration = false
