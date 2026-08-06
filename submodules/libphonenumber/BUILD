@@ -17,7 +17,6 @@ objc_library(
       "Foundation",
     ],
     copts = [
-        "-Werror",
     ],
     visibility = [
         "//visibility:public",

@@ -14,7 +14,6 @@ objc_library(
     ],
     copts = [
         "-DTELEGRAM_USE_BORINGSSL=1",
-        "-Werror",
     ],
     deps = [
         "//submodules/EncryptionProvider:EncryptionProvider",

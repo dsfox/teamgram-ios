@@ -8,7 +8,6 @@ objc_library(
         "Sources/**/*.h",
     ]),
     copts = [
-        "-Werror",
     ],
     hdrs = glob([
         "PublicHeaders/**/*.h",

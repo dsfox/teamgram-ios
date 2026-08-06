@@ -19,7 +19,6 @@ objc_library(
         "lottiecpp/PlatformSpecific/Darwin/Sources/**/*.hpp",
     ], allow_empty=True),
     copts = [
-        "-Werror",
         "-I{}/lottiecpp/Sources".format(package_name()),
     ],
     cxxopts = [

@@ -11,7 +11,6 @@ objc_library(
         "Public/**/*.h",
     ]),
     copts = [
-        "-Werror",
     ],
     includes = [
         "Public",

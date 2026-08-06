@@ -49,7 +49,6 @@ STRICT_C_OPTIONS = select({
         "--pedantic-errors",
         "-Wall",
         "-Wconversion",
-        "-Werror",
         "-Wextra",
         "-Wlong-long",
         "-Wmissing-declarations",

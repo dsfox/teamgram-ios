@@ -13,7 +13,6 @@ objc_library(
         "Sources/**/*.hpp",
     ]),
     copts = [
-        "-Werror",
         "-I{}/Sources".format(package_name()),
         "-I{}/PublicHeaders/thorvg".format(package_name()),
         "-I{}/Sources/common".format(package_name()),

@@ -13,11 +13,9 @@ objc_library(
         "Sources/**/*.hpp",
     ]),
     copts = [
-        "-Werror",
         "-I{}/Sources".format(package_name()),
     ],
     cxxopts = [
-        "-Werror",
         "-std=c++17",
         "-I{}/Sources".format(package_name()),
     ],

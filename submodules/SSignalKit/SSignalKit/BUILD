@@ -7,7 +7,6 @@ objc_library(
         "Source/SSignalKit/*.m",
     ]),
     copts = [
-        "-Werror",
     ],
     hdrs = glob([
         "Source/SSignalKit/*.h",

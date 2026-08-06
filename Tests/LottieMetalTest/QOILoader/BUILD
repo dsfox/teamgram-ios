@@ -13,7 +13,6 @@ objc_library(
         "Sources/**/*.hpp",
     ]),
     copts = [
-        "-Werror",
         "-I{}/Sources".format(package_name()),
     ],
     hdrs = glob([

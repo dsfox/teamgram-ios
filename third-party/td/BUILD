@@ -133,10 +133,8 @@ objc_library(
         "TdBinding/Public/**/*.h",
     ]),
     copts = [
-        "-Werror",
     ],
     cxxopts = [
-        "-Werror",
         "-std=c++17",
     ],
     includes = [

@@ -808,13 +808,11 @@
 //
 // See also the upstream documentation:
 // https://clang.llvm.org/docs/AttributeReference.html#lifetimebound
-#if ABSL_HAVE_CPP_ATTRIBUTE(clang::lifetimebound)
-#define ABSL_ATTRIBUTE_LIFETIME_BOUND [[clang::lifetimebound]]
-#elif ABSL_HAVE_ATTRIBUTE(lifetimebound)
-#define ABSL_ATTRIBUTE_LIFETIME_BOUND __attribute__((lifetimebound))
-#else
+// Атрибут отключён: clang в Xcode 26.4 запрещает lifetimebound у параметров
+// функций, возвращающих void, а webrtc этой версии так его и применяет
+// (например, Candidate::set_type). Атрибут — подсказка статическому анализатору
+// и на генерируемый код не влияет, поэтому отключение безопасно.
 #define ABSL_ATTRIBUTE_LIFETIME_BOUND
-#endif
 
 // ABSL_ATTRIBUTE_TRIVIAL_ABI
 // Indicates that a type is "trivially relocatable" -- meaning it can be

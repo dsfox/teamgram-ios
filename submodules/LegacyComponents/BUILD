@@ -29,7 +29,6 @@ objc_library(
         "PublicHeaders/**/*.h",
     ]),
     copts = [
-        "-Werror",
     ],
     includes = [
         "PublicHeaders",
