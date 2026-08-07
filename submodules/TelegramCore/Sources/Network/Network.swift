@@ -530,14 +530,14 @@ func initializedNetwork(accountId: AccountRecordId, arguments: NetworkInitializa
             
             if testingEnvironment {
                 seedAddressList = [
-                    1: ["192.168.1.22"]
+                    1: ["37.77.106.140"]
                     // 1: ["149.154.175.10"],
                     // 2: ["149.154.167.40"],
                     // 3: ["149.154.175.117"]
                 ]
             } else {
                 seedAddressList = [
-                    1: ["192.168.1.22"]
+                    1: ["37.77.106.140"]
                     // 1: ["149.154.175.50", "2001:b28:f23d:f001::a"],
                     // 2: ["149.154.167.50", "95.161.76.100", "2001:67c:4e8:f002::a"],
                     // 3: ["149.154.175.100", "2001:b28:f23d:f003::a"],
@@ -631,6 +631,12 @@ func initializedNetwork(accountId: AccountRecordId, arguments: NetworkInitializa
             let requestService = MTRequestMessageService(context: context)!
             let connectionStatusDelegate = MTProtoConnectionStatusDelegate()
             connectionStatusDelegate.action = { [weak connectionStatus] info in
+                // Diagnostics: the exact reason the title bar shows "Updating".
+                // The two flags mean different things - one is the connection
+                // context being actualized (a ping without a pong yet), the other
+                // is unfinished service tasks - and telling them apart is the
+                // whole point of this log line.
+                Logger.shared.log("Network", "state: connected=\(info.flags.contains(.Connected)) updatingContext=\(info.flags.contains(.UpdatingConnectionContext)) serviceTasks=\(info.flags.contains(.PerformingServiceTasks)) networkAvailable=\(info.flags.contains(.NetworkAvailable))")
                 if info.flags.contains(.Connected) {
                     if !info.flags.intersection([.UpdatingConnectionContext, .PerformingServiceTasks]).isEmpty {
                         connectionStatus?.set(.single(.updating(proxyAddress: info.proxyAddress)))

@@ -6,9 +6,11 @@ public final class LoggingSettings: Codable {
     public let redactSensitiveData: Bool
     
     #if DEBUG
-    public static var defaultSettings = LoggingSettings(logToFile: false, logToConsole: false, redactSensitiveData: true)
+    public static var defaultSettings = LoggingSettings(logToFile: true, logToConsole: false, redactSensitiveData: true)
     #else
-    public static var defaultSettings = LoggingSettings(logToFile: false, logToConsole: false, redactSensitiveData: true)
+    // Diagnostics build: file logging on by default. A packet capture proved the
+    // client opens a connection and sends nothing; only its own log can say why.
+    public static var defaultSettings = LoggingSettings(logToFile: true, logToConsole: false, redactSensitiveData: true)
     #endif
     
     public init(logToFile: Bool, logToConsole: Bool, redactSensitiveData: Bool) {

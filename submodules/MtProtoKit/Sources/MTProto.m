@@ -957,6 +957,16 @@ static const NSUInteger MTMaxUnacknowledgedMessageCount = 64;
         }
         
         if (!([self canAskForServiceTransactions] || [self canAskForTransactions])) {
+            // Diagnostics: this is one of the two ways an open socket ends up
+            // carrying no data at all. A packet capture on the server showed the
+            // TCP handshake completing and then nothing, so the question is which
+            // of these two returns happens.
+            if (MTLogEnabled()) {
+                // _mtState carries the reason as bits: 1 awaiting scheme,
+                // 2 awaiting authorization, 8 awaiting auth token,
+                // 16 awaiting time fix and salts, 64 stopped.
+                MTLog(@"[MTProto#%p nothing to send: mtState=%d service=%d regular=%d unauthorized=%d]", self, (int)_mtState, (int)[self canAskForServiceTransactions], (int)[self canAskForTransactions], (int)_useUnauthorizedMode);
+            }
             if (transactionReady) {
                 transactionReady(nil);
             }
@@ -969,6 +979,11 @@ static const NSUInteger MTMaxUnacknowledgedMessageCount = 64;
             authKey = [self getAuthKeyForCurrentScheme:scheme createIfNeeded:true authInfoSelector:&authInfoSelector];
         
             if (authKey == nil) {
+                // Diagnostics: the other way. No usable auth key for this scheme
+                // means the client stays silent on a perfectly good connection.
+                if (MTLogEnabled()) {
+                    MTLog(@"[MTProto#%p nothing to send: no auth key for scheme %@ selector=%d]", self, scheme, (int)authInfoSelector);
+                }
                 if (transactionReady) {
                     transactionReady(nil);
                 }

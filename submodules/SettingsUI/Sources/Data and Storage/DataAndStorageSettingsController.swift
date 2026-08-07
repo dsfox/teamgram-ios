@@ -644,9 +644,8 @@ private func dataAndStorageControllerEntries(context: AccountContext, state: Dat
     entries.append(.autoSaveInfo(presentationData.strings.Settings_SaveToCameraRollInfo))
     
     
-    let dataSaving = effectiveDataSaving(for: data.voiceCallSettings, autodownloadSettings: data.autodownloadSettings)
-    entries.append(.useLessVoiceData(presentationData.theme, presentationData.strings.ChatSettings_UseLessDataForCalls, dataSaving != .never))
-    entries.append(.useLessVoiceDataInfo(presentationData.theme, presentationData.strings.CallSettings_UseLessDataLongDescription))
+    // Call data saving is hidden along with calls themselves: a setting for a
+    // feature that does not exist only raises questions.
     
     entries.append(.otherHeader(presentationData.theme, presentationData.strings.ChatSettings_Other))
     entries.append(.openLinksIn(presentationData.theme, presentationData.strings.ChatSettings_OpenLinksIn, defaultWebBrowser))
