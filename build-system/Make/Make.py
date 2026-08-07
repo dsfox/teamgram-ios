@@ -447,7 +447,12 @@ def resolve_codesigning(arguments, base_path, build_configuration, provisioning_
             bundle_id=build_configuration.bundle_id
         )
     elif arguments.xcodeManagedCodesigning is not None and arguments.xcodeManagedCodesigning == True:
-        profile_source = XcodeManagedCodesigningSource()
+        # Релизные сборки уходят в TestFlight — там уведомления боевые;
+        # сборки на устройство подписаны профилем разработки — там песочница.
+        aps_environment = 'development'
+        if getattr(arguments, 'configuration', '').startswith('release'):
+            aps_environment = 'production'
+        profile_source = XcodeManagedCodesigningSource(aps_environment=aps_environment)
     else:
         raise Exception('Neither gitCodesigningRepository nor codesigningInformationPath are set')
 

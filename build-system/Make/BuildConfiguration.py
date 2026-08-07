@@ -328,8 +328,13 @@ class DirectoryCodesigningSource(CodesigningSource):
 
 
 class XcodeManagedCodesigningSource(CodesigningSource):
-    def __init__(self):
-        pass
+    def __init__(self, aps_environment=""):
+        # Без aps-environment в правах приложения устройство не получает токен
+        # уведомлений вообще: iOS отвечает отказом на запрос регистрации.
+        # Значение обязано совпадать со средой профиля подписи: релизные сборки
+        # уходят в TestFlight и работают с боевым сервером Apple, отладочные —
+        # с песочницей. Токены этих сред несовместимы.
+        self.aps_environment = aps_environment
 
     def load_data(self, working_dir):
         pass
@@ -338,7 +343,7 @@ class XcodeManagedCodesigningSource(CodesigningSource):
         pass
 
     def resolve_aps_environment(self):
-        return ""
+        return self.aps_environment
 
     def use_xcode_managed_codesigning(self):
         return True
