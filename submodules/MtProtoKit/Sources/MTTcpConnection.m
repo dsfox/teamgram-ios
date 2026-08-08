@@ -659,6 +659,12 @@ struct ctr_state {
 }
 
 - (void)writeData:(NSData *)data {
+    if (MTLogEnabled()) {
+        MTLog(@"[port %d] hand %d bytes to socket %p: connected=%d disconnected=%d host=%@:%d",
+              (int)_socket.localPort, (int)data.length, _socket,
+              (int)_socket.isConnected, (int)_socket.isDisconnected,
+              _socket.connectedHost, (int)_socket.connectedPort);
+    }
     [_socket writeData:data withTimeout:-1.0 tag:0];
 }
 
@@ -667,6 +673,9 @@ struct ctr_state {
 }
 
 - (void)disconnect {
+    if (MTLogEnabled()) {
+        MTLog(@"[port %d] disconnect requested on socket %p", (int)_socket.localPort, _socket);
+    }
     [_socket disconnect];
 }
 
@@ -690,13 +699,39 @@ struct ctr_state {
 }
 
 - (void)socket:(GCDAsyncSocket *)socket didConnectToHost:(NSString *)host port:(uint16_t)port {
+    // The local port is what makes a client connection and a server log line the
+    // same object. Matching them by sampling lsof compared writes on one socket
+    // against captures of another and produced a confident wrong answer.
+    if (MTLogEnabled()) {
+        MTLog(@"[socket %p connected to %@:%d from local port %d]", socket, host, (int)port, (int)socket.localPort);
+    }
     id<MTTcpConnectionInterfaceDelegate> delegate = _delegate;
     if (delegate) {
         [delegate connectionInterfaceDidConnect];
     }
 }
 
+// Nothing here reported a completed write, so bytes handed to the socket and
+// bytes that reached the wire were indistinguishable. With the socket
+// ESTABLISHED on both sides, writeData called, and the server receiving nothing,
+// this is what tells a write stuck inside GCDAsyncSocket from one that left.
+- (void)socket:(GCDAsyncSocket *)socket didWriteDataWithTag:(long)tag {
+    if (MTLogEnabled()) {
+        MTLog(@"[port %d] socket %p reports write complete: connected=%d disconnected=%d",
+              (int)socket.localPort, socket, (int)socket.isConnected, (int)socket.isDisconnected);
+    }
+}
+
+- (void)socket:(GCDAsyncSocket *)socket didWritePartialDataOfLength:(NSUInteger)partialLength tag:(long)tag {
+    if (MTLogEnabled()) {
+        MTLog(@"[port %d] socket %p wrote %d bytes so far", (int)socket.localPort, socket, (int)partialLength);
+    }
+}
+
 - (void)socketDidDisconnect:(GCDAsyncSocket *)socket withError:(NSError *)error {
+    if (MTLogEnabled()) {
+        MTLog(@"[port %d] socket %p disconnected: %@", (int)socket.localPort, socket, error ?: @"no error");
+    }
     id<MTTcpConnectionInterfaceDelegate> delegate = _delegate;
     if (delegate) {
         [delegate connectionInterfaceDidDisconnectWithError:error];
@@ -775,6 +810,7 @@ struct ctr_state {
     MTMetaDisposable *_resolveDisposable;
     
     bool _readyToSendData;
+    bool _sentFirstSegment;
     NSMutableArray<MTTcpSendData *> *_pendingDataQueue;
     NSMutableData *_receivedDataBuffer;
     MTTcpReceiveData *_pendingReceiveData;
@@ -1268,9 +1304,29 @@ struct ctr_state {
                             
                             offset += partLength;
                         }
+                        if (MTLogEnabled()) {
+                            MTLog(@"[MTTcpConnection#%" PRIxPTR " writing %d bytes (partitioned)]", (intptr_t)self, (int)partitionedCompleteData.length);
+                        }
                         [_socket writeData:partitionedCompleteData];
                     } else {
-                        [_socket writeData:completeData];
+                        if (MTLogEnabled()) {
+                            MTLog(@"[MTTcpConnection#%" PRIxPTR " writing %d bytes]", (intptr_t)self, (int)completeData.length);
+                        }
+                        // Measured on this network: a large first data packet on a
+                        // fresh connection is dropped on the way - 3 of 8 arrive -
+                        // while the same payload sent after a small one arrives 7
+                        // of 8. Plain sockets with random bytes behave identically,
+                        // so it is the path, not the protocol. A short first
+                        // segment costs nothing and keeps the rest flowing.
+                        const NSUInteger firstSegment = 64;
+                        if (!_sentFirstSegment && completeData.length > firstSegment) {
+                            _sentFirstSegment = true;
+                            [_socket writeData:[completeData subdataWithRange:NSMakeRange(0, firstSegment)]];
+                            [_socket writeData:[completeData subdataWithRange:NSMakeRange(firstSegment, completeData.length - firstSegment)]];
+                        } else {
+                            _sentFirstSegment = true;
+                            [_socket writeData:completeData];
+                        }
                     }
                 }
                 
@@ -1313,6 +1369,13 @@ struct ctr_state {
     
     [[MTTcpConnection tcpQueue] dispatchOnQueue:^{
         [_pendingDataQueue addObject:[[MTTcpSendData alloc] initWithDataSet:datas completion:completion requestQuickAck:requestQuickAck expectDataInResponse:expectDataInResponse]];
+        // When the flag is false the data just sits here: no write, no error, no
+        // retry. If nothing sets the flag afterwards, those bytes never leave
+        // and the only symptom is the response timeout twelve seconds later.
+        if (MTLogEnabled()) {
+            MTLog(@"[MTTcpConnection#%" PRIxPTR " queued %d datas, ready=%d, pending=%d]",
+                  (intptr_t)self, (int)datas.count, (int)_readyToSendData, (int)_pendingDataQueue.count);
+        }
         if (_readyToSendData) {
             [self sendDataIfNeeded];
         }
@@ -1527,6 +1590,9 @@ struct ctr_state {
         if ([delegate respondsToSelector:@selector(tcpConnectionOpened:)])
             [delegate tcpConnectionOpened:self];
         
+        if (MTLogEnabled()) {
+            MTLog(@"[MTTcpConnection#%" PRIxPTR " ready to send, pending=%d]", (intptr_t)self, (int)_pendingDataQueue.count);
+        }
         _readyToSendData = true;
         [self sendDataIfNeeded];
         if (_useIntermediateFormat) {
@@ -1650,6 +1716,9 @@ struct ctr_state {
             return;
         }
         
+        if (MTLogEnabled()) {
+            MTLog(@"[MTTcpConnection#%" PRIxPTR " ready to send, pending=%d]", (intptr_t)self, (int)_pendingDataQueue.count);
+        }
         _readyToSendData = true;
         [self sendDataIfNeeded];
         

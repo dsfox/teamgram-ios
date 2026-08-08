@@ -399,8 +399,16 @@ static const NSTimeInterval MTTcpTransportSleepWatchdogTimeout = 60.0;
     MTTcpTransportContext *transportContext = _transportContext;
     [[MTTcpTransport tcpTransportQueue] dispatchOnQueue:^
     {
-        if (transportContext.connection != connection)
+        if (transportContext.connection != connection) {
+            // The socket is open and nobody will ever write to it: the transport
+            // has moved on to another connection, so it never asks the delegate
+            // for a transaction. The server sees a connection that says nothing
+            // and reaps it; the app sits on it until its own response timeout.
+            if (MTLogEnabled()) {
+                MTLog(@"[MTTcpTransport#%" PRIxPTR " opened connection is not the current one, orphaned]", (intptr_t)self);
+            }
             return;
+        }
         
         transportContext.connectionConnected = true;
         transportContext.connectionIsValid = false;
@@ -581,6 +589,10 @@ static const NSTimeInterval MTTcpTransportSleepWatchdogTimeout = 60.0;
 - (void)_requestTransactionFromDelegate
 {
     MTTcpTransportContext *transportContext = _transportContext;
+    if (MTLogEnabled()) {
+        MTLog(@"[MTTcpTransport#%" PRIxPTR " probe: request entered, waiting=%d]",
+              (intptr_t)self, (int)transportContext.isWaitingForTransactionToBecomeReady);
+    }
     if (transportContext.isWaitingForTransactionToBecomeReady)
     {
         if (!transportContext.didSendActualizationPingAfterConnection)
@@ -612,6 +624,18 @@ static const NSTimeInterval MTTcpTransportSleepWatchdogTimeout = 60.0;
     
     id<MTTransportDelegate> delegate = self.delegate;
     MTTransportScheme *scheme = transportContext.connection.scheme;
+    // Falling through this condition asks nobody for anything and leaves no
+    // trace: the socket stays open and empty while the app waits out its own
+    // response timeout. Whatever is missing here has to be visible.
+    if (scheme == nil || delegate == nil) {
+        if (MTLogEnabled()) {
+            MTLog(@"[MTTcpTransport#%" PRIxPTR " no transaction requested: scheme %s, delegate %s, connection %s]",
+                  (intptr_t)self,
+                  scheme != nil ? "ok" : "MISSING",
+                  delegate != nil ? "ok" : "MISSING",
+                  transportContext.connection != nil ? "ok" : "MISSING");
+        }
+    }
     if (scheme != nil && [delegate respondsToSelector:@selector(transportReadyForTransaction:scheme:transportSpecificTransaction:forceConfirmations:transactionReady:)])
     {
         transportContext.isWaitingForTransactionToBecomeReady = true;
@@ -655,15 +679,45 @@ static const NSTimeInterval MTTcpTransportSleepWatchdogTimeout = 60.0;
             transportSpecificTransaction.requiresEncryption = true;
         }
         
+        if (MTLogEnabled()) {
+            MTLog(@"[MTTcpTransport#%" PRIxPTR " probe: asking delegate]", (intptr_t)self);
+        }
         __weak MTTcpTransport *weakSelf = self;
         [delegate transportReadyForTransaction:self scheme:scheme transportSpecificTransaction:transportSpecificTransaction forceConfirmations:transportSpecificTransaction != nil transactionReady:^(NSArray *transactionList)
         {
+            if (MTLogEnabled()) {
+                MTLog(@"[MTTcpTransport probe: delegate answered with %d parts]", (int)transactionList.count);
+            }
             [[MTTcpTransport tcpTransportQueue] dispatchOnQueue:^
             {
                 __strong MTTcpTransport *strongSelf = weakSelf;
+                if (strongSelf == nil && MTLogEnabled()) {
+                    MTLog(@"[MTTcpTransport probe: transport gone before writing]");
+                }
                 if (strongSelf != nil) {
+                    // Why this is logged: a connection can look connected, take
+                    // requests, and never put a byte on the wire. Nothing above
+                    // says so - "preparing" is logged when a message is built,
+                    // not when it is sent - and from the outside the only symptom
+                    // is the status stuck on "Updating" until the response
+                    // timeout fires. Counting what actually leaves here tells the
+                    // two cases apart.
+                    if (MTLogEnabled()) {
+                        NSInteger totalBytes = 0;
+                        for (MTTransportTransaction *t in transactionList) {
+                            totalBytes += t.payload.length;
+                        }
+                        MTLog(@"[MTTcpTransport#%" PRIxPTR " transaction ready: %d parts, %d bytes, connection %s]",
+                              (intptr_t)strongSelf, (int)transactionList.count, (int)totalBytes,
+                              transportContext.connection != nil ? "present" : "GONE");
+                    }
                     for (MTTransportTransaction *transaction in transactionList)
                     {
+                        if (transaction.payload.length == 0) {
+                            if (MTLogEnabled()) {
+                                MTLog(@"[MTTcpTransport#%" PRIxPTR " empty payload, nothing written]", (intptr_t)strongSelf);
+                            }
+                        }
                         if (transaction.payload.length != 0)
                         {
                             bool acceptTransaction = true;
