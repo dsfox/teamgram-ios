@@ -278,6 +278,17 @@ filegroup(
     ], exclude = ["Telegram-iOS/Icons.xcassets/**/.*"]),
 )
 
+# One classic icon set, one image. Since Xcode 14 a single 1024 covers every
+# size, and unlike the Icon Composer bundle it also carries the App Store
+# artwork - without which App Store Connect shows its placeholder next to every
+# build. The two formats cannot be mixed: the rules fail the analysis outright.
+filegroup(
+    name = "AppIconSet",
+    srcs = glob([
+        "Telegram-iOS/AppIcon.xcassets/**/*",
+    ], exclude = ["Telegram-iOS/AppIcon.xcassets/**/.*"]),
+)
+
 filegroup(
     name = "AppIcons",
     srcs = glob([
@@ -1740,7 +1751,7 @@ ios_application(
         ":RequiredDeviceCapabilitiesPlist",
         ":UrlTypesInfoPlist",
     ],
-    app_icons = [ ":{}_icon".format(name) for name in composer_icon_folders ],
+    app_icons = [":AppIconSet"],
     alternate_icons = [
         ":{}".format(name) for name in alternate_icon_folders
     ],
