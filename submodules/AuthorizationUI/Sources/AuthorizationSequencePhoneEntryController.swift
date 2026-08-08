@@ -205,6 +205,12 @@ public final class AuthorizationSequencePhoneEntryController: ViewController, MF
     }
     
     private func loadAndPresentPasskey(force: Bool) {
+        // Our server has no passkeys, so asking for them only produces a refusal
+        // on every visit to the login screen. The Android build carries the same
+        // decision as BuildVars.SUPPORTS_PASSKEYS.
+        if true {
+            return
+        }
         if #available(iOS 16.0, *) {
             Task { @MainActor [weak self] in
                 guard let self, let account = self.account else {
