@@ -436,7 +436,9 @@ private func themeSettingsControllerEntries(
     entries.append(.chatPreview(presentationData.theme, presentationData.chatWallpaper, presentationData.chatFontSize, presentationData.chatBubbleCorners, presentationData.strings, presentationData.dateTimeFormat, presentationData.nameDisplayOrder, [ChatPreviewMessageItem(outgoing: false, reply: (authorName, presentationData.strings.Appearance_PreviewReplyText), text: presentationData.strings.Appearance_PreviewIncomingText, nameColor: nameColor, backgroundEmojiId: accountPeer?.backgroundEmojiId), ChatPreviewMessageItem(outgoing: true, reply: nil, text: presentationData.strings.Appearance_PreviewOutgoingText, nameColor: .preset(.blue), backgroundEmojiId: nil)]))
     
     entries.append(.themes(presentationData.theme, presentationData.strings, chatThemes, themeReference, presentationThemeSettings.automaticThemeSwitchSetting.force || presentationData.autoNightModeTriggered, animatedEmojiStickers, presentationThemeSettings.themeSpecificAccentColors, presentationThemeSettings.themeSpecificChatWallpapers))
-    entries.append(.chatTheme(presentationData.theme, strings.Settings_ChatThemes))
+    // Chat themes and name colours come from the server, and both answer with
+    // nothing here: the pickers open empty. Tasks #23 and #24.
+    // entries.append(.chatTheme(presentationData.theme, strings.Settings_ChatThemes))
     entries.append(.wallpaper(presentationData.theme, strings.Settings_ChatBackground))
     
     let colors: PeerNameColors.Colors
@@ -447,7 +449,7 @@ private func themeSettingsControllerEntries(
         colors = collectibleColor.peerNameColors(dark: presentationData.theme.overallDarkAppearance)
     }
     let profileColors = profileColor.flatMap { nameColors.getProfile($0, dark: presentationData.theme.overallDarkAppearance, subject: .palette) }
-    entries.append(.nameColor(presentationData.theme, presentationData.strings.Settings_YourColor, accountPeer?.compactDisplayTitle ?? "", colors, profileColors))
+    // entries.append(.nameColor(presentationData.theme, presentationData.strings.Settings_YourColor, accountPeer?.compactDisplayTitle ?? "", colors, profileColors))
     
     entries.append(.autoNight(presentationData.theme, strings.Appearance_NightTheme, presentationThemeSettings.automaticThemeSwitchSetting.force, !presentationData.autoNightModeTriggered || presentationThemeSettings.automaticThemeSwitchSetting.force))
     let autoNightMode: String
@@ -535,6 +537,11 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
         appIcons = appIcons.filter { !$0.isPremium } 
     }
     
+    // One brand, one icon. The alternates are still Telegram's colour variants,
+    // so a chooser would offer someone else's artwork; and a picker with a
+    // single entry is not a choice. The section below hides itself when the
+    // list is empty, so emptying it is all that is needed.
+    appIcons = []
     let availableAppIcons: Signal<[PresentationAppIcon], NoError> = .single(appIcons)
     let currentAppIconName = ValuePromise<String?>()
     currentAppIconName.set(currentAppIcon?.name ?? "Blue")

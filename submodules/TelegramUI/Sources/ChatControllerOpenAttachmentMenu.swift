@@ -124,13 +124,12 @@ extension ChatControllerImpl {
             availableButtons.append(.contact)
         }
                 
-        if canSendPolls {
-            availableButtons.insert(.poll, at: max(0, availableButtons.count - 1))
-        }
-        
-        if canSendTodos {
-            availableButtons.insert(.todo, at: max(0, availableButtons.count - 1))
-        }
+        // Polls and to-do lists need a server that stores them and counts votes,
+        // and nothing here implements either - messages.sendVote and the rest
+        // have no handler at all. Offering the button means composing a poll
+        // that vanishes on send. Tasks #20 and #21.
+        let _ = canSendPolls
+        let _ = canSendTodos
         
         let presentationData = self.presentationData
         

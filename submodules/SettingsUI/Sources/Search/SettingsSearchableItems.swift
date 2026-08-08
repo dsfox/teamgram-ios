@@ -4442,11 +4442,17 @@ func settingsSearchableItems(
         let devicesItems = devicesSearchableItems(context: context, activeSessionsContext: activeSessionsContext, webSessionsContext: activeWebSessionsContext)
         allItems.append(contentsOf: devicesItems)
         
-        let callItems = callSearchableItems(context: context)
-        allItems.append(contentsOf: callItems)
+        // Calls are hidden until they work (task #14). Leaving them in search
+        // means a result that opens a screen the rest of the app pretends does
+        // not exist - the one place a hidden feature leaks back out.
+        // let callItems = callSearchableItems(context: context)
+        // allItems.append(contentsOf: callItems)
         
-        let chatFolders = chatFoldersSearchableItems(context: context)
-        allItems.append(contentsOf: chatFolders)
+        // Chat folders: reading them answers with an empty list and creating one
+        // has no handler at all, so the screen offers a folder that cannot be
+        // saved. Task #22.
+        // let chatFolders = chatFoldersSearchableItems(context: context)
+        // allItems.append(contentsOf: chatFolders)
         
         let stickerItems = stickerSearchableItems(context: context, archivedStickerPacks: archivedStickerPacks)
         allItems.append(contentsOf: stickerItems)

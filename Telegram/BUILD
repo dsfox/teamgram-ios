@@ -1746,6 +1746,9 @@ ios_application(
     ],
     resources = [
         ":LaunchScreen",
+        # No .appiconset here: the build rules refuse to mix one with the Icon
+        # Composer .icon bundle the app uses, and fail the analysis outright.
+        # The App Store artwork has to come out of Telegram.icon itself.
         #":DefaultAppIcon",
     ],
     frameworks = [

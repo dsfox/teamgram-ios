@@ -27,7 +27,7 @@
     if (self) {
         _additionalPaymentMethods = STPPaymentMethodTypeAll;
         _requiredBillingAddressFields = STPBillingAddressFieldsNone;
-        _companyName = @"Teamgram";
+        _companyName = @"2bytes";
         _smsAutofillDisabled = NO;
     }
     return self;
