@@ -278,43 +278,6 @@
           ]
         ]
       }
-    },
-    "@@rules_xcodeproj+//xcodeproj:extensions.bzl%internal": {
-      "general": {
-        "bzlTransitiveDigest": "+qmLBZzimJ0CYyKoQg6/pbdkTnu/s4e5IisoM+TLM+8=",
-        "usagesDigest": "fvsnMonVwKDYnBfww4bXuYie3WU0d9VSqT2gePSdQco=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
-        "generatedRepoSpecs": {
-          "rules_xcodeproj_generated": {
-            "repoRuleId": "@@rules_xcodeproj+//xcodeproj:repositories.bzl%generated_files_repo",
-            "attributes": {}
-          }
-        },
-        "recordedRepoMappingEntries": [
-          [
-            "bazel_features+",
-            "bazel_features_globals",
-            "bazel_features++version_extension+bazel_features_globals"
-          ],
-          [
-            "bazel_features+",
-            "bazel_features_version",
-            "bazel_features++version_extension+bazel_features_version"
-          ],
-          [
-            "rules_xcodeproj+",
-            "bazel_features",
-            "bazel_features+"
-          ],
-          [
-            "rules_xcodeproj+",
-            "bazel_tools",
-            "bazel_tools"
-          ]
-        ]
-      }
     }
   }
 }

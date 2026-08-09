@@ -23,6 +23,10 @@ public final class AuthorizationSequenceCodeEntryController: ViewController {
     public var loginWithCode: ((String) -> Void)?
     public var signInWithApple: (() -> Void)?
     public var openFragment: ((String) -> Void)?
+
+    /// Set only where a phone number is being opened. The screen shows its way
+    /// out for a lost phone when this is here, and nothing when it is not.
+    public var openRecovery: (() -> Void)?
     
     var reset: (() -> Void)?
     public var requestNextOption: (() -> Void)?
@@ -109,6 +113,12 @@ public final class AuthorizationSequenceCodeEntryController: ViewController {
         
         self.controllerNode.openFragment = { [weak self] url in
             self?.openFragment?(url)
+        }
+
+        if self.openRecovery != nil {
+            self.controllerNode.openRecovery = { [weak self] in
+                self?.openRecovery?()
+            }
         }
         
         self.controllerNode.requestNextOption = { [weak self] in

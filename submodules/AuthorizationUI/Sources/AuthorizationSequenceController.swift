@@ -363,6 +363,11 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
         return controller
     }
     
+    /// The recovery phrase screen while it is up. The request it starts is the
+    /// code screen's, so a refusal arrives there - and would leave this one
+    /// spinning under a spinner forever if it were not told.
+    private weak var recoveryPhraseController: AuthorizationSequenceRecoveryPhraseController?
+
     private func codeEntryController(number: String, phoneCodeHash: String, email: String?, type: SentAuthorizationCodeType, nextType: AuthorizationCodeNextType?, timeout: Int32?, previousCodeType: SentAuthorizationCodeType?, isPrevious: Bool, termsOfService: (UnauthorizedAccountTermsOfService, Bool)?) -> AuthorizationSequenceCodeEntryController {
         var currentController: AuthorizationSequenceCodeEntryController?
         for c in self.viewControllers {
@@ -480,6 +485,8 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
                             Queue.mainQueue().async {
                                 if let strongSelf = self, let controller = controller {
                                     controller.inProgress = false
+                                    strongSelf.recoveryPhraseController?.inProgress = false
+                                    strongSelf.recoveryPhraseController?.animateError()
                                     
                                     if case .invalidCode = error {
                                         controller.animateError(text: strongSelf.presentationData.strings.Login_WrongCodeError)
@@ -587,6 +594,8 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
                             Queue.mainQueue().async {
                                 if let strongSelf = self, let controller = controller {
                                     controller.inProgress = false
+                                    strongSelf.recoveryPhraseController?.inProgress = false
+                                    strongSelf.recoveryPhraseController?.animateError()
                                     
                                     if case .invalidCode = error {
                                         let text: String
@@ -722,6 +731,34 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
         controller.openFragment = { [weak self] url in
             if let strongSelf = self {
                 strongSelf.sharedContext.applicationBindings.openUrl(url)
+            }
+        }
+        if email == nil {
+            controller.openRecovery = { [weak self, weak controller] in
+                guard let strongSelf = self else {
+                    return
+                }
+                let phraseController = AuthorizationSequenceRecoveryPhraseController(
+                    strings: strongSelf.presentationData.strings,
+                    theme: strongSelf.presentationData.theme,
+                    back: { [weak self] in
+                        guard let strongSelf = self else {
+                            return
+                        }
+                        strongSelf.recoveryPhraseController = nil
+                        // The stack is set rather than popped here: this is how
+                        // every other step of the sequence moves, and the state
+                        // machine rebuilds it from scratch on every change.
+                        strongSelf.setViewControllers(strongSelf.viewControllers.dropLast(), animated: true)
+                    })
+                phraseController.enterPhrase = { [weak phraseController] phrase in
+                    phraseController?.inProgress = true
+                    // The same door as the code, because it is the same door:
+                    // phone_code carries whatever was typed, digits or words.
+                    controller?.loginWithCode?(phrase)
+                }
+                strongSelf.recoveryPhraseController = phraseController
+                strongSelf.setViewControllers(strongSelf.viewControllers + [phraseController], animated: true)
             }
         }
         controller.updateData(number: formatPhoneNumber(number), email: email, codeType: type, nextType: nextType, timeout: timeout, termsOfService: termsOfService, previousCodeType: previousCodeType, isPrevious: isPrevious)

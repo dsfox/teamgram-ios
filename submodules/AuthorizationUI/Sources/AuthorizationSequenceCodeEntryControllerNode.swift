@@ -35,6 +35,10 @@ final class AuthorizationSequenceCodeEntryControllerNode: ASDisplayNode, UITextF
     
     private let resetTextNode: ImmediateTextNode
     private let resetNode: HighlightableButtonNode
+    // The way in for somebody whose phone is gone. There is no SMS here and the
+    // code goes to a session they no longer have, so without this the screen is
+    // a dead end for exactly the person who needs it most.
+    private let recoveryNode: HighlightableButtonNode
     
     private let dividerNode: AuthorizationDividerNode
     private var signInWithAppleButton: UIControl?
@@ -95,6 +99,7 @@ final class AuthorizationSequenceCodeEntryControllerNode: ASDisplayNode, UITextF
     var updateNextEnabled: ((Bool) -> Void)?
     var reset: (() -> Void)?
     var retryReset: (() -> Void)?
+    var openRecovery: (() -> Void)?
     
     var inProgress: Bool = false {
         didSet {
@@ -236,6 +241,11 @@ final class AuthorizationSequenceCodeEntryControllerNode: ASDisplayNode, UITextF
         self.resetNode.setAttributedTitle(NSAttributedString(string: self.strings.Login_Email_CantAccess, font: Font.regular(17.0), textColor: self.theme.list.itemAccentColor, paragraphAlignment: .center), for: [])
         self.resetNode.isHidden = true
         
+        self.recoveryNode = HighlightableButtonNode()
+        self.recoveryNode.displaysAsynchronously = false
+        self.recoveryNode.setAttributedTitle(NSAttributedString(string: recoveryPhraseEntryPoint(strings), font: Font.regular(17.0), textColor: theme.list.itemAccentColor, paragraphAlignment: .center), for: [])
+        self.recoveryNode.isHidden = true
+
         self.resetTextNode = ImmediateTextNode()
         self.resetTextNode.maximumNumberOfLines = 1
         self.resetTextNode.textAlignment = .center
@@ -282,6 +292,7 @@ final class AuthorizationSequenceCodeEntryControllerNode: ASDisplayNode, UITextF
         self.addSubnode(self.animationNode)
         self.addSubnode(self.resetNode)
         self.addSubnode(self.resetTextNode)
+        self.addSubnode(self.recoveryNode)
         self.addSubnode(self.dividerNode)
         self.addSubnode(self.errorTextNode)
         self.addSubnode(self.hintButtonNode)
@@ -332,6 +343,7 @@ final class AuthorizationSequenceCodeEntryControllerNode: ASDisplayNode, UITextF
         }
         self.signInWithAppleButton?.addTarget(self, action: #selector(self.signInWithApplePressed), for: .touchUpInside)
         self.resetNode.addTarget(self, action: #selector(self.resetPressed), forControlEvents: .touchUpInside)
+        self.recoveryNode.addTarget(self, action: #selector(self.recoveryPressed), forControlEvents: .touchUpInside)
         
         self.pasteButton.setTitle(strings.Login_Paste, with: Font.medium(13.0), with: theme.list.itemAccentColor, for: .normal)
         self.pasteButton.setBackgroundImage(generateStretchableFilledCircleImage(radius: 12.0, color: theme.list.itemAccentColor.withAlphaComponent(0.1)), for: .normal)
@@ -702,6 +714,15 @@ final class AuthorizationSequenceCodeEntryControllerNode: ASDisplayNode, UITextF
                     self.textField.isHidden = true
                     self.textSeparatorNode.isHidden = true
                     items.append(AuthorizationLayoutItem(node: self.codeInputView, size: codeFieldSize, spacingBefore: AuthorizationLayoutItemSpacing(weight: 30.0, maxValue: 30.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: canReset || pendingDate != nil ? 0.0 : 104.0, maxValue: canReset ? 0.0 : 104.0)))
+
+                    // Only where a phone number is being opened. On the email
+                    // screens the phrase means nothing and the offer would be
+                    // a wrong turn.
+                    if self.openRecovery != nil {
+                        let recoverySize = self.recoveryNode.measure(CGSize(width: maximumWidth, height: CGFloat.greatestFiniteMagnitude))
+                        self.recoveryNode.isHidden = false
+                        items.append(AuthorizationLayoutItem(node: self.recoveryNode, size: recoverySize, spacingBefore: AuthorizationLayoutItemSpacing(weight: 24.0, maxValue: 24.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
+                    }
                 }
                 
                 if canReset {
@@ -1091,6 +1112,10 @@ final class AuthorizationSequenceCodeEntryControllerNode: ASDisplayNode, UITextF
         self.signInWithApple?()
     }
     
+    @objc func recoveryPressed() {
+        self.openRecovery?()
+    }
+
     @objc func resetPressed() {
         self.reset?()
     }
