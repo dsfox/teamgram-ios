@@ -87,3 +87,5 @@ xcode-files
 .sourcekit-lsp/**
 /.claude/
 /buildbox/*
+third-party/mls/lib/
+third-party/mls/include/

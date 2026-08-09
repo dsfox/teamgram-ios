@@ -18,6 +18,9 @@ swift_library(
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",
         "//submodules/TextFormat:TextFormat",
         "//submodules/Markdown:Markdown",
+        # Linked here for now so that the app must build it:
+        # a crypto core that compiles but never links is not proof of anything.
+        "//submodules/MlsCore:MlsCore",
         "//submodules/TelegramPresentationData:TelegramPresentationData",
         "//submodules/AccountContext:AccountContext",
         "//submodules/CountrySelectionUI:CountrySelectionUI",
