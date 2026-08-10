@@ -222,25 +222,55 @@ public enum MlsConversations {
 public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peerId: PeerId) -> Signal<Int, NoError> {
     return postbox.transaction { transaction -> Int in
         var unreadable: [MessageId] = []
+        var examined = 0
         transaction.withAllMessages(peerId: peerId, { message in
-            // Incoming only. Nothing on this device will ever read back a
-            // message it wrote itself, so trying would be work with a known
-            // answer, repeated on every pass.
-            if message.flags.contains(.Incoming), message.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) {
+            // Either kind: a message put aside on arrival, and one from before
+            // any of this existed, when the ciphertext was left in the text
+            // itself and every screen showed it.
+            if message.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute })
+                || MlsConversations.isCiphertext(message.text) {
                 unreadable.append(message.id)
             }
-            // Bounded: a conversation can hold years of messages, and only the
-            // ones near a missed welcome are ever unreadable.
-            return unreadable.count < 200
+            // Bounded by what is looked at, not by what is found: a conversation
+            // can hold years of messages, and this runs for every one of them at
+            // startup. Stopping only once something is found would mean walking
+            // every message of every chat that has nothing wrong with it.
+            examined += 1
+            return examined < 500
         })
 
         var repaired = 0
         for id in unreadable {
-            guard let message = transaction.getMessage(id),
-                  let held = message.attributes.first(where: { $0 is MlsCiphertextMessageAttribute }) as? MlsCiphertextMessageAttribute,
-                  let plaintext = runtime.decrypt(peerId: peerId, text: held.ciphertext) else {
+            guard let message = transaction.getMessage(id) else {
                 continue
             }
+            let held = message.attributes.first(where: { $0 is MlsCiphertextMessageAttribute }) as? MlsCiphertextMessageAttribute
+            let ciphertext = held?.ciphertext ?? message.text
+
+            // Nothing on this device will ever read back a message it wrote
+            // itself, so an outgoing one is only tidied: the ciphertext leaves
+            // the text and the placeholder takes its place.
+            var plaintext: String?
+            if message.flags.contains(.Incoming) {
+                plaintext = runtime.decrypt(peerId: peerId, text: ciphertext)
+            }
+            if plaintext == nil {
+                guard held == nil else {
+                    // Already put aside and still unreadable: nothing to do
+                    // until the conversation this belongs to turns up.
+                    continue
+                }
+                transaction.updateMessage(id, update: { currentMessage in
+                    var storeForwardInfo: StoreMessageForwardInfo?
+                    if let forwardInfo = currentMessage.forwardInfo {
+                        storeForwardInfo = StoreMessageForwardInfo(authorId: forwardInfo.author?.id, sourceId: forwardInfo.source?.id, sourceMessageId: forwardInfo.sourceMessageId, date: forwardInfo.date, authorSignature: forwardInfo.authorSignature, psaType: forwardInfo.psaType, flags: forwardInfo.flags)
+                    }
+                    let attributes = currentMessage.attributes + [MlsCiphertextMessageAttribute(ciphertext: ciphertext)]
+                    return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: MlsCiphertextMessageAttribute.placeholder, attributes: attributes, media: currentMessage.media))
+                })
+                continue
+            }
+            let plaintextValue = plaintext!
             transaction.updateMessage(id, update: { currentMessage in
                 var storeForwardInfo: StoreMessageForwardInfo?
                 if let forwardInfo = currentMessage.forwardInfo {
@@ -249,7 +279,7 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
                 // The ciphertext goes with it: what it was holding open is now
                 // in the message itself, and a second attempt would only fail.
                 let attributes = currentMessage.attributes.filter { !($0 is MlsCiphertextMessageAttribute) }
-                return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: plaintext, attributes: attributes, media: currentMessage.media))
+                return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: plaintextValue, attributes: attributes, media: currentMessage.media))
             })
             repaired += 1
         }
@@ -259,6 +289,41 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
         }
         return repaired
     }
+}
+
+/// Keeps what this device can already read.
+///
+/// A message that arrives encrypted and unreadable carries a placeholder and
+/// `MlsCiphertextMessageAttribute`. If this device already holds that same
+/// message readable, the arriving copy must not replace it - and one always
+/// does arrive: the server confirms a sent message by echoing it back, and the
+/// person who wrote it is the one person who cannot read it.
+///
+/// This sits where every update finally reaches the database, rather than at
+/// the one path that was found first, because the message came back by a route
+/// nobody had thought about and the next one will too.
+func mlsKeepingWhatIsReadable(_ messages: [StoreMessage], transaction: Transaction) -> [StoreMessage] {
+    var result = messages
+    for index in 0 ..< result.count {
+        guard result[index].attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }),
+              case let .Id(id) = result[index].id,
+              let existing = transaction.getMessage(id),
+              !existing.text.isEmpty,
+              !existing.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) else {
+            continue
+        }
+        let message = result[index]
+        result[index] = StoreMessage(
+            id: message.id, customStableId: message.customStableId,
+            globallyUniqueId: message.globallyUniqueId, groupingKey: message.groupingKey,
+            threadId: message.threadId, timestamp: message.timestamp, flags: message.flags,
+            tags: message.tags, globalTags: message.globalTags, localTags: message.localTags,
+            forwardInfo: message.forwardInfo, authorId: message.authorId,
+            text: existing.text,
+            attributes: message.attributes.filter { !($0 is MlsCiphertextMessageAttribute) },
+            media: message.media)
+    }
+    return result
 }
 
 /// Takes whatever welcomes are waiting, joins those conversations, and reads

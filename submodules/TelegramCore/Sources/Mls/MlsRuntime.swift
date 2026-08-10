@@ -45,7 +45,28 @@ public final class MlsRuntime {
         self.network = network
         self.queue.unlock()
 
-        let _ = self.reload().start()
+        // Once the state is in place, go over every conversation this device
+        // has and read back whatever is still sitting unread in it: messages
+        // that arrived while the app was not running, and messages from before
+        // the ciphertext was kept apart from the text, which every screen used
+        // to show as `mls1:AAEAAh...`.
+        let postbox = self.postbox
+        let _ = (self.reload()
+        |> mapToSignal { [weak self] _ -> Signal<Void, NoError> in
+            guard let self = self else {
+                return .complete()
+            }
+            self.queue.lock()
+            let peers = self.conversationIds.keys.map {
+                PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value($0))
+            }
+            self.queue.unlock()
+            guard !peers.isEmpty else {
+                return .complete()
+            }
+            return combineLatest(peers.map { repairUnreadableMessages(postbox: postbox, runtime: self, peerId: $0) })
+            |> map { _ -> Void in }
+        }).start()
     }
 
     /// Remembers a conversation that has just been started or joined, so the

@@ -4214,7 +4214,7 @@ func replayFinalState(
                     }
                 }
             
-                let _ = transaction.addMessages(messages, location: location)
+                let _ = transaction.addMessages(mlsKeepingWhatIsReadable(messages, transaction: transaction), location: location)
                 if case .UpperHistoryBlock = location {
                     for message in messages {
                         let chatPeerId = message.id.peerId
