@@ -533,13 +533,28 @@ func applyUpdateGroupMessages(postbox: Postbox, stateManager: AccountStateManage
                 }
                 
                 let media: [Media]
-                let attributes: [MessageAttribute]
+                var attributes: [MessageAttribute]
                 let text: String
- 
+
                 media = updatedMessage.media
                 attributes = updatedMessage.attributes
-                text = updatedMessage.text
-                
+                // An album is confirmed by its own path, and the same thing is
+                // true here as for a single message: what comes back is the
+                // ciphertext its author cannot read, so the caption they wrote
+                // has to stay. Without this an album arrived in the sender's
+                // own chat with a lock where the caption was.
+                if updatedMessage.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) {
+                    text = currentMessage.text
+                    attributes = attributes.filter {
+                        !($0 is MlsCiphertextMessageAttribute) && !($0 is TextEntitiesMessageAttribute)
+                    }
+                    if let entities = currentMessage.attributes.first(where: { $0 is TextEntitiesMessageAttribute }) {
+                        attributes.append(entities)
+                    }
+                } else {
+                    text = updatedMessage.text
+                }
+
                 var storeForwardInfo: StoreMessageForwardInfo?
                 if let forwardInfo = currentMessage.forwardInfo {
                     storeForwardInfo = StoreMessageForwardInfo(authorId: forwardInfo.author?.id, sourceId: forwardInfo.source?.id, sourceMessageId: forwardInfo.sourceMessageId, date: forwardInfo.date, authorSignature: forwardInfo.authorSignature, psaType: forwardInfo.psaType, flags: forwardInfo.flags)
