@@ -89,6 +89,25 @@ func fetchResource(
     if let _ = resource as? EmptyMediaResource {
         return .single(.reset)
         |> then(.never())
+    } else if let mlsFileResource = resource as? MlsEncryptedFileResource {
+        // The same fetch as any document, told the key on the way in. The
+        // decryption happens as the parts arrive, in code secret chats have
+        // been using for years.
+        return .single(.dataPart(resourceOffset: 0, data: Data(), range: 0 ..< 0, complete: false))
+        |> then(multipartFetch(
+            accountPeerId: accountPeerId,
+            postbox: postbox,
+            network: network,
+            mediaReferenceRevalidationContext: mediaReferenceRevalidationContext,
+            networkStatsContext: networkStatsContext,
+            resource: mlsFileResource,
+            datacenterId: mlsFileResource.datacenterId,
+            size: mlsFileResource.containerSize,
+            intervals: intervals,
+            parameters: parameters,
+            encryptionKey: mlsFileResource.key,
+            decryptedSize: mlsFileResource.decryptedSize
+        ))
     } else if let secretFileResource = resource as? SecretFileMediaResource {
         return .single(.dataPart(resourceOffset: 0, data: Data(), range: 0 ..< 0, complete: false))
         |> then(fetchSecretFileResource(

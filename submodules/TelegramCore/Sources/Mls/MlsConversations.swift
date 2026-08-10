@@ -153,9 +153,9 @@ public enum MlsConversations {
     /// The formatting goes inside rather than beside it. An entity - bold, a
     /// link, a mention - is a pair of offsets into the text, and next to a
     /// ciphertext they point at nothing.
-    public static func encrypt(postbox: Postbox, identity: MlsIdentity, group: MlsGroup, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded?) -> String? {
+    public static func encrypt(postbox: Postbox, identity: MlsIdentity, group: MlsGroup, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded?, media: Api.mls.Content.Media?) -> String? {
         do {
-            let ciphertext = try group.encrypt(identity: identity, plaintext: Api.mls.Content.encode(text: text, entities: entities, forwarded: forwarded))
+            let ciphertext = try group.encrypt(identity: identity, plaintext: Api.mls.Content.encode(text: text, entities: entities, forwarded: forwarded, media: media))
             let state = try identity.export()
 
             // The ratchet has moved. Saved on another queue rather than here:
@@ -208,7 +208,8 @@ public enum MlsConversations {
                 return MlsMessageContent(
                     text: content.text,
                     entities: messageTextEntitiesFromApiEntities(content.entities),
-                    forwarded: content.forwarded)
+                    forwarded: content.forwarded,
+                    media: content.media)
             }
             // From a version that encrypted the bare text. Read as text rather
             // than refused: those messages are still in people's chats.
@@ -234,11 +235,15 @@ public struct MlsMessageContent {
     /// whose members could never read it - so it is sent as a new message that
     /// says inside itself where it came from.
     public let forwarded: Api.mls.Content.Forwarded?
+    /// What the file in this message actually is, when there is one. The server
+    /// is holding it as a blob of random bytes and knows nothing else about it.
+    public let media: Api.mls.Content.Media?
 
-    public init(text: String, entities: [MessageTextEntity], forwarded: Api.mls.Content.Forwarded? = nil) {
+    public init(text: String, entities: [MessageTextEntity], forwarded: Api.mls.Content.Forwarded? = nil, media: Api.mls.Content.Media? = nil) {
         self.text = text
         self.entities = entities
         self.forwarded = forwarded
+        self.media = media
     }
 }
 
@@ -377,7 +382,10 @@ func mlsKeepingWhatIsReadable(_ messages: [StoreMessage], transaction: Transacti
             authorId: message.authorId,
             text: existing.text,
             attributes: attributes,
-            media: message.media)
+            // And the file. What comes back is the blob the server is holding;
+            // the real picture is the one already here, and this device is the
+            // one that made it.
+            media: existing.media.isEmpty ? message.media : existing.media)
     }
     return result
 }

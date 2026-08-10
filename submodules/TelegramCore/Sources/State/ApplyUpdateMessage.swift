@@ -150,7 +150,13 @@ func applyUpdateMessage(postbox: Postbox, stateManager: AccountStateManager, mes
             }
             
             if let apiMessage = apiMessage, let apiMessagePeerId = apiMessage.peerId, let updatedMessage = StoreMessage(apiMessage: apiMessage, accountPeerId: accountPeerId, peerIsForum: transaction.getPeer(apiMessagePeerId)?.isForumOrMonoForum ?? false, namespace: namespace) {
-                media = updatedMessage.media
+                // The file too: what comes back is the blob of ciphertext the
+                // server is holding, and the picture itself is already here.
+                if updatedMessage.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }), !currentMessage.media.isEmpty {
+                    media = currentMessage.media
+                } else {
+                    media = updatedMessage.media
+                }
                 attributes = updatedMessage.attributes
                 // The server confirms a sent message by echoing it back, and
                 // what it echoes is what travelled: for an encrypted message,
@@ -536,7 +542,11 @@ func applyUpdateGroupMessages(postbox: Postbox, stateManager: AccountStateManage
                 var attributes: [MessageAttribute]
                 let text: String
 
-                media = updatedMessage.media
+                if updatedMessage.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }), !currentMessage.media.isEmpty {
+                    media = currentMessage.media
+                } else {
+                    media = updatedMessage.media
+                }
                 attributes = updatedMessage.attributes
                 // An album is confirmed by its own path, and the same thing is
                 // true here as for a single message: what comes back is the

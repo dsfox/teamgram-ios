@@ -21,6 +21,22 @@ struct PendingMessageUploadedContentAndReuploadInfo {
     let content: PendingMessageUploadedContent
     let reuploadInfo: PendingMessageReuploadInfo?
     let cacheReferenceKey: CachedSentMediaReferenceKey?
+    /// Set when the file was uploaded encrypted. It is everything the other
+    /// side needs to make sense of a blob of random bytes - what it is, how big
+    /// it is on screen, and the key - and it travels inside the message rather
+    /// than beside it.
+    ///
+    /// Carried here rather than in `content` so that the ordinary path stays
+    /// exactly as it was: the request built from `.media` is the same request,
+    /// and this rides along to the one place that puts it in the ciphertext.
+    let mlsMedia: Api.mls.Content.Media?
+
+    init(content: PendingMessageUploadedContent, reuploadInfo: PendingMessageReuploadInfo?, cacheReferenceKey: CachedSentMediaReferenceKey?, mlsMedia: Api.mls.Content.Media? = nil) {
+        self.content = content
+        self.reuploadInfo = reuploadInfo
+        self.cacheReferenceKey = cacheReferenceKey
+        self.mlsMedia = mlsMedia
+    }
 }
 
 struct PendingMessageUploadedContentProgress {
@@ -137,6 +153,18 @@ func messageContentToUpload(accountPeerId: PeerId, network: Network, postbox: Po
 }
 
 func mediaContentToUpload(accountPeerId: PeerId, network: Network, postbox: Postbox, auxiliaryMethods: AccountAuxiliaryMethods, transformOutgoingMessageMedia: TransformOutgoingMessageMedia?, messageMediaPreuploadManager: MessageMediaPreuploadManager, revalidationContext: MediaReferenceRevalidationContext, forceReupload: Bool, isGrouped: Bool, passFetchProgress: Bool, forceNoBigParts: Bool, peerId: PeerId, media: Media, text: String, autoremoveMessageAttribute: AutoremoveTimeoutMessageAttribute?, autoclearMessageAttribute: AutoclearTimeoutMessageAttribute?, messageId: MessageId?, attributes: [MessageAttribute], mediaReference: AnyMediaReference?, explicitPartialReference: PartialMediaReference?) -> Signal<PendingMessageUploadedContentResult, PendingMessageUploadError>? {
+    // Into an encrypted conversation a file goes up encrypted, as a document
+    // full of bytes the server cannot read. Before any of the branches below,
+    // because every one of them hands the file over as it is.
+    //
+    // Only a file that is not already on the server: one that is has been
+    // uploaded in the clear once already, and encrypting the copy would not
+    // take that back while making the message unreadable to the other side.
+    if MlsRuntime.isEncrypted(peerId: peerId), mediaReference == nil,
+       let content = mlsUploadedMediaContent(network: network, postbox: postbox, peerId: peerId, media: media, text: text) {
+        return content
+    }
+
     if let paidContent = media as? TelegramMediaPaidContent {
         var signals: [Signal<PendingMessageUploadedContentResult, PendingMessageUploadError>] = []
         var mediaIds: [MediaId] = []

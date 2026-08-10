@@ -1017,7 +1017,15 @@ extension StoreMessage {
                     let (mediaValue, expirationTimer, nonPremium, hasSpoiler, webpageAttributes, videoTimestamp) = textMediaAndExpirationTimerFromApiMedia(media, peerId)
                     if let mediaValue = mediaValue {
                         medias.append(mediaValue)
-                    
+
+                        // What arrived is a document holding bytes the server
+                        // cannot read. What it really is - a picture, a video,
+                        // a voice message - and the key to it came inside the
+                        // message, so the two are put back together here.
+                        if let descriptor = decrypted?.media, let real = mlsIncomingMedia(from: medias, descriptor: descriptor) {
+                            medias = real
+                        }
+
                         if let expirationTimer = expirationTimer, expirationTimer > 0 {
                             attributes.append(AutoclearTimeoutMessageAttribute(timeout: expirationTimer, countdownBeginTime: nil))
                             consumableContent = (true, false)

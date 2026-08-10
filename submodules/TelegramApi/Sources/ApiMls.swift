@@ -230,9 +230,57 @@ public extension Api {
                 }
             }
 
-            public static func encode(text: String, entities: [Api.MessageEntity], forwarded: Forwarded? = nil) -> Data {
+            /// mls.media kind:int mime:string name:string size:long width:int height:int duration:int key:bytes iv:bytes thumb:bytes = mls.Media;
+            ///
+            /// Everything needed to show a file that the server is holding as a
+            /// blob of random bytes: what it is, how big it is on screen, and
+            /// the key that turns it back into a picture. The server generates
+            /// no preview for it and knows no filename, because both would
+            /// describe what it is not allowed to see.
+            public static let mediaConstructor: Int32 = 859009216
+            /// mls.message flags:# text:string entities:Vector<MessageEntity> forward:flags.0?mls.Forward media:flags.1?mls.Media = mls.Content;
+            public static let messageConstructor: Int32 = 995434673
+            /// mls.forward from_id:long from_name:string date:int = mls.Forward;
+            public static let forwardConstructor: Int32 = 940936156
+
+            public struct Media {
+                /// 0 a file, 1 a picture, 2 a video, 3 a voice message,
+                /// 4 a round video message, 5 an animation.
+                public let kind: Int32
+                public let mime: String
+                public let name: String
+                public let size: Int64
+                public let width: Int32
+                public let height: Int32
+                public let duration: Int32
+                public let key: Data
+                public let iv: Data
+                /// The blurred placeholder shown until the file has come down,
+                /// a couple of hundred bytes of it. It travels here rather than
+                /// beside the message because a thumbnail is the picture.
+                public let thumb: Data
+
+                public init(kind: Int32, mime: String, name: String, size: Int64, width: Int32, height: Int32, duration: Int32, key: Data, iv: Data, thumb: Data) {
+                    self.kind = kind
+                    self.mime = mime
+                    self.name = name
+                    self.size = size
+                    self.width = width
+                    self.height = height
+                    self.duration = duration
+                    self.key = key
+                    self.iv = iv
+                    self.thumb = thumb
+                }
+            }
+
+            public static func encode(text: String, entities: [Api.MessageEntity], forwarded: Forwarded? = nil, media: Media? = nil) -> Data {
                 let buffer = Buffer()
-                buffer.appendInt32(forwarded == nil ? constructor : forwardedConstructor)
+                buffer.appendInt32(messageConstructor)
+                var flags: Int32 = 0
+                if forwarded != nil { flags |= 1 << 0 }
+                if media != nil { flags |= 1 << 1 }
+                serializeInt32(flags, buffer: buffer, boxed: false)
                 serializeString(text, buffer: buffer, boxed: false)
                 buffer.appendInt32(481674261)
                 buffer.appendInt32(Int32(entities.count))
@@ -240,9 +288,23 @@ public extension Api {
                     entity.serialize(buffer, true)
                 }
                 if let forwarded = forwarded {
+                    buffer.appendInt32(forwardConstructor)
                     serializeInt64(forwarded.authorId, buffer: buffer, boxed: false)
                     serializeString(forwarded.authorName, buffer: buffer, boxed: false)
                     serializeInt32(forwarded.date, buffer: buffer, boxed: false)
+                }
+                if let media = media {
+                    buffer.appendInt32(mediaConstructor)
+                    serializeInt32(media.kind, buffer: buffer, boxed: false)
+                    serializeString(media.mime, buffer: buffer, boxed: false)
+                    serializeString(media.name, buffer: buffer, boxed: false)
+                    serializeInt64(media.size, buffer: buffer, boxed: false)
+                    serializeInt32(media.width, buffer: buffer, boxed: false)
+                    serializeInt32(media.height, buffer: buffer, boxed: false)
+                    serializeInt32(media.duration, buffer: buffer, boxed: false)
+                    serializeBytes(Buffer(data: media.key), buffer: buffer, boxed: false)
+                    serializeBytes(Buffer(data: media.iv), buffer: buffer, boxed: false)
+                    serializeBytes(Buffer(data: media.thumb), buffer: buffer, boxed: false)
                 }
                 return buffer.makeData()
             }
@@ -250,12 +312,27 @@ public extension Api {
             /// Nothing if this is not one of ours. A message from a version that
             /// encrypted the bare text is exactly that, so the caller falls back
             /// to reading the bytes as text rather than showing nothing.
-            public static func decode(_ data: Data) -> (text: String, entities: [Api.MessageEntity], forwarded: Forwarded?)? {
+            ///
+            /// The two older shapes are still read. They are in people's chats.
+            public static func decode(_ data: Data) -> (text: String, entities: [Api.MessageEntity], forwarded: Forwarded?, media: Media?)? {
                 let reader = BufferReader(Buffer(data: data))
-                guard let signature = reader.readInt32(),
-                      signature == constructor || signature == forwardedConstructor else {
+                guard let signature = reader.readInt32() else {
                     return nil
                 }
+                guard signature == constructor || signature == forwardedConstructor || signature == messageConstructor else {
+                    return nil
+                }
+
+                var flags: Int32 = 0
+                if signature == messageConstructor {
+                    guard let value = reader.readInt32() else {
+                        return nil
+                    }
+                    flags = value
+                } else if signature == forwardedConstructor {
+                    flags = 1 << 0
+                }
+
                 guard let text = parseString(reader) else {
                     return nil
                 }
@@ -265,15 +342,41 @@ public extension Api {
                 guard let entities = Api.parseVector(reader, elementSignature: 0, elementType: Api.MessageEntity.self) else {
                     return nil
                 }
-                if signature == constructor {
-                    return (text, entities, nil)
+
+                var forwarded: Forwarded?
+                if (flags & (1 << 0)) != 0 {
+                    if signature == messageConstructor {
+                        guard let inner = reader.readInt32(), inner == forwardConstructor else {
+                            return nil
+                        }
+                    }
+                    guard let authorId = reader.readInt64(),
+                          let authorName = parseString(reader),
+                          let date = reader.readInt32() else {
+                        return nil
+                    }
+                    forwarded = Forwarded(authorId: authorId, authorName: authorName, date: date)
                 }
-                guard let authorId = reader.readInt64(),
-                      let authorName = parseString(reader),
-                      let date = reader.readInt32() else {
-                    return nil
+
+                var media: Media?
+                if (flags & (1 << 1)) != 0 {
+                    guard let inner = reader.readInt32(), inner == mediaConstructor,
+                          let kind = reader.readInt32(),
+                          let mime = parseString(reader),
+                          let name = parseString(reader),
+                          let size = reader.readInt64(),
+                          let width = reader.readInt32(),
+                          let height = reader.readInt32(),
+                          let duration = reader.readInt32(),
+                          let key = parseBytes(reader),
+                          let iv = parseBytes(reader),
+                          let thumb = parseBytes(reader) else {
+                        return nil
+                    }
+                    media = Media(kind: kind, mime: mime, name: name, size: size, width: width, height: height, duration: duration, key: key.makeData(), iv: iv.makeData(), thumb: thumb.makeData())
                 }
-                return (text, entities, Forwarded(authorId: authorId, authorName: authorName, date: date))
+
+                return (text, entities, forwarded, media)
             }
         }
     }

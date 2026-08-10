@@ -1882,7 +1882,7 @@ public final class PendingMessageManager {
                         // what somebody wrote under it now is.
                         var outgoingText = text
                         if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                            .encrypt(peerId: messageId.peerId, text: text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message)) {
+                            .encrypt(peerId: messageId.peerId, text: text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message), media: content.mlsMedia) {
                             outgoingText = ciphertext
                             messageEntities = nil
                             flags &= ~Int32(1 << 3)

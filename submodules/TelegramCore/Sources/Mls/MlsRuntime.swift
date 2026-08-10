@@ -151,11 +151,11 @@ public final class MlsRuntime {
 
     /// What to send instead of this message, or nothing when this conversation
     /// cannot carry it - and then it goes as it always did.
-    public func encrypt(peerId: PeerId, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded? = nil) -> String? {
-        // An empty text is nothing to encrypt - unless it is a forward, whose
-        // whole content may be a picture and whose attribution still has to
-        // travel inside rather than beside it.
-        guard !text.isEmpty || forwarded != nil else {
+    public func encrypt(peerId: PeerId, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded? = nil, media: Api.mls.Content.Media? = nil) -> String? {
+        // An empty text is nothing to encrypt - unless something else has to
+        // travel inside the message anyway: the key to a picture sent without a
+        // caption, or the attribution of a forward.
+        guard !text.isEmpty || forwarded != nil || media != nil else {
             return nil
         }
 
@@ -172,7 +172,7 @@ public final class MlsRuntime {
             }
             return nil
         }
-        return MlsConversations.encrypt(postbox: self.postbox, identity: identity, group: group, text: text, entities: entities, forwarded: forwarded)
+        return MlsConversations.encrypt(postbox: self.postbox, identity: identity, group: group, text: text, entities: entities, forwarded: forwarded, media: media)
     }
 
     /// Makes sure there is a conversation with this person before a message is
