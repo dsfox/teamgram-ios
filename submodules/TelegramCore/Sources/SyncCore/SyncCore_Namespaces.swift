@@ -314,6 +314,10 @@ private enum PreferencesKeyValues: Int32 {
     case displaySavedChatsAsTopics = 35
     case shortcutMessages = 37
     case timezoneList = 38
+    // Ours. Numbered well clear of upstream's so that a number added there
+    // cannot collide with this one and read somebody's crypto state as a
+    // timezone list.
+    case mlsDeviceState = 1001
     case botBiometricsState = 39
     case businessLinks = 40
     case starGifts = 41
@@ -423,6 +427,18 @@ public struct PreferencesKeys {
         return key
     }()
     
+    /// Where this device's end-to-end encryption state lives: its signature
+    /// key, the conversations it is in, and where each ratchet had got to.
+    ///
+    /// In the account's own storage rather than the keychain, for the same
+    /// reason secret chat state is: it grows with the number of conversations,
+    /// and it has to be dropped with the account when the account is dropped.
+    public static let mlsDeviceState: ValueBoxKey = {
+        let key = ValueBoxKey(length: 4)
+        key.setInt32(0, value: PreferencesKeyValues.mlsDeviceState.rawValue)
+        return key
+    }()
+
     public static let chatListFilters: ValueBoxKey = {
         let key = ValueBoxKey(length: 4)
         key.setInt32(0, value: PreferencesKeyValues.chatListFilters.rawValue)
