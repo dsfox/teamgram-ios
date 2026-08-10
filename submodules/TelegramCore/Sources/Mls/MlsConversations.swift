@@ -30,6 +30,35 @@ public struct MlsConversationIds: Codable, Equatable {
     public init(groupIdByPeer: [Int64: Data] = [:]) {
         self.groupIdByPeer = groupIdByPeer
     }
+
+    // Two parallel arrays of the simplest types there are.
+    //
+    // A dictionary keyed by Int64 and holding Data looks harmless and is not:
+    // Postbox encodes preferences with its own encoder, and that shape trapped
+    // inside it, killing the app on the thread that writes messages. This is
+    // the shape the rest of this codebase uses, and it is used here for that
+    // reason rather than for elegance.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: StringCodingKey.self)
+        let peers = try container.decodeIfPresent([Int64].self, forKey: "p") ?? []
+        let groups = try container.decodeIfPresent([String].self, forKey: "g") ?? []
+
+        var result: [Int64: Data] = [:]
+        for (index, peer) in peers.enumerated() where index < groups.count {
+            if let groupId = Data(base64Encoded: groups[index]) {
+                result[peer] = groupId
+            }
+        }
+        self.groupIdByPeer = result
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: StringCodingKey.self)
+        // Sorted, so that writing the same thing twice writes the same bytes.
+        let sorted = self.groupIdByPeer.sorted(by: { $0.key < $1.key })
+        try container.encode(sorted.map({ $0.key }), forKey: "p")
+        try container.encode(sorted.map({ $0.value.base64EncodedString() }), forKey: "g")
+    }
 }
 
 public extension MlsConversationIds {
