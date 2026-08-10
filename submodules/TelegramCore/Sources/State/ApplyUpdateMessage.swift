@@ -152,7 +152,24 @@ func applyUpdateMessage(postbox: Postbox, stateManager: AccountStateManager, mes
             if let apiMessage = apiMessage, let apiMessagePeerId = apiMessage.peerId, let updatedMessage = StoreMessage(apiMessage: apiMessage, accountPeerId: accountPeerId, peerIsForum: transaction.getPeer(apiMessagePeerId)?.isForumOrMonoForum ?? false, namespace: namespace) {
                 media = updatedMessage.media
                 attributes = updatedMessage.attributes
-                text = updatedMessage.text
+                // The server confirms a sent message by echoing it back, and
+                // what it echoes is what travelled: for an encrypted message,
+                // ciphertext this device cannot read. MLS application messages
+                // are not readable by the person who wrote them - measured, see
+                // `the_sender_cannot_read_their_own_message` - so taking the
+                // server's copy here destroys the text the person typed and
+                // leaves them looking at their own message as a placeholder,
+                // permanently.
+                //
+                // The local copy is the truth for our own messages. It is the
+                // only copy of them that will ever be readable on this device.
+                if updatedMessage.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) {
+                    text = currentMessage.text
+                    // Nothing left for it to hold open.
+                    attributes = attributes.filter { !($0 is MlsCiphertextMessageAttribute) }
+                } else {
+                    text = updatedMessage.text
+                }
                 forwardInfo = updatedMessage.forwardInfo
                 threadId = updatedMessage.threadId
             } else if case let .updateShortSentMessage(updateShortSentMessageData) = result {

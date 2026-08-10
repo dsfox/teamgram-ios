@@ -208,17 +208,73 @@ public enum MlsConversations {
     }
 }
 
-/// Joins the conversations other people have started with this device.
+/// Reads back the messages of a conversation that arrived before this device
+/// could open them, and rewrites the ones it can now read.
+///
+/// Without this, decryption is a single attempt made at the moment a message is
+/// written into the database, and whatever it produced stays there for ever. A
+/// message always can arrive before the conversation does - the welcome travels
+/// by another route, and the app may not even be running - so the attempt has to
+/// be repeatable or the message is lost to a race that nobody can see.
+///
+/// Our own messages are skipped: nothing on this device will ever read them
+/// back, so trying would only waste the walk.
+public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peerId: PeerId) -> Signal<Int, NoError> {
+    return postbox.transaction { transaction -> Int in
+        var unreadable: [MessageId] = []
+        transaction.withAllMessages(peerId: peerId, { message in
+            // Incoming only. Nothing on this device will ever read back a
+            // message it wrote itself, so trying would be work with a known
+            // answer, repeated on every pass.
+            if message.flags.contains(.Incoming), message.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) {
+                unreadable.append(message.id)
+            }
+            // Bounded: a conversation can hold years of messages, and only the
+            // ones near a missed welcome are ever unreadable.
+            return unreadable.count < 200
+        })
+
+        var repaired = 0
+        for id in unreadable {
+            guard let message = transaction.getMessage(id),
+                  let held = message.attributes.first(where: { $0 is MlsCiphertextMessageAttribute }) as? MlsCiphertextMessageAttribute,
+                  let plaintext = runtime.decrypt(peerId: peerId, text: held.ciphertext) else {
+                continue
+            }
+            transaction.updateMessage(id, update: { currentMessage in
+                var storeForwardInfo: StoreMessageForwardInfo?
+                if let forwardInfo = currentMessage.forwardInfo {
+                    storeForwardInfo = StoreMessageForwardInfo(authorId: forwardInfo.author?.id, sourceId: forwardInfo.source?.id, sourceMessageId: forwardInfo.sourceMessageId, date: forwardInfo.date, authorSignature: forwardInfo.authorSignature, psaType: forwardInfo.psaType, flags: forwardInfo.flags)
+                }
+                // The ciphertext goes with it: what it was holding open is now
+                // in the message itself, and a second attempt would only fail.
+                let attributes = currentMessage.attributes.filter { !($0 is MlsCiphertextMessageAttribute) }
+                return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: plaintext, attributes: attributes, media: currentMessage.media))
+            })
+            repaired += 1
+        }
+
+        if repaired > 0 {
+            Logger.shared.log("Mls", "read back \(repaired) message(s) from \(peerId) that arrived before the conversation")
+        }
+        return repaired
+    }
+}
+
+/// Takes whatever welcomes are waiting, joins those conversations, and reads
+/// back any message that arrived before them. Returns the people whose
+/// conversations were opened.
 ///
 /// A welcome waits on the server until this says the conversation is open and
 /// saved. Confirming on arrival would lose it to a crash in between, and the
 /// loss would surface much later, as messages that will not open.
-func managedMlsWelcomes(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
-    let poll = Signal<Void, NoError> { subscriber in
+func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<[PeerId], NoError> {
+    return Signal<[PeerId], NoError> { subscriber in
         let identity: MlsIdentity
         do {
             identity = try mlsIdentity(postbox: postbox, accountPeerId: accountPeerId)
         } catch {
+            subscriber.putNext([])
             subscriber.putCompletion()
             return EmptyDisposable
         }
@@ -228,9 +284,9 @@ func managedMlsWelcomes(postbox: Postbox, network: Network, accountPeerId: PeerI
         |> `catch` { _ -> Signal<Api.mls.Welcomes?, NoError> in
             return .single(nil)
         }
-        |> mapToSignal { result -> Signal<Void, NoError> in
+        |> mapToSignal { result -> Signal<[PeerId], NoError> in
             guard let result = result, !result.welcomes.isEmpty else {
-                return .complete()
+                return .single([])
             }
 
             var opened: [Int64] = []
@@ -250,8 +306,10 @@ func managedMlsWelcomes(postbox: Postbox, network: Network, accountPeerId: PeerI
             }
 
             guard !opened.isEmpty, let state = try? identity.export() else {
-                return .complete()
+                return .single([])
             }
+
+            let joined = peers.keys.map { PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value($0)) }
 
             return postbox.transaction { transaction -> Void in
                 MlsDeviceState.save(transaction: transaction, state: state)
@@ -262,22 +320,46 @@ func managedMlsWelcomes(postbox: Postbox, network: Network, accountPeerId: PeerI
                         groupId: groupId)
                 }
             }
-            |> mapToSignal { _ -> Signal<Void, NoError> in
-                // Only now: the conversation is open and written down.
-                MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).reload()
-                return network.request(Api.functions.mls.confirmWelcomes(ids: opened))
-                |> map { _ -> Void in }
-                |> `catch` { _ -> Signal<Void, NoError> in
-                    return .complete()
+            |> mapToSignal { _ -> Signal<[PeerId], NoError> in
+                // Only now: the conversation is open and written down. Waited
+                // for rather than started and left, because the caller reads
+                // messages back with these conversations the moment this
+                // returns - and would find none of them.
+                return MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).reload()
+                |> mapToSignal { _ -> Signal<[PeerId], NoError> in
+                    return network.request(Api.functions.mls.confirmWelcomes(ids: opened))
+                    |> map { _ -> [PeerId] in joined }
+                    |> `catch` { _ -> Signal<[PeerId], NoError> in
+                        // The conversations are open here either way, so the
+                        // messages waiting in them are worth reading back even
+                        // when the server was not told.
+                        return .single(joined)
+                    }
                 }
             }
-        }).start(completed: {
+        }).start(next: { peers in
+            subscriber.putNext(peers)
+        }, completed: {
             subscriber.putCompletion()
         })
 
         return ActionDisposable {
             disposable.dispose()
         }
+    }
+}
+
+/// Joins the conversations other people have started with this device, over and
+/// over, and reads back the messages that beat their welcome here.
+func managedMlsWelcomes(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
+    let poll = joinPendingWelcomes(postbox: postbox, network: network, accountPeerId: accountPeerId)
+    |> mapToSignal { peers -> Signal<Void, NoError> in
+        guard !peers.isEmpty else {
+            return .complete()
+        }
+        let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+        return combineLatest(peers.map { repairUnreadableMessages(postbox: postbox, runtime: runtime, peerId: $0) })
+        |> map { _ -> Void in }
     }
 
     return (poll |> then(Signal<Void, NoError>.complete() |> suspendAwareDelay(30.0, queue: Queue.concurrentDefaultQueue())))

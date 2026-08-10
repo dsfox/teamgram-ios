@@ -981,10 +981,25 @@ extension StoreMessage {
                 }
                 
                 // Read back if this is one of ours and this device is in the
-                // conversation. Anything else - not ours, not readable, no
-                // conversation here - is shown exactly as it arrived: ugly and
-                // honest beats an empty message with no explanation.
-                let messageText = MlsRuntime.decryptIncoming(peerId: peerId, text: message) ?? message
+                // conversation.
+                //
+                // A message can be ours and still unreadable here - it usually
+                // means it overtook the welcome that lets this device into the
+                // conversation, which happens because the two travel by
+                // different routes. Then the ciphertext is put aside and the
+                // text becomes something a person can understand, rather than
+                // `mls1:AAEAAh...` in their chat, their chat list and their
+                // search. `MlsRuntime` goes looking for the welcome and reads
+                // the message back once it has it.
+                var messageText = message
+                if MlsRuntime.isCiphertext(message) {
+                    if let plaintext = MlsRuntime.decryptIncoming(peerId: peerId, text: message) {
+                        messageText = plaintext
+                    } else {
+                        messageText = MlsCiphertextMessageAttribute.placeholder
+                        attributes.append(MlsCiphertextMessageAttribute(ciphertext: message))
+                    }
+                }
                 var medias: [Media] = []
                 
                 var consumableContent: (Bool, Bool)? = nil

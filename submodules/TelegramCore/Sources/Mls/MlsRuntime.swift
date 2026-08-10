@@ -36,7 +36,6 @@ public final class MlsRuntime {
     /// transaction. Opening another one there and waiting for it is a deadlock:
     /// the app stops, and it stops on the path every message takes.
     private var conversationIds: [Int64: Data] = [:]
-    private var loaded = false
 
     /// Told which network to use, once, by the account that owns it - and the
     /// moment to read everything off disk, which is here rather than at first
@@ -46,22 +45,7 @@ public final class MlsRuntime {
         self.network = network
         self.queue.unlock()
 
-        let postbox = self.postbox
-        let accountPeerId = self.accountPeerId
-        let _ = (postbox.transaction { transaction -> [Int64: Data] in
-            return MlsConversationIds.load(transaction: transaction).groupIdByPeer
-        }
-        |> deliverOn(Queue.concurrentDefaultQueue())).start(next: { [weak self] ids in
-            guard let self = self else {
-                return
-            }
-            let identity = try? mlsIdentity(postbox: postbox, accountPeerId: accountPeerId)
-            self.queue.lock()
-            self.conversationIds = ids
-            self.identity = identity
-            self.loaded = true
-            self.queue.unlock()
-        })
+        let _ = self.reload().start()
     }
 
     /// Remembers a conversation that has just been started or joined, so the
@@ -116,6 +100,33 @@ public final class MlsRuntime {
         return (identity, group)
     }
 
+    /// Whether it makes any sense to encrypt to this peer at all.
+    ///
+    /// Only conversations between two people. A channel or a group has no
+    /// device to encrypt to, so every attempt would cost a round trip and end
+    /// in the clear anyway - once per message, for ever, because nothing is
+    /// ever remembered.
+    ///
+    /// Saved Messages is excluded for a harder reason: a conversation with
+    /// oneself would be one where every message is written by the only person
+    /// who cannot read it back, and the notes would go in unreadable.
+    private func worthEncrypting(to peerId: PeerId) -> Bool {
+        guard peerId.namespace == Namespaces.Peer.CloudUser, peerId != self.accountPeerId else {
+            return false
+        }
+        // Somebody with no device published - not updated yet, or a bot. Asked
+        // about again after a while rather than before every message.
+        if let asked = self.withoutDevices[peerId.id._internalGetInt64Value()],
+           CFAbsoluteTimeGetCurrent() - asked < 600.0 {
+            return false
+        }
+        return true
+    }
+
+    /// When each peer was last found to have no device, so a person who has not
+    /// updated does not cost a round trip on every message sent to them.
+    private var withoutDevices: [Int64: Double] = [:]
+
     /// What to send instead of this text, or nothing when this conversation
     /// cannot carry it - and then the message goes as it always did.
     public func encrypt(peerId: PeerId, text: String) -> String? {
@@ -131,7 +142,9 @@ public final class MlsRuntime {
             // conversation is started behind it, so the next one does not - the
             // alternative is holding a message until a handshake finishes,
             // which is a messenger that pauses for reasons a person cannot see.
-            self.startConversation(with: peerId)
+            if self.worthEncrypting(to: peerId) {
+                self.startConversation(with: peerId)
+            }
             return nil
         }
         return MlsConversations.encrypt(postbox: self.postbox, identity: identity, group: group, text: text)
@@ -151,6 +164,7 @@ public final class MlsRuntime {
     public func ensureConversation(peerId: PeerId) -> Signal<Void, NoError> {
         self.queue.lock()
         let haveGroup = self.group(for: peerId) != nil
+        let worth = self.worthEncrypting(to: peerId)
         let network = self.network
         let identity = self.identity
         self.queue.unlock()
@@ -159,7 +173,7 @@ public final class MlsRuntime {
         // sending outright: the step after this one runs on a value, so a
         // signal that merely completes stops the message before it is built,
         // and the spinner turns for ever with nothing to explain it.
-        if haveGroup {
+        if haveGroup || !worth {
             return .single(Void())
         }
         guard let network = network, let identity = identity else {
@@ -176,6 +190,8 @@ public final class MlsRuntime {
             self.queue.lock()
             if let groupId = groupId {
                 self.remember(peerId: key, groupId: groupId)
+            } else {
+                self.withoutDevices[key] = CFAbsoluteTimeGetCurrent()
             }
             self.queue.unlock()
             return .single(Void())
@@ -206,6 +222,8 @@ public final class MlsRuntime {
             self.starting.remove(key)
             if let groupId = groupId {
                 self.remember(peerId: key, groupId: groupId)
+            } else {
+                self.withoutDevices[key] = CFAbsoluteTimeGetCurrent()
             }
             self.queue.unlock()
         })
@@ -246,6 +264,12 @@ public final class MlsRuntime {
         }
     }
 
+    /// Whether this is one of ours, for the places that must not mistake
+    /// ciphertext for something to show or to keep.
+    public static func isCiphertext(_ text: String) -> Bool {
+        return MlsConversations.isCiphertext(text)
+    }
+
     public static func decryptIncoming(peerId: PeerId, text: String) -> String? {
         guard MlsConversations.isCiphertext(text) else {
             return nil
@@ -260,7 +284,67 @@ public final class MlsRuntime {
                 return plaintext
             }
         }
+
+        // Ours, and unreadable. Almost always because the message overtook the
+        // welcome that lets this device into the conversation: one travels as a
+        // message, the other is collected by a poll. Rather than leave it as
+        // ciphertext for ever - which is what a single attempt at storage time
+        // means - go and look for the welcome now, and read the message back
+        // once it is found.
+        for runtime in candidates {
+            runtime.recover(peerId: peerId)
+        }
         return nil
+    }
+
+    /// Conversations already being looked for, so that a batch of unreadable
+    /// messages asks the server once rather than once each.
+    private var recovering: Set<Int64> = []
+
+    private func recover(peerId: PeerId) {
+        self.queue.lock()
+        let key = peerId.id._internalGetInt64Value()
+        guard !self.recovering.contains(key), let network = self.network else {
+            self.queue.unlock()
+            return
+        }
+        self.recovering.insert(key)
+        self.queue.unlock()
+
+        let postbox = self.postbox
+        let accountPeerId = self.accountPeerId
+        // On another queue on purpose: this is called while an incoming message
+        // is being written into the database, inside a transaction. Opening
+        // another one here and waiting for it stops the app on the path every
+        // message takes.
+        Queue.concurrentDefaultQueue().async { [weak self] in
+            let _ = (joinPendingWelcomes(postbox: postbox, network: network, accountPeerId: accountPeerId)
+            |> mapToSignal { [weak self] _ -> Signal<Void, NoError> in
+                guard let self = self else {
+                    return .complete()
+                }
+                // Read again before reading back. A message can also arrive
+                // unreadable because this device has not finished loading its
+                // own state yet - the first difference after a launch arrives
+                // in milliseconds - and then there is no welcome to find and
+                // nothing else would ever try again.
+                return self.reload()
+            }
+            |> mapToSignal { [weak self] _ -> Signal<Int, NoError> in
+                guard let self = self else {
+                    return .single(0)
+                }
+                return repairUnreadableMessages(postbox: postbox, runtime: self, peerId: peerId)
+            }
+            |> deliverOn(Queue.concurrentDefaultQueue())).start(next: { [weak self] _ in
+                guard let self = self else {
+                    return
+                }
+                self.queue.lock()
+                self.recovering.remove(key)
+                self.queue.unlock()
+            })
+        }
     }
 
     /// Forgets a conversation that has been rebuilt, so the next message is
@@ -271,19 +355,21 @@ public final class MlsRuntime {
         self.groups.removeValue(forKey: peerId.id._internalGetInt64Value())
     }
 
-    /// Drops everything held. Called when a conversation was joined or started
-    /// elsewhere, so the next use reads what was written rather than what was
-    /// remembered.
-    /// Called when conversations were joined elsewhere - by the task that polls
-    /// for welcomes - so the next message is read with what is on disk rather
-    /// than what was in memory.
-    public func reload() {
+    /// Drops everything held and reads it again, completing when the new state
+    /// is in place. Called when conversations were joined elsewhere - by the
+    /// task that polls for welcomes - so the next message is read with what is
+    /// on disk rather than what was in memory.
+    ///
+    /// It completes rather than merely starting because the caller reads
+    /// messages back through these conversations as soon as it returns.
+    public func reload() -> Signal<Void, NoError> {
         let postbox = self.postbox
         let accountPeerId = self.accountPeerId
-        let _ = (postbox.transaction { transaction -> [Int64: Data] in
+        return postbox.transaction { transaction -> [Int64: Data] in
             return MlsConversationIds.load(transaction: transaction).groupIdByPeer
         }
-        |> deliverOn(Queue.concurrentDefaultQueue())).start(next: { [weak self] ids in
+        |> deliverOn(Queue.concurrentDefaultQueue())
+        |> map { [weak self] ids -> Void in
             guard let self = self else {
                 return
             }
@@ -293,6 +379,6 @@ public final class MlsRuntime {
             self.identity = identity
             self.groups.removeAll()
             self.queue.unlock()
-        })
+        }
     }
 }

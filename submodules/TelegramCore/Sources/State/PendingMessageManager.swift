@@ -1739,8 +1739,20 @@ public final class PendingMessageManager {
                         // refuses to send is worse than one whose server can
                         // read a message, so every failure here falls back
                         // rather than stopping.
-                        let outgoingText = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                            .encrypt(peerId: messageId.peerId, text: message.text) ?? message.text
+                        var outgoingText = message.text
+                        if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+                            .encrypt(peerId: messageId.peerId, text: message.text) {
+                            outgoingText = ciphertext
+                            // Bold, links, mentions are offsets into the text.
+                            // Sent unchanged beside a ciphertext they would
+                            // point far past the end of what the other side
+                            // reads back, and be applied to the wrong words or
+                            // to nothing at all. Dropped until the encrypted
+                            // payload carries them itself: an encrypted message
+                            // loses its formatting rather than mangling it.
+                            messageEntities = nil
+                            flags &= ~Int32(1 << 3)
+                        }
                         sendMessageRequest = network.requestWithAdditionalInfo(Api.functions.messages.sendMessage(flags: flags, peer: inputPeer, replyTo: replyTo, message: outgoingText, randomId: uniqueId, replyMarkup: nil, entities: messageEntities, scheduleDate: scheduleTime, scheduleRepeatPeriod: scheduleRepeatPeriod, sendAs: sendAsInputPeer, quickReplyShortcut: quickReplyShortcut, effect: messageEffectId, allowPaidStars: allowPaidStars, suggestedPost: suggestedPost), info: .acknowledgement, tag: dependencyTag)
                     case let .media(inputMedia, text):
                         if bubbleUpEmojiOrStickersets {
