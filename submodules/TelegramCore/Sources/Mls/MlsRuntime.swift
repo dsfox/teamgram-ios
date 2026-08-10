@@ -151,8 +151,11 @@ public final class MlsRuntime {
 
     /// What to send instead of this message, or nothing when this conversation
     /// cannot carry it - and then it goes as it always did.
-    public func encrypt(peerId: PeerId, text: String, entities: [Api.MessageEntity]) -> String? {
-        guard !text.isEmpty else {
+    public func encrypt(peerId: PeerId, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded? = nil) -> String? {
+        // An empty text is nothing to encrypt - unless it is a forward, whose
+        // whole content may be a picture and whose attribution still has to
+        // travel inside rather than beside it.
+        guard !text.isEmpty || forwarded != nil else {
             return nil
         }
 
@@ -169,7 +172,7 @@ public final class MlsRuntime {
             }
             return nil
         }
-        return MlsConversations.encrypt(postbox: self.postbox, identity: identity, group: group, text: text, entities: entities)
+        return MlsConversations.encrypt(postbox: self.postbox, identity: identity, group: group, text: text, entities: entities, forwarded: forwarded)
     }
 
     /// Makes sure there is a conversation with this person before a message is
@@ -290,6 +293,21 @@ public final class MlsRuntime {
     /// ciphertext for something to show or to keep.
     public static func isCiphertext(_ text: String) -> Bool {
         return MlsConversations.isCiphertext(text)
+    }
+
+    /// Who wrote a message first, in the shape the encrypted payload carries -
+    /// or nothing when this is not a forward.
+    ///
+    /// The id when it is known, the name when the account is hidden and a name
+    /// is all there is to show.
+    public static func forwarded(from message: Message) -> Api.mls.Content.Forwarded? {
+        guard let info = message.forwardInfo else {
+            return nil
+        }
+        return Api.mls.Content.Forwarded(
+            authorId: info.author?.id.id._internalGetInt64Value() ?? 0,
+            authorName: info.author?.debugDisplayTitle ?? info.authorSignature ?? "",
+            date: info.date)
     }
 
     /// Whether messages to this person are encrypted on this device.

@@ -1215,7 +1215,7 @@ public final class PendingMessageManager {
                                     // a picture message the server could read.
                                     var outgoingText = text
                                     if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                                        .encrypt(peerId: message.id.peerId, text: text, entities: messageEntities ?? []) {
+                                        .encrypt(peerId: message.id.peerId, text: text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message)) {
                                         outgoingText = ciphertext
                                         messageEntities = nil
                                     }
@@ -1762,7 +1762,7 @@ public final class PendingMessageManager {
                         // rather than stopping.
                         var outgoingText = message.text
                         if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                            .encrypt(peerId: messageId.peerId, text: message.text, entities: messageEntities ?? []) {
+                            .encrypt(peerId: messageId.peerId, text: message.text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message)) {
                             outgoingText = ciphertext
                             // Bold, links, mentions are offsets into the text,
                             // so they went inside the ciphertext with it. What
@@ -1882,7 +1882,7 @@ public final class PendingMessageManager {
                         // what somebody wrote under it now is.
                         var outgoingText = text
                         if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                            .encrypt(peerId: messageId.peerId, text: text, entities: messageEntities ?? []) {
+                            .encrypt(peerId: messageId.peerId, text: text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message)) {
                             outgoingText = ciphertext
                             messageEntities = nil
                             flags &= ~Int32(1 << 3)

@@ -153,9 +153,9 @@ public enum MlsConversations {
     /// The formatting goes inside rather than beside it. An entity - bold, a
     /// link, a mention - is a pair of offsets into the text, and next to a
     /// ciphertext they point at nothing.
-    public static func encrypt(postbox: Postbox, identity: MlsIdentity, group: MlsGroup, text: String, entities: [Api.MessageEntity]) -> String? {
+    public static func encrypt(postbox: Postbox, identity: MlsIdentity, group: MlsGroup, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded?) -> String? {
         do {
-            let ciphertext = try group.encrypt(identity: identity, plaintext: Api.mls.Content.encode(text: text, entities: entities))
+            let ciphertext = try group.encrypt(identity: identity, plaintext: Api.mls.Content.encode(text: text, entities: entities, forwarded: forwarded))
             let state = try identity.export()
 
             // The ratchet has moved. Saved on another queue rather than here:
@@ -207,14 +207,15 @@ public enum MlsConversations {
             if let content = Api.mls.Content.decode(plaintext) {
                 return MlsMessageContent(
                     text: content.text,
-                    entities: messageTextEntitiesFromApiEntities(content.entities))
+                    entities: messageTextEntitiesFromApiEntities(content.entities),
+                    forwarded: content.forwarded)
             }
             // From a version that encrypted the bare text. Read as text rather
             // than refused: those messages are still in people's chats.
             guard let text = String(data: plaintext, encoding: .utf8) else {
                 return nil
             }
-            return MlsMessageContent(text: text, entities: [])
+            return MlsMessageContent(text: text, entities: [], forwarded: nil)
         } catch {
             Logger.shared.log("Mls", "cannot decrypt: \(error)")
             return nil
@@ -228,10 +229,16 @@ public enum MlsConversations {
 public struct MlsMessageContent {
     public let text: String
     public let entities: [MessageTextEntity]
+    /// Who wrote it first, when this is a forward. A forward cannot travel as
+    /// one here - the server copies a message by its id into a conversation
+    /// whose members could never read it - so it is sent as a new message that
+    /// says inside itself where it came from.
+    public let forwarded: Api.mls.Content.Forwarded?
 
-    public init(text: String, entities: [MessageTextEntity]) {
+    public init(text: String, entities: [MessageTextEntity], forwarded: Api.mls.Content.Forwarded? = nil) {
         self.text = text
         self.entities = entities
+        self.forwarded = forwarded
     }
 }
 
@@ -360,12 +367,45 @@ func mlsKeepingWhatIsReadable(_ messages: [StoreMessage], transaction: Transacti
             globallyUniqueId: message.globallyUniqueId, groupingKey: message.groupingKey,
             threadId: message.threadId, timestamp: message.timestamp, flags: message.flags,
             tags: message.tags, globalTags: message.globalTags, localTags: message.localTags,
-            forwardInfo: message.forwardInfo, authorId: message.authorId,
+            // The attribution is local too: a forward into an encrypted chat
+            // travels as an ordinary message, so the copy coming back from the
+            // server carries none and taking it would turn somebody else's
+            // words into the sender's own.
+            forwardInfo: message.forwardInfo ?? existing.forwardInfo.flatMap { info in
+                StoreMessageForwardInfo(authorId: info.author?.id, sourceId: info.source?.id, sourceMessageId: info.sourceMessageId, date: info.date, authorSignature: info.authorSignature, psaType: info.psaType, flags: info.flags)
+            },
+            authorId: message.authorId,
             text: existing.text,
             attributes: attributes,
             media: message.media)
     }
     return result
+}
+
+/// Puts back the text an edit was made of.
+///
+/// Editing sends the new text encrypted and then applies what the server sends
+/// back, which for an encrypted message is a ciphertext the person who wrote it
+/// cannot read - so their own message turned into a placeholder the moment they
+/// changed it. What they typed is the truth here, and it is right at hand.
+func mlsRestoringSentText(_ message: StoreMessage?, text: String, entities: TextEntitiesMessageAttribute?) -> StoreMessage? {
+    guard let message = message,
+          message.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) else {
+        return message
+    }
+    var attributes = message.attributes.filter {
+        !($0 is MlsCiphertextMessageAttribute) && !($0 is TextEntitiesMessageAttribute)
+    }
+    if let entities = entities, !entities.entities.isEmpty {
+        attributes.append(entities)
+    }
+    return StoreMessage(
+        id: message.id, customStableId: message.customStableId,
+        globallyUniqueId: message.globallyUniqueId, groupingKey: message.groupingKey,
+        threadId: message.threadId, timestamp: message.timestamp, flags: message.flags,
+        tags: message.tags, globalTags: message.globalTags, localTags: message.localTags,
+        forwardInfo: message.forwardInfo, authorId: message.authorId,
+        text: text, attributes: attributes, media: message.media)
 }
 
 /// Takes whatever welcomes are waiting, joins those conversations, and reads

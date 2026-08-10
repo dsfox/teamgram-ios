@@ -4431,6 +4431,12 @@ func replayFinalState(
                 }
             case let .EditMessage(id, message):
                 var generatedEvent: (reactionAuthor: Peer, reaction: MessageReaction.Reaction, message: Message, timestamp: Int32)?
+                // An edit is a second way a message is written, and the rule
+                // that holds for the first holds here: what this device already
+                // has readable is not replaced by a copy it cannot read. Editing
+                // one's own encrypted message came back as a placeholder without
+                // this - the sender's own words, gone on being changed.
+                let message = mlsKeepingWhatIsReadable([message], transaction: transaction)[0]
                 transaction.updateMessage(id, update: { previousMessage in
                     var updatedFlags = message.flags
                     var updatedLocalTags = message.localTags

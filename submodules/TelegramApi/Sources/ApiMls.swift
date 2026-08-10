@@ -207,14 +207,42 @@ public extension Api {
         public enum Content {
             public static let constructor: Int32 = 1833308697
 
-            public static func encode(text: String, entities: [Api.MessageEntity]) -> Data {
+            /// mls.forwarded text:string entities:Vector<MessageEntity> from_id:long from_name:string date:int = mls.Content;
+            ///
+            /// The same thing plus who wrote it first. A forward cannot be what
+            /// it is on the wire - the server copies a message by its id, and
+            /// the copy lands in a conversation whose members were never able
+            /// to read it - so an encrypted forward is sent as a new message
+            /// and says inside itself where it came from.
+            public static let forwardedConstructor: Int32 = 1144791349
+
+            /// Who wrote it first. The id when this device knows it, the name
+            /// when the account is hidden and a name is all there is.
+            public struct Forwarded {
+                public let authorId: Int64
+                public let authorName: String
+                public let date: Int32
+
+                public init(authorId: Int64, authorName: String, date: Int32) {
+                    self.authorId = authorId
+                    self.authorName = authorName
+                    self.date = date
+                }
+            }
+
+            public static func encode(text: String, entities: [Api.MessageEntity], forwarded: Forwarded? = nil) -> Data {
                 let buffer = Buffer()
-                buffer.appendInt32(constructor)
+                buffer.appendInt32(forwarded == nil ? constructor : forwardedConstructor)
                 serializeString(text, buffer: buffer, boxed: false)
                 buffer.appendInt32(481674261)
                 buffer.appendInt32(Int32(entities.count))
                 for entity in entities {
                     entity.serialize(buffer, true)
+                }
+                if let forwarded = forwarded {
+                    serializeInt64(forwarded.authorId, buffer: buffer, boxed: false)
+                    serializeString(forwarded.authorName, buffer: buffer, boxed: false)
+                    serializeInt32(forwarded.date, buffer: buffer, boxed: false)
                 }
                 return buffer.makeData()
             }
@@ -222,9 +250,10 @@ public extension Api {
             /// Nothing if this is not one of ours. A message from a version that
             /// encrypted the bare text is exactly that, so the caller falls back
             /// to reading the bytes as text rather than showing nothing.
-            public static func decode(_ data: Data) -> (text: String, entities: [Api.MessageEntity])? {
+            public static func decode(_ data: Data) -> (text: String, entities: [Api.MessageEntity], forwarded: Forwarded?)? {
                 let reader = BufferReader(Buffer(data: data))
-                guard let signature = reader.readInt32(), signature == constructor else {
+                guard let signature = reader.readInt32(),
+                      signature == constructor || signature == forwardedConstructor else {
                     return nil
                 }
                 guard let text = parseString(reader) else {
@@ -236,7 +265,15 @@ public extension Api {
                 guard let entities = Api.parseVector(reader, elementSignature: 0, elementType: Api.MessageEntity.self) else {
                     return nil
                 }
-                return (text, entities)
+                if signature == constructor {
+                    return (text, entities, nil)
+                }
+                guard let authorId = reader.readInt64(),
+                      let authorName = parseString(reader),
+                      let date = reader.readInt32() else {
+                    return nil
+                }
+                return (text, entities, Forwarded(authorId: authorId, authorName: authorName, date: date))
             }
         }
     }

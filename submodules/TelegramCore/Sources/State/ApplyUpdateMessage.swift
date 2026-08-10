@@ -178,7 +178,12 @@ func applyUpdateMessage(postbox: Postbox, stateManager: AccountStateManager, mes
                 } else {
                     text = updatedMessage.text
                 }
-                forwardInfo = updatedMessage.forwardInfo
+                // For a forward into an encrypted conversation there is none
+                // coming back - it travelled as an ordinary message - so the
+                // local one stands.
+                forwardInfo = updatedMessage.forwardInfo ?? currentMessage.forwardInfo.flatMap { info in
+                    StoreMessageForwardInfo(authorId: info.author?.id, sourceId: info.source?.id, sourceMessageId: info.sourceMessageId, date: info.date, authorSignature: info.authorSignature, psaType: info.psaType, flags: info.flags)
+                }
                 threadId = updatedMessage.threadId
             } else if case let .updateShortSentMessage(updateShortSentMessageData) = result {
                 let (_, _, _, _, _, apiMedia, entities, ttlPeriod) = (updateShortSentMessageData.flags, updateShortSentMessageData.id, updateShortSentMessageData.pts, updateShortSentMessageData.ptsCount, updateShortSentMessageData.date, updateShortSentMessageData.media, updateShortSentMessageData.entities, updateShortSentMessageData.ttlPeriod)

@@ -44,6 +44,17 @@ public func normalizedWebpagePreviewUrl(url: String) -> String {
 }
 
 public func webpagePreviewWithProgress(account: Account, urls: [String], webpageId: MediaId? = nil, forPeerId: PeerId? = nil) -> Signal<WebpagePreviewWithProgressResult, NoError> {
+    // Not for an encrypted conversation. The card is built by the server, which
+    // means asking for one hands it the link - and a link is most of what a lot
+    // of messages say. It is also handed over a second time when the card is
+    // kept, as `inputMediaWebPage` beside a ciphertext.
+    //
+    // So a link in an encrypted chat is a link and nothing more, the way it is
+    // in a secret chat. The alternative is a preview built on the device, which
+    // is a real piece of work rather than a flag.
+    if let forPeerId = forPeerId, MlsRuntime.isEncrypted(peerId: forPeerId) {
+        return .single(.result(nil))
+    }
     return account.postbox.transaction { transaction -> Signal<WebpagePreviewWithProgressResult, NoError> in
         if let webpageId = webpageId, let webpage = transaction.getMedia(webpageId) as? TelegramMediaWebpage, let url = webpage.content.url {
             var sourceUrl = url

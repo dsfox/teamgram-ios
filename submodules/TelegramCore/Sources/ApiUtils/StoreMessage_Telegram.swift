@@ -1131,6 +1131,20 @@ extension StoreMessage {
                     let attribute = TextEntitiesMessageAttribute(entities: decrypted.entities)
                     entitiesAttribute = attribute
                     attributes.append(attribute)
+
+                    // And so did who wrote it first. A forward into an
+                    // encrypted conversation travels as a new message - the
+                    // server cannot copy one somebody here could read - so
+                    // without this it would arrive looking like the sender's
+                    // own words.
+                    if let forwarded = decrypted.forwarded, forwardInfo == nil {
+                        let author = forwarded.authorId == 0 ? nil : PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value(forwarded.authorId))
+                        forwardInfo = StoreMessageForwardInfo(
+                            authorId: author, sourceId: nil, sourceMessageId: nil,
+                            date: forwarded.date,
+                            authorSignature: author == nil && !forwarded.authorName.isEmpty ? forwarded.authorName : nil,
+                            psaType: nil, flags: [])
+                    }
                 } else if let entities = entities, !entities.isEmpty {
                     let attribute = TextEntitiesMessageAttribute(entities: messageTextEntitiesFromApiEntities(entities))
                     entitiesAttribute = attribute

@@ -35,7 +35,11 @@ public class MlsCiphertextMessageAttribute: MessageAttribute {
 public extension MlsCiphertextMessageAttribute {
     /// What stands in for a message this device cannot read yet.
     ///
-    /// English and not localised, which is a gap rather than a decision - it is
-    /// meant to be seen for seconds, and it beats what stood here before.
-    static let placeholder = "🔒 Encrypted message"
+    /// A lock and nothing else, in every language. The text of a message is
+    /// stored, not rendered, and this layer has no access to the app's strings -
+    /// so a sentence here would have been English in a Russian app. A phrase
+    /// belongs in the render layer if one is ever wanted; meanwhile this is
+    /// usually on screen for under a second, until the conversation opens and
+    /// the message is read back.
+    static let placeholder = "🔒"
 }
