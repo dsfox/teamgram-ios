@@ -139,6 +139,13 @@ private func synchronizeChatInputState(transaction: Transaction, postbox: Postbo
     }
 
     if let peer = transaction.getPeer(peerId), let inputPeer = apiInputPeer(peer) {
+        // A half-written message in an encrypted conversation stays on this
+        // device. Synchronising it puts the text on the server in the clear -
+        // often the very message that is about to be sent encrypted, and always
+        // before anybody decided to send it at all. The draft still works here;
+        // it just does not travel.
+        let inputState = MlsRuntime.isEncrypted(peerId: peerId) ? nil : inputState
+
         var flags: Int32 = 0
         if let inputState = inputState {
             if !inputState.entities.isEmpty {

@@ -1,6 +1,7 @@
 import Foundation
 import Postbox
 import SwiftSignalKit
+import TelegramApi
 import MlsCore
 
 /// The encryption, held in memory so the message path can reach it.
@@ -148,9 +149,9 @@ public final class MlsRuntime {
     /// updated does not cost a round trip on every message sent to them.
     private var withoutDevices: [Int64: Double] = [:]
 
-    /// What to send instead of this text, or nothing when this conversation
-    /// cannot carry it - and then the message goes as it always did.
-    public func encrypt(peerId: PeerId, text: String) -> String? {
+    /// What to send instead of this message, or nothing when this conversation
+    /// cannot carry it - and then it goes as it always did.
+    public func encrypt(peerId: PeerId, text: String, entities: [Api.MessageEntity]) -> String? {
         guard !text.isEmpty else {
             return nil
         }
@@ -168,7 +169,7 @@ public final class MlsRuntime {
             }
             return nil
         }
-        return MlsConversations.encrypt(postbox: self.postbox, identity: identity, group: group, text: text)
+        return MlsConversations.encrypt(postbox: self.postbox, identity: identity, group: group, text: text, entities: entities)
     }
 
     /// Makes sure there is a conversation with this person before a message is
@@ -253,7 +254,7 @@ public final class MlsRuntime {
     /// What this text really says, or nothing if it is not ours or cannot be
     /// read - and then what arrived is shown as it arrived, which is ugly and
     /// honest rather than an empty message.
-    public func decrypt(peerId: PeerId, text: String) -> String? {
+    public func decrypt(peerId: PeerId, text: String) -> MlsMessageContent? {
         guard MlsConversations.isCiphertext(text) else {
             return nil
         }
@@ -291,7 +292,29 @@ public final class MlsRuntime {
         return MlsConversations.isCiphertext(text)
     }
 
-    public static func decryptIncoming(peerId: PeerId, text: String) -> String? {
+    /// Whether messages to this person are encrypted on this device.
+    ///
+    /// For the places that send text somewhere other than a message - the quote
+    /// carried by a reply, the draft synchronised to the server - and would
+    /// otherwise hand over in the clear exactly what the message beside it
+    /// hides.
+    public static func isEncrypted(peerId: PeerId) -> Bool {
+        instancesLock.lock()
+        let candidates = running
+        instancesLock.unlock()
+
+        for runtime in candidates {
+            runtime.queue.lock()
+            let known = runtime.conversationIds[peerId.id._internalGetInt64Value()] != nil
+            runtime.queue.unlock()
+            if known {
+                return true
+            }
+        }
+        return false
+    }
+
+    public static func decryptIncoming(peerId: PeerId, text: String) -> MlsMessageContent? {
         guard MlsConversations.isCiphertext(text) else {
             return nil
         }
@@ -301,8 +324,8 @@ public final class MlsRuntime {
         instancesLock.unlock()
 
         for runtime in candidates {
-            if let plaintext = runtime.decrypt(peerId: peerId, text: text) {
-                return plaintext
+            if let content = runtime.decrypt(peerId: peerId, text: text) {
+                return content
             }
         }
 

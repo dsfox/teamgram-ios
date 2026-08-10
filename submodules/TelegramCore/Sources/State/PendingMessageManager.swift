@@ -1208,12 +1208,24 @@ public final class PendingMessageManager {
                                         }
                                     }
                                     
+                                    // An album's captions go out by their own
+                                    // route, so they need encrypting here too -
+                                    // one of them carries the text of the whole
+                                    // group, and it used to be the one thing in
+                                    // a picture message the server could read.
+                                    var outgoingText = text
+                                    if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+                                        .encrypt(peerId: message.id.peerId, text: text, entities: messageEntities ?? []) {
+                                        outgoingText = ciphertext
+                                        messageEntities = nil
+                                    }
+
                                     var singleFlags: Int32 = 0
                                     if let _ = messageEntities {
                                         singleFlags |= 1 << 0
                                     }
-                                    
-                                    singleMedias.append(.inputSingleMedia(.init(flags: singleFlags, media: inputMedia, randomId: uniqueId, message: text, entities: messageEntities)))
+
+                                    singleMedias.append(.inputSingleMedia(.init(flags: singleFlags, media: inputMedia, randomId: uniqueId, message: outgoingText, entities: messageEntities)))
                                 default:
                                     return failMessages(postbox: postbox, ids: group.map { $0.0 })
                             }
@@ -1261,7 +1273,10 @@ public final class PendingMessageManager {
                         var quoteText: String?
                         var quoteEntities: [Api.MessageEntity]?
                         var quoteOffset: Int32?
-                        if let replyQuote = replyQuote {
+                        // Not for an encrypted conversation - see the reply
+                        // path below: a quote hands the server the piece of a
+                        // message it was never able to read.
+                        if let replyQuote = replyQuote, !MlsRuntime.isEncrypted(peerId: messages[0].0.id.peerId) {
                             replyFlags |= 1 << 2
                             quoteText = replyQuote.text
                             quoteOffset = replyQuote.offset.flatMap { Int32.init(clamping: $0) }
@@ -1664,7 +1679,13 @@ public final class PendingMessageManager {
                             var quoteText: String?
                             var quoteEntities: [Api.MessageEntity]?
                             var quoteOffset: Int32?
-                            if let replyQuote = replyQuote {
+                            // Not for an encrypted conversation. A quote is a
+                            // piece of a message the server was never able to
+                            // read, and sending it beside the reply hands over
+                            // exactly the part somebody chose to point at. The
+                            // reply still points at the message; what is lost is
+                            // the fragment being shown on the other side.
+                            if let replyQuote = replyQuote, !MlsRuntime.isEncrypted(peerId: messageId.peerId) {
                                 replyFlags |= 1 << 2
                                 quoteText = replyQuote.text
                                 quoteOffset = replyQuote.offset.flatMap { Int32.init(clamping: $0) }
@@ -1741,15 +1762,12 @@ public final class PendingMessageManager {
                         // rather than stopping.
                         var outgoingText = message.text
                         if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                            .encrypt(peerId: messageId.peerId, text: message.text) {
+                            .encrypt(peerId: messageId.peerId, text: message.text, entities: messageEntities ?? []) {
                             outgoingText = ciphertext
-                            // Bold, links, mentions are offsets into the text.
-                            // Sent unchanged beside a ciphertext they would
-                            // point far past the end of what the other side
-                            // reads back, and be applied to the wrong words or
-                            // to nothing at all. Dropped until the encrypted
-                            // payload carries them itself: an encrypted message
-                            // loses its formatting rather than mangling it.
+                            // Bold, links, mentions are offsets into the text,
+                            // so they went inside the ciphertext with it. What
+                            // is left here would point past the end of what the
+                            // other side reads back.
                             messageEntities = nil
                             flags &= ~Int32(1 << 3)
                         }
@@ -1781,7 +1799,13 @@ public final class PendingMessageManager {
                             var quoteText: String?
                             var quoteEntities: [Api.MessageEntity]?
                             var quoteOffset: Int32?
-                            if let replyQuote = replyQuote {
+                            // Not for an encrypted conversation. A quote is a
+                            // piece of a message the server was never able to
+                            // read, and sending it beside the reply hands over
+                            // exactly the part somebody chose to point at. The
+                            // reply still points at the message; what is lost is
+                            // the fragment being shown on the other side.
+                            if let replyQuote = replyQuote, !MlsRuntime.isEncrypted(peerId: messageId.peerId) {
                                 replyFlags |= 1 << 2
                                 quoteText = replyQuote.text
                                 
@@ -1852,7 +1876,18 @@ public final class PendingMessageManager {
                             flags |= 1 << 22
                         }
                     
-                        sendMessageRequest = network.request(Api.functions.messages.sendMedia(flags: flags, peer: inputPeer, replyTo: replyTo, media: inputMedia, message: text, randomId: uniqueId, replyMarkup: nil, entities: messageEntities, scheduleDate: scheduleTime, scheduleRepeatPeriod: scheduleRepeatPeriod, sendAs: sendAsInputPeer, quickReplyShortcut: quickReplyShortcut, effect: messageEffectId, allowPaidStars: allowPaidStars, suggestedPost: suggestedPost), tag: dependencyTag)
+                        // The caption is text like any other, and it was the
+                        // one that still travelled in the clear. The picture
+                        // itself is not encrypted yet - see the issue - but
+                        // what somebody wrote under it now is.
+                        var outgoingText = text
+                        if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+                            .encrypt(peerId: messageId.peerId, text: text, entities: messageEntities ?? []) {
+                            outgoingText = ciphertext
+                            messageEntities = nil
+                            flags &= ~Int32(1 << 3)
+                        }
+                        sendMessageRequest = network.request(Api.functions.messages.sendMedia(flags: flags, peer: inputPeer, replyTo: replyTo, media: inputMedia, message: outgoingText, randomId: uniqueId, replyMarkup: nil, entities: messageEntities, scheduleDate: scheduleTime, scheduleRepeatPeriod: scheduleRepeatPeriod, sendAs: sendAsInputPeer, quickReplyShortcut: quickReplyShortcut, effect: messageEffectId, allowPaidStars: allowPaidStars, suggestedPost: suggestedPost), tag: dependencyTag)
                         |> map(NetworkRequestResult.result)
                     case let .forward(sourceInfo):
                         var topMsgId: Int32?
@@ -1929,7 +1964,13 @@ public final class PendingMessageManager {
                             var quoteText: String?
                             var quoteEntities: [Api.MessageEntity]?
                             var quoteOffset: Int32?
-                            if let replyQuote = replyQuote {
+                            // Not for an encrypted conversation. A quote is a
+                            // piece of a message the server was never able to
+                            // read, and sending it beside the reply hands over
+                            // exactly the part somebody chose to point at. The
+                            // reply still points at the message; what is lost is
+                            // the fragment being shown on the other side.
+                            if let replyQuote = replyQuote, !MlsRuntime.isEncrypted(peerId: messageId.peerId) {
                                 replyFlags |= 1 << 2
                                 quoteText = replyQuote.text
                                 

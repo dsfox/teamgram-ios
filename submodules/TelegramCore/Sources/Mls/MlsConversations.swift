@@ -147,11 +147,15 @@ public enum MlsConversations {
         }
     }
 
-    /// Turns text into what travels, or nothing if this conversation cannot
-    /// carry it - in which case the caller sends as it always did.
-    public static func encrypt(postbox: Postbox, identity: MlsIdentity, group: MlsGroup, text: String) -> String? {
+    /// Turns a message into what travels, or nothing if this conversation
+    /// cannot carry it - in which case the caller sends as it always did.
+    ///
+    /// The formatting goes inside rather than beside it. An entity - bold, a
+    /// link, a mention - is a pair of offsets into the text, and next to a
+    /// ciphertext they point at nothing.
+    public static func encrypt(postbox: Postbox, identity: MlsIdentity, group: MlsGroup, text: String, entities: [Api.MessageEntity]) -> String? {
         do {
-            let ciphertext = try group.encrypt(identity: identity, plaintext: Data(text.utf8))
+            let ciphertext = try group.encrypt(identity: identity, plaintext: Api.mls.Content.encode(text: text, entities: entities))
             let state = try identity.export()
 
             // The ratchet has moved. Saved on another queue rather than here:
@@ -177,8 +181,8 @@ public enum MlsConversations {
     }
 
     /// Turns it back, or nothing if it cannot be read - and then the caller
-    /// shows what arrived rather than nothing at all.
-    public static func decrypt(postbox: Postbox, identity: MlsIdentity, group: MlsGroup, text: String) -> String? {
+    /// puts the ciphertext aside rather than showing it.
+    public static func decrypt(postbox: Postbox, identity: MlsIdentity, group: MlsGroup, text: String) -> MlsMessageContent? {
         guard isCiphertext(text) else {
             return nil
         }
@@ -200,11 +204,34 @@ public enum MlsConversations {
                 }).start()
             }
 
-            return String(data: plaintext, encoding: .utf8)
+            if let content = Api.mls.Content.decode(plaintext) {
+                return MlsMessageContent(
+                    text: content.text,
+                    entities: messageTextEntitiesFromApiEntities(content.entities))
+            }
+            // From a version that encrypted the bare text. Read as text rather
+            // than refused: those messages are still in people's chats.
+            guard let text = String(data: plaintext, encoding: .utf8) else {
+                return nil
+            }
+            return MlsMessageContent(text: text, entities: [])
         } catch {
             Logger.shared.log("Mls", "cannot decrypt: \(error)")
             return nil
         }
+    }
+}
+
+/// What a message turns out to say once it is read back: the text and the
+/// formatting that belongs to it, which travelled together inside the
+/// ciphertext and have to be put back together.
+public struct MlsMessageContent {
+    public let text: String
+    public let entities: [MessageTextEntity]
+
+    public init(text: String, entities: [MessageTextEntity]) {
+        self.text = text
+        self.entities = entities
     }
 }
 
@@ -250,11 +277,11 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
             // Nothing on this device will ever read back a message it wrote
             // itself, so an outgoing one is only tidied: the ciphertext leaves
             // the text and the placeholder takes its place.
-            var plaintext: String?
+            var content: MlsMessageContent?
             if message.flags.contains(.Incoming) {
-                plaintext = runtime.decrypt(peerId: peerId, text: ciphertext)
+                content = runtime.decrypt(peerId: peerId, text: ciphertext)
             }
-            if plaintext == nil {
+            if content == nil {
                 guard held == nil else {
                     // Already put aside and still unreadable: nothing to do
                     // until the conversation this belongs to turns up.
@@ -270,7 +297,7 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
                 })
                 continue
             }
-            let plaintextValue = plaintext!
+            let readable = content!
             transaction.updateMessage(id, update: { currentMessage in
                 var storeForwardInfo: StoreMessageForwardInfo?
                 if let forwardInfo = currentMessage.forwardInfo {
@@ -278,8 +305,14 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
                 }
                 // The ciphertext goes with it: what it was holding open is now
                 // in the message itself, and a second attempt would only fail.
-                let attributes = currentMessage.attributes.filter { !($0 is MlsCiphertextMessageAttribute) }
-                return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: plaintextValue, attributes: attributes, media: currentMessage.media))
+                // The formatting travelled inside it and is put back with it.
+                var attributes = currentMessage.attributes.filter {
+                    !($0 is MlsCiphertextMessageAttribute) && !($0 is TextEntitiesMessageAttribute)
+                }
+                if !readable.entities.isEmpty {
+                    attributes.append(TextEntitiesMessageAttribute(entities: readable.entities))
+                }
+                return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: readable.text, attributes: attributes, media: currentMessage.media))
             })
             repaired += 1
         }
@@ -313,6 +346,15 @@ func mlsKeepingWhatIsReadable(_ messages: [StoreMessage], transaction: Transacti
             continue
         }
         let message = result[index]
+        // The formatting is kept with the text. It went inside the ciphertext,
+        // so the arriving copy carries none, and taking it would leave the
+        // message readable but stripped of its bold and its links.
+        var attributes = message.attributes.filter {
+            !($0 is MlsCiphertextMessageAttribute) && !($0 is TextEntitiesMessageAttribute)
+        }
+        if let entities = existing.attributes.first(where: { $0 is TextEntitiesMessageAttribute }) {
+            attributes.append(entities)
+        }
         result[index] = StoreMessage(
             id: message.id, customStableId: message.customStableId,
             globallyUniqueId: message.globallyUniqueId, groupingKey: message.groupingKey,
@@ -320,7 +362,7 @@ func mlsKeepingWhatIsReadable(_ messages: [StoreMessage], transaction: Transacti
             tags: message.tags, globalTags: message.globalTags, localTags: message.localTags,
             forwardInfo: message.forwardInfo, authorId: message.authorId,
             text: existing.text,
-            attributes: message.attributes.filter { !($0 is MlsCiphertextMessageAttribute) },
+            attributes: attributes,
             media: message.media)
     }
     return result

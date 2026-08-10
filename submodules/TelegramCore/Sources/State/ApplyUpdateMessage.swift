@@ -165,8 +165,16 @@ func applyUpdateMessage(postbox: Postbox, stateManager: AccountStateManager, mes
                 // only copy of them that will ever be readable on this device.
                 if updatedMessage.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) {
                     text = currentMessage.text
-                    // Nothing left for it to hold open.
-                    attributes = attributes.filter { !($0 is MlsCiphertextMessageAttribute) }
+                    // The formatting is local too, and for the same reason: it
+                    // went inside the ciphertext, so the copy coming back has
+                    // none and taking it would strip the bold off a message in
+                    // the chat of the person who just wrote it.
+                    attributes = attributes.filter {
+                        !($0 is MlsCiphertextMessageAttribute) && !($0 is TextEntitiesMessageAttribute)
+                    }
+                    if let entities = currentMessage.attributes.first(where: { $0 is TextEntitiesMessageAttribute }) {
+                        attributes.append(entities)
+                    }
                 } else {
                     text = updatedMessage.text
                 }

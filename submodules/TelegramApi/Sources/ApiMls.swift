@@ -190,5 +190,54 @@ public extension Api {
                 return KeyPackages(packages: packages)
             }
         }
+
+        /// mls.content text:string entities:Vector<MessageEntity> = mls.Content;
+        ///
+        /// What actually gets encrypted. Not the text on its own, because an
+        /// entity - bold, a link, a mention - is a pair of offsets into the
+        /// text, and beside a ciphertext those offsets point at nothing. Sent
+        /// unchanged they arrive pointing past the end of what the other side
+        /// reads back; dropped, an encrypted message silently loses its
+        /// formatting. So they travel inside, where they mean something.
+        ///
+        /// This never reaches the server - it is the plaintext - but it is
+        /// written in TL and its constructor is the CRC32 of the declaration
+        /// like everything else, because the other client has to read it and
+        /// already knows how to read this.
+        public enum Content {
+            public static let constructor: Int32 = 1833308697
+
+            public static func encode(text: String, entities: [Api.MessageEntity]) -> Data {
+                let buffer = Buffer()
+                buffer.appendInt32(constructor)
+                serializeString(text, buffer: buffer, boxed: false)
+                buffer.appendInt32(481674261)
+                buffer.appendInt32(Int32(entities.count))
+                for entity in entities {
+                    entity.serialize(buffer, true)
+                }
+                return buffer.makeData()
+            }
+
+            /// Nothing if this is not one of ours. A message from a version that
+            /// encrypted the bare text is exactly that, so the caller falls back
+            /// to reading the bytes as text rather than showing nothing.
+            public static func decode(_ data: Data) -> (text: String, entities: [Api.MessageEntity])? {
+                let reader = BufferReader(Buffer(data: data))
+                guard let signature = reader.readInt32(), signature == constructor else {
+                    return nil
+                }
+                guard let text = parseString(reader) else {
+                    return nil
+                }
+                guard let vector = reader.readInt32(), vector == 481674261 else {
+                    return nil
+                }
+                guard let entities = Api.parseVector(reader, elementSignature: 0, elementType: Api.MessageEntity.self) else {
+                    return nil
+                }
+                return (text, entities)
+            }
+        }
     }
 }

@@ -198,7 +198,19 @@ private func requestEditMessageInternal(accountPeerId: PeerId, postbox: Postbox,
                     flags |= Int32(1 << 17)
                 }
                 
-                return network.request(Api.functions.messages.editMessage(flags: flags, peer: inputPeer, id: messageId.id, message: text, media: inputMedia, replyMarkup: nil, entities: apiEntities, scheduleDate: effectiveScheduleTime, scheduleRepeatPeriod: effectiveScheduleRepeatPeriod, quickReplyShortcutId: quickReplyShortcutId))
+                // Editing used to undo the encryption of a message that had
+                // already been sent encrypted: the new text went up in the
+                // clear, and the server ended up holding what it had never been
+                // able to read.
+                var outgoingText = text
+                if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+                    .encrypt(peerId: messageId.peerId, text: text, entities: apiEntities ?? []) {
+                    outgoingText = ciphertext
+                    apiEntities = nil
+                    flags &= ~Int32(1 << 3)
+                }
+
+                return network.request(Api.functions.messages.editMessage(flags: flags, peer: inputPeer, id: messageId.id, message: outgoingText, media: inputMedia, replyMarkup: nil, entities: apiEntities, scheduleDate: effectiveScheduleTime, scheduleRepeatPeriod: effectiveScheduleRepeatPeriod, quickReplyShortcutId: quickReplyShortcutId))
                 |> map { result -> Api.Updates? in
                     return result
                 }

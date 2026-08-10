@@ -992,12 +992,21 @@ extension StoreMessage {
                 // search. `MlsRuntime` goes looking for the welcome and reads
                 // the message back once it has it.
                 var messageText = message
+                // The formatting is not applied here. It is decided in one
+                // place, further down, where an empty attribute is added for a
+                // message that has no entities - and that empty one used to
+                // land on top of the formatting restored here, so an encrypted
+                // message arrived in plain type while its entities sat in the
+                // ciphertext, correct and unused.
+                var decrypted: MlsMessageContent?
                 if MlsRuntime.isCiphertext(message) {
-                    if let plaintext = MlsRuntime.decryptIncoming(peerId: peerId, text: message) {
-                        messageText = plaintext
+                    if let content = MlsRuntime.decryptIncoming(peerId: peerId, text: message) {
+                        messageText = content.text
+                        decrypted = content
                     } else {
                         messageText = MlsCiphertextMessageAttribute.placeholder
                         attributes.append(MlsCiphertextMessageAttribute(ciphertext: message))
+                        decrypted = MlsMessageContent(text: messageText, entities: [])
                     }
                 }
                 var medias: [Media] = []
@@ -1115,7 +1124,14 @@ extension StoreMessage {
                 }
             
                 var entitiesAttribute: TextEntitiesMessageAttribute?
-                if let entities = entities, !entities.isEmpty {
+                if let decrypted = decrypted {
+                    // Whatever came in the clear beside a ciphertext is not the
+                    // formatting of this message: the formatting travelled
+                    // inside it, with the text it indexes into.
+                    let attribute = TextEntitiesMessageAttribute(entities: decrypted.entities)
+                    entitiesAttribute = attribute
+                    attributes.append(attribute)
+                } else if let entities = entities, !entities.isEmpty {
                     let attribute = TextEntitiesMessageAttribute(entities: messageTextEntitiesFromApiEntities(entities))
                     entitiesAttribute = attribute
                     attributes.append(attribute)
