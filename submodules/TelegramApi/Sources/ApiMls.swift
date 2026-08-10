@@ -16,7 +16,7 @@ import Foundation
 public extension Api.functions {
     enum mls {
         /// mls.publishKeyPackages key_packages:Vector<bytes> last_resort:bytes = mls.PublishResult;
-        static func publishKeyPackages(keyPackages: [Buffer], lastResort: Buffer) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.PublishResult>) {
+        public static func publishKeyPackages(keyPackages: [Buffer], lastResort: Buffer) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.PublishResult>) {
             let buffer = Buffer()
             buffer.appendInt32(940659472)
             buffer.appendInt32(481674261)
@@ -32,7 +32,7 @@ public extension Api.functions {
         }
 
         /// mls.claimKeyPackages user_id:long = mls.KeyPackages;
-        static func claimKeyPackages(userId: Int64) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.KeyPackages>) {
+        public static func claimKeyPackages(userId: Int64) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.KeyPackages>) {
             let buffer = Buffer()
             buffer.appendInt32(88879177)
             serializeInt64(userId, buffer: buffer, boxed: false)
@@ -54,7 +54,7 @@ public extension Api {
             /// device is the only one that can make them.
             public let shouldRefill: Swift.Bool
 
-            static func parse(_ reader: BufferReader) -> PublishResult? {
+            public static func parse(_ reader: BufferReader) -> PublishResult? {
                 guard let signature = reader.readInt32(), signature == -1429473241 else {
                     return nil
                 }
@@ -74,7 +74,7 @@ public extension Api {
             /// silent device must not stop a conversation with the rest.
             public let packages: [Buffer]
 
-            static func parse(_ reader: BufferReader) -> KeyPackages? {
+            public static func parse(_ reader: BufferReader) -> KeyPackages? {
                 guard let signature = reader.readInt32(), signature == -548140819 else {
                     return nil
                 }

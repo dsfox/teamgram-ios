@@ -1560,6 +1560,10 @@ public class Account {
     
     private func restartConfigurationUpdates() {
         self.managedOperationsDisposable.add(managedConfigurationUpdates(accountManager: self.accountManager, postbox: self.postbox, network: self.network).start())
+        // Keeps this device reachable for encrypted conversations: a supply of
+        // key packages, refilled when the server says it is low. Invisible
+        // until somebody starts one - and without it, they could not.
+        self.managedOperationsDisposable.add(managedMlsKeyPackages(postbox: self.postbox, network: self.network, accountPeerId: self.peerId).start())
     }
     
     private func postSmallLogIfNeeded() {
