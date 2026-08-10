@@ -125,11 +125,15 @@ public enum MlsConversations {
             let ciphertext = try group.encrypt(identity: identity, plaintext: Data(text.utf8))
             let state = try identity.export()
 
-            // The ratchet has moved. Saving later means a message sent and a
-            // device that cannot read the next one.
-            let _ = (postbox.transaction { transaction -> Void in
-                MlsDeviceState.save(transaction: transaction, state: state)
-            }).start()
+            // The ratchet has moved. Saved on another queue rather than here:
+            // this runs where a transaction may already be open, and waiting
+            // for a second one there stops the app on the path every message
+            // takes.
+            Queue.concurrentDefaultQueue().async {
+                let _ = (postbox.transaction { transaction -> Void in
+                    MlsDeviceState.save(transaction: transaction, state: state)
+                }).start()
+            }
 
             return ciphertextPrefix + ciphertext.base64EncodedString()
         } catch {
@@ -161,9 +165,11 @@ public enum MlsConversations {
             }
 
             let state = try identity.export()
-            let _ = (postbox.transaction { transaction -> Void in
-                MlsDeviceState.save(transaction: transaction, state: state)
-            }).start()
+            Queue.concurrentDefaultQueue().async {
+                let _ = (postbox.transaction { transaction -> Void in
+                    MlsDeviceState.save(transaction: transaction, state: state)
+                }).start()
+            }
 
             return String(data: plaintext, encoding: .utf8)
         } catch {
@@ -229,6 +235,7 @@ func managedMlsWelcomes(postbox: Postbox, network: Network, accountPeerId: PeerI
             }
             |> mapToSignal { _ -> Signal<Void, NoError> in
                 // Only now: the conversation is open and written down.
+                MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).reload()
                 return network.request(Api.functions.mls.confirmWelcomes(ids: opened))
                 |> map { _ -> Void in }
                 |> `catch` { _ -> Signal<Void, NoError> in

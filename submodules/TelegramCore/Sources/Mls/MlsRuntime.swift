@@ -29,12 +29,46 @@ public final class MlsRuntime {
     /// side would hold a group nobody talks in.
     private var starting: Set<Int64> = []
     private var network: Network?
+    /// Which group belongs to which peer, held in memory.
+    ///
+    /// Read from storage once rather than on demand, because decrypting happens
+    /// while an incoming message is being written into the database - inside a
+    /// transaction. Opening another one there and waiting for it is a deadlock:
+    /// the app stops, and it stops on the path every message takes.
+    private var conversationIds: [Int64: Data] = [:]
+    private var loaded = false
 
-    /// Told which network to use, once, by the account that owns it.
+    /// Told which network to use, once, by the account that owns it - and the
+    /// moment to read everything off disk, which is here rather than at first
+    /// use for the reason above.
     public func attach(network: Network) {
         self.queue.lock()
-        defer { self.queue.unlock() }
         self.network = network
+        self.queue.unlock()
+
+        let postbox = self.postbox
+        let accountPeerId = self.accountPeerId
+        let _ = (postbox.transaction { transaction -> [Int64: Data] in
+            return MlsConversationIds.load(transaction: transaction).groupIdByPeer
+        }
+        |> deliverOn(Queue.concurrentDefaultQueue())).start(next: { [weak self] ids in
+            guard let self = self else {
+                return
+            }
+            let identity = try? mlsIdentity(postbox: postbox, accountPeerId: accountPeerId)
+            self.queue.lock()
+            self.conversationIds = ids
+            self.identity = identity
+            self.loaded = true
+            self.queue.unlock()
+        })
+    }
+
+    /// Remembers a conversation that has just been started or joined, so the
+    /// next message finds it without going back to disk.
+    private func remember(peerId: Int64, groupId: Data) {
+        self.conversationIds[peerId] = groupId
+        self.groups.removeValue(forKey: peerId)
     }
 
     public static func instance(postbox: Postbox, accountPeerId: PeerId) -> MlsRuntime {
@@ -61,10 +95,10 @@ public final class MlsRuntime {
     /// The conversation with this peer, or nothing if there is not one on this
     /// device. Nothing is an answer: the caller then sends in the clear rather
     /// than refusing to send.
+    /// Nothing here touches the database. Everything it needs was read when the
+    /// account attached, because this is called from inside a transaction and
+    /// opening another would stop the app on the path every message takes.
     private func group(for peerId: PeerId) -> (MlsIdentity, MlsGroup)? {
-        if self.identity == nil {
-            self.identity = try? mlsIdentity(postbox: self.postbox, accountPeerId: self.accountPeerId)
-        }
         guard let identity = self.identity else {
             return nil
         }
@@ -74,17 +108,8 @@ public final class MlsRuntime {
             return (identity, group)
         }
 
-        var groupId: Data?
-        let loaded = DispatchSemaphore(value: 0)
-        let _ = (self.postbox.transaction { transaction -> Data? in
-            return MlsConversationIds.load(transaction: transaction).groupIdByPeer[key]
-        }).start(next: { value in
-            groupId = value
-            loaded.signal()
-        })
-        _ = loaded.wait(timeout: .now() + 2.0)
-
-        guard let groupId = groupId, let group = try? MlsGroup.load(identity: identity, id: groupId) else {
+        guard let groupId = self.conversationIds[key],
+              let group = try? MlsGroup.load(identity: identity, id: groupId) else {
             return nil
         }
         self.groups[key] = group
@@ -112,6 +137,47 @@ public final class MlsRuntime {
         return MlsConversations.encrypt(postbox: self.postbox, identity: identity, group: group, text: text)
     }
 
+    /// Makes sure there is a conversation with this person before a message is
+    /// sent, so that the first message is encrypted like every one after it.
+    ///
+    /// A message sent while the handshake is still running would be the one
+    /// message in the chat the server could read - and it is usually the one
+    /// that says why somebody is writing. Waiting costs a round trip, once per
+    /// person, and only the first time.
+    ///
+    /// It completes rather than fails when a conversation cannot be made: the
+    /// caller then sends in the clear, because a messenger that refuses to send
+    /// is worse than one whose server can read a message.
+    public func ensureConversation(peerId: PeerId) -> Signal<Void, NoError> {
+        self.queue.lock()
+        let haveGroup = self.group(for: peerId) != nil
+        let network = self.network
+        let identity = self.identity
+        self.queue.unlock()
+
+        if haveGroup {
+            return .complete()
+        }
+        guard let network = network, let identity = identity else {
+            return .complete()
+        }
+
+        let key = peerId.id._internalGetInt64Value()
+        let postbox = self.postbox
+        return MlsConversations.start(postbox: postbox, network: network, identity: identity, peerId: peerId)
+        |> mapToSignal { [weak self] groupId -> Signal<Void, NoError> in
+            guard let self = self else {
+                return .complete()
+            }
+            self.queue.lock()
+            if let groupId = groupId {
+                self.remember(peerId: key, groupId: groupId)
+            }
+            self.queue.unlock()
+            return .complete()
+        }
+    }
+
     /// Starts a conversation with somebody, once. Called from a send, so it
     /// must return at once and leave the work behind it.
     private func startConversation(with peerId: PeerId) {
@@ -129,11 +195,8 @@ public final class MlsRuntime {
             }
             self.queue.lock()
             self.starting.remove(key)
-            if groupId != nil {
-                // Read from storage next time rather than remembered now: what
-                // was written is what the next message must be encrypted with.
-                self.groups.removeValue(forKey: key)
-                self.identity = nil
+            if let groupId = groupId {
+                self.remember(peerId: key, groupId: groupId)
             }
             self.queue.unlock()
         })
@@ -202,10 +265,25 @@ public final class MlsRuntime {
     /// Drops everything held. Called when a conversation was joined or started
     /// elsewhere, so the next use reads what was written rather than what was
     /// remembered.
-    public func forgetAll() {
-        self.queue.lock()
-        defer { self.queue.unlock() }
-        self.identity = nil
-        self.groups.removeAll()
+    /// Called when conversations were joined elsewhere - by the task that polls
+    /// for welcomes - so the next message is read with what is on disk rather
+    /// than what was in memory.
+    public func reload() {
+        let postbox = self.postbox
+        let accountPeerId = self.accountPeerId
+        let _ = (postbox.transaction { transaction -> [Int64: Data] in
+            return MlsConversationIds.load(transaction: transaction).groupIdByPeer
+        }
+        |> deliverOn(Queue.concurrentDefaultQueue())).start(next: { [weak self] ids in
+            guard let self = self else {
+                return
+            }
+            let identity = try? mlsIdentity(postbox: postbox, accountPeerId: accountPeerId)
+            self.queue.lock()
+            self.conversationIds = ids
+            self.identity = identity
+            self.groups.removeAll()
+            self.queue.unlock()
+        })
     }
 }

@@ -1515,6 +1515,16 @@ public final class PendingMessageManager {
     
     private func sendMessageContent(network: Network, postbox: Postbox, stateManager: AccountStateManager, accountPeerId: PeerId, messageId: MessageId, content: PendingMessageUploadedContentAndReuploadInfo) -> Signal<Void, NoError> {
         let queue = self.queue
+        // Before anything is sent, make sure there is a conversation to encrypt
+        // into. Otherwise the first message to somebody - usually the one that
+        // says why you are writing - would be the single message in that chat
+        // the server could read.
+        //
+        // This costs one round trip, once per person, and completes rather than
+        // fails when no conversation can be made: then the message goes in the
+        // clear, as it always did.
+        return MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).ensureConversation(peerId: messageId.peerId)
+        |> mapToSignal { _ -> Signal<Void, NoError> in
         return postbox.transaction { [weak self] transaction -> Signal<Void, NoError> in
             guard let message = transaction.getMessage(messageId) else {
                 return .complete()
@@ -2057,6 +2067,7 @@ public final class PendingMessageManager {
                 }
             }
         } |> switchToLatest
+        }
     }
     
     private func applyAcknowledgedMessage(postbox: Postbox, message: Message) -> Signal<Void, NoError> {
