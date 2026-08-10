@@ -155,11 +155,15 @@ public final class MlsRuntime {
         let identity = self.identity
         self.queue.unlock()
 
+        // A value, then completion. Returning only completion is what broke
+        // sending outright: the step after this one runs on a value, so a
+        // signal that merely completes stops the message before it is built,
+        // and the spinner turns for ever with nothing to explain it.
         if haveGroup {
-            return .complete()
+            return .single(Void())
         }
         guard let network = network, let identity = identity else {
-            return .complete()
+            return .single(Void())
         }
 
         let key = peerId.id._internalGetInt64Value()
@@ -174,8 +178,13 @@ public final class MlsRuntime {
                 self.remember(peerId: key, groupId: groupId)
             }
             self.queue.unlock()
-            return .complete()
+            return .single(Void())
         }
+        // Encryption must never be able to stop a message. If the handshake has
+        // not finished in ten seconds - a slow network, a server that does not
+        // answer, anything - the message goes in the clear rather than waiting
+        // behind something a person cannot see.
+        |> timeout(10.0, queue: Queue.concurrentDefaultQueue(), alternate: .single(Void()))
     }
 
     /// Starts a conversation with somebody, once. Called from a send, so it
