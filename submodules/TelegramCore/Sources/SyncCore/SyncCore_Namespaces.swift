@@ -318,6 +318,7 @@ private enum PreferencesKeyValues: Int32 {
     // cannot collide with this one and read somebody's crypto state as a
     // timezone list.
     case mlsDeviceState = 1001
+    case mlsConversations = 1002
     case botBiometricsState = 39
     case businessLinks = 40
     case starGifts = 41
@@ -436,6 +437,15 @@ public struct PreferencesKeys {
     public static let mlsDeviceState: ValueBoxKey = {
         let key = ValueBoxKey(length: 4)
         key.setInt32(0, value: PreferencesKeyValues.mlsDeviceState.rawValue)
+        return key
+    }()
+
+    /// Which MLS group belongs to which peer. Not a secret - a note about
+    /// which conversation is which - so it lives beside the state rather than
+    /// inside it.
+    public static let mlsConversations: ValueBoxKey = {
+        let key = ValueBoxKey(length: 4)
+        key.setInt32(0, value: PreferencesKeyValues.mlsConversations.rawValue)
         return key
     }()
 

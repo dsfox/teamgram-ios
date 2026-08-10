@@ -1564,6 +1564,8 @@ public class Account {
         // key packages, refilled when the server says it is low. Invisible
         // until somebody starts one - and without it, they could not.
         self.managedOperationsDisposable.add(managedMlsKeyPackages(postbox: self.postbox, network: self.network, accountPeerId: self.peerId).start())
+        // Joins the conversations other people have started with this device.
+        self.managedOperationsDisposable.add(managedMlsWelcomes(postbox: self.postbox, network: self.network, accountPeerId: self.peerId).start())
     }
     
     private func postSmallLogIfNeeded() {

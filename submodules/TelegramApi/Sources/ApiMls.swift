@@ -31,6 +31,43 @@ public extension Api.functions {
             })
         }
 
+        /// mls.sendWelcome user_id:long welcome:bytes = mls.Ok;
+        public static func sendWelcome(userId: Int64, welcome: Buffer) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Ok>) {
+            let buffer = Buffer()
+            buffer.appendInt32(-773834602)
+            serializeInt64(userId, buffer: buffer, boxed: false)
+            serializeBytes(welcome, buffer: buffer, boxed: false)
+            return (FunctionDescription(name: "mls.sendWelcome", parameters: [("userId", String(describing: userId))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Ok? in
+                let reader = BufferReader(buffer)
+                return Api.mls.Ok.parse(reader)
+            })
+        }
+
+        /// mls.getWelcomes = mls.Welcomes;
+        public static func getWelcomes() -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Welcomes>) {
+            let buffer = Buffer()
+            buffer.appendInt32(-512239425)
+            return (FunctionDescription(name: "mls.getWelcomes", parameters: []), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Welcomes? in
+                let reader = BufferReader(buffer)
+                return Api.mls.Welcomes.parse(reader)
+            })
+        }
+
+        /// mls.confirmWelcomes ids:Vector<long> = mls.Ok;
+        public static func confirmWelcomes(ids: [Int64]) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Ok>) {
+            let buffer = Buffer()
+            buffer.appendInt32(-1226029994)
+            buffer.appendInt32(481674261)
+            buffer.appendInt32(Int32(ids.count))
+            for item in ids {
+                serializeInt64(item, buffer: buffer, boxed: false)
+            }
+            return (FunctionDescription(name: "mls.confirmWelcomes", parameters: [("ids", String(describing: ids))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Ok? in
+                let reader = BufferReader(buffer)
+                return Api.mls.Ok.parse(reader)
+            })
+        }
+
         /// mls.claimKeyPackages user_id:long = mls.KeyPackages;
         public static func claimKeyPackages(userId: Int64) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.KeyPackages>) {
             let buffer = Buffer()
@@ -64,6 +101,65 @@ public extension Api {
                     return nil
                 }
                 return PublishResult(added: added, available: available, shouldRefill: refill == -1720552011)
+            }
+        }
+
+        /// mls.ok ok:Bool = mls.Ok;
+        public struct Ok {
+            public let ok: Swift.Bool
+
+            public static func parse(_ reader: BufferReader) -> Ok? {
+                guard let signature = reader.readInt32(), signature == -1518331278 else {
+                    return nil
+                }
+                guard let value = reader.readInt32() else {
+                    return nil
+                }
+                return Ok(ok: value == -1720552011)
+            }
+        }
+
+        /// mls.welcome id:long from_id:long welcome:bytes = mls.Welcome;
+        public struct Welcome {
+            public let id: Int64
+            public let fromId: Int64
+            public let welcome: Buffer
+
+            static func parse(_ reader: BufferReader) -> Welcome? {
+                guard let signature = reader.readInt32(), signature == -180214709 else {
+                    return nil
+                }
+                guard let id = reader.readInt64(),
+                      let fromId = reader.readInt64(),
+                      let welcome = parseBytes(reader) else {
+                    return nil
+                }
+                return Welcome(id: id, fromId: fromId, welcome: welcome)
+            }
+        }
+
+        /// mls.welcomes welcomes:Vector<mls.Welcome> = mls.Welcomes;
+        public struct Welcomes {
+            public let welcomes: [Welcome]
+
+            public static func parse(_ reader: BufferReader) -> Welcomes? {
+                guard let signature = reader.readInt32(), signature == -1921518262 else {
+                    return nil
+                }
+                guard let vector = reader.readInt32(), vector == 481674261 else {
+                    return nil
+                }
+                guard let count = reader.readInt32() else {
+                    return nil
+                }
+                var welcomes: [Welcome] = []
+                for _ in 0 ..< count {
+                    guard let item = Welcome.parse(reader) else {
+                        return nil
+                    }
+                    welcomes.append(item)
+                }
+                return Welcomes(welcomes: welcomes)
             }
         }
 
