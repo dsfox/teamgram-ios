@@ -1566,6 +1566,7 @@ public class Account {
         self.managedOperationsDisposable.add(managedMlsKeyPackages(postbox: self.postbox, network: self.network, accountPeerId: self.peerId).start())
         // Joins the conversations other people have started with this device.
         self.managedOperationsDisposable.add(managedMlsWelcomes(postbox: self.postbox, network: self.network, accountPeerId: self.peerId).start())
+        MlsRuntime.instance(postbox: self.postbox, accountPeerId: self.peerId).attach(network: self.network)
     }
     
     private func postSmallLogIfNeeded() {

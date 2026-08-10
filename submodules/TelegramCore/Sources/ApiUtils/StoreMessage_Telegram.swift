@@ -980,7 +980,11 @@ extension StoreMessage {
                     threadId = Int64(quickReplyShortcutId)
                 }
                 
-                let messageText = message
+                // Read back if this is one of ours and this device is in the
+                // conversation. Anything else - not ours, not readable, no
+                // conversation here - is shown exactly as it arrived: ugly and
+                // honest beats an empty message with no explanation.
+                let messageText = MlsRuntime.decryptIncoming(peerId: peerId, text: message) ?? message
                 var medias: [Media] = []
                 
                 var consumableContent: (Bool, Bool)? = nil
