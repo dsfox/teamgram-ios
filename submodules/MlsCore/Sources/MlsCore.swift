@@ -45,6 +45,10 @@ private func take(_ buffer: MlsBuffer, _ fallback: String) throws -> Data {
 public final class MlsIdentity {
     fileprivate let handle: OpaquePointer
 
+    private init(handle: OpaquePointer) {
+        self.handle = handle
+    }
+
     /// - Parameter name: what names this device - a user id and a device id,
     ///   joined. Per device rather than per person, because that is what makes
     ///   several devices possible at all.
@@ -66,6 +70,27 @@ public final class MlsIdentity {
     public func keyPackage() throws -> Data {
         return try take(mls_identity_key_package(self.handle), "no key package was built")
     }
+
+    /// Everything this device needs to carry on after the app is closed: its
+    /// key, its conversations, and where each ratchet had got to. Without
+    /// storing this, closing the app would leave every conversation unreadable
+    /// - by design and for good.
+    ///
+    /// It holds the keys to everything this device can read, so it belongs
+    /// wherever the client keeps its most guarded things.
+    public func export() throws -> Data {
+        return try take(mls_identity_export(self.handle), "nothing was saved")
+    }
+
+    /// Reads a device back from what `export` wrote.
+    public static func open(state: Data) throws -> MlsIdentity {
+        guard let handle = state.withUnsafeBytes({ raw -> OpaquePointer? in
+            mls_identity_open(raw.bindMemory(to: UInt8.self).baseAddress, UInt(state.count))
+        }) else {
+            throw MlsError.last("the device did not come back")
+        }
+        return MlsIdentity(handle: handle)
+    }
 }
 
 /// One conversation.
@@ -86,6 +111,30 @@ public final class MlsGroup {
             throw MlsError.last("no group was created")
         }
         return MlsGroup(handle: handle)
+    }
+
+    /// Reopens a conversation this device was already in. Returns nil when this
+    /// device does not know it - which is an answer, not a failure: a chat can
+    /// exist on the server and not on this phone.
+    public static func load(identity: MlsIdentity, id: Data) throws -> MlsGroup? {
+        guard let handle = id.withUnsafeBytes({ raw -> OpaquePointer? in
+            mls_group_load(
+                identity.handle,
+                raw.bindMemory(to: UInt8.self).baseAddress,
+                UInt(id.count)
+            )
+        }) else {
+            return nil
+        }
+        return MlsGroup(handle: handle)
+    }
+
+    /// Which conversation this is, to keep beside the chat so it can be
+    /// reopened after a restart.
+    public var id: Data {
+        get throws {
+            return try take(mls_group_id(self.handle), "the conversation has no id")
+        }
     }
 
     /// Joins a conversation this device was invited into.
