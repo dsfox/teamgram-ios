@@ -50,10 +50,11 @@ func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: Pe
             return EmptyDisposable
         }
 
+        // Through the one writer, so it cannot land after something older.
+        if let state = try? identity.export() {
+            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
+        }
         let saveState = postbox.transaction { transaction -> Void in
-            if let state = try? identity.export() {
-                MlsDeviceState.save(transaction: transaction, state: state)
-            }
         }
 
         // Saved before publishing, not after. A package published but not
@@ -94,7 +95,53 @@ func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: Pe
 /// Per device rather than per person: two phones of the same person are two
 /// members of the same conversation, which is what makes several devices
 /// possible at all.
+/// The one identity object this account uses, shared by everything that touches
+/// it.
+///
+/// Sharing rather than opening a copy each time, because the state is written
+/// back whole. Three components used to hold three copies of it - the key
+/// package publisher, the runtime, the welcome poll - and each saved its own
+/// snapshot over the others. The private keys of freshly published key packages
+/// were the usual casualty: somebody claims one, builds a conversation on it,
+/// and the welcome arrives at a device that no longer holds the key to open it.
+/// That is a lock that never becomes a message, and it is not the same bug as
+/// two identities being created - that one is fixed below, and this one hid
+/// behind it.
+private final class MlsIdentityRegistry {
+    static let shared = MlsIdentityRegistry()
+    private let lock = NSLock()
+    private var identities: [Int64: MlsIdentity] = [:]
+
+    func identity(for accountPeerId: PeerId, make: () throws -> MlsIdentity) throws -> MlsIdentity {
+        let key = accountPeerId.id._internalGetInt64Value()
+
+        lock.lock()
+        if let existing = identities[key] {
+            lock.unlock()
+            return existing
+        }
+        lock.unlock()
+
+        let identity = try make()
+
+        lock.lock()
+        defer { lock.unlock() }
+        // Somebody else may have got there while this one was being made.
+        if let existing = identities[key] {
+            return existing
+        }
+        identities[key] = identity
+        return identity
+    }
+}
+
 func mlsIdentity(postbox: Postbox, accountPeerId: PeerId) throws -> MlsIdentity {
+    return try MlsIdentityRegistry.shared.identity(for: accountPeerId, make: {
+        return try loadOrMakeMlsIdentity(postbox: postbox, accountPeerId: accountPeerId)
+    })
+}
+
+private func loadOrMakeMlsIdentity(postbox: Postbox, accountPeerId: PeerId) throws -> MlsIdentity {
     // Read and create in one transaction, so that two callers arriving at once
     // cannot both find nothing and both make one.
     //

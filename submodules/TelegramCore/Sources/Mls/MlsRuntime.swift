@@ -172,7 +172,7 @@ public final class MlsRuntime {
             }
             return nil
         }
-        return MlsConversations.encrypt(postbox: self.postbox, identity: identity, group: group, text: text, entities: entities, forwarded: forwarded, media: media)
+        return MlsConversations.encrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text, entities: entities, forwarded: forwarded, media: media)
     }
 
     /// Makes sure there is a conversation with this person before a message is
@@ -207,7 +207,7 @@ public final class MlsRuntime {
 
         let key = peerId.id._internalGetInt64Value()
         let postbox = self.postbox
-        return MlsConversations.start(postbox: postbox, network: network, identity: identity, peerId: peerId)
+        return MlsConversations.start(postbox: postbox, accountPeerId: self.accountPeerId, network: network, identity: identity, peerId: peerId)
         |> mapToSignal { [weak self] groupId -> Signal<Void, NoError> in
             guard let self = self else {
                 return .complete()
@@ -238,7 +238,7 @@ public final class MlsRuntime {
         self.starting.insert(key)
 
         let postbox = self.postbox
-        let _ = (MlsConversations.start(postbox: postbox, network: network, identity: identity, peerId: peerId)
+        let _ = (MlsConversations.start(postbox: postbox, accountPeerId: self.accountPeerId, network: network, identity: identity, peerId: peerId)
         |> deliverOn(Queue.concurrentDefaultQueue())).start(next: { [weak self] groupId in
             guard let self = self else {
                 return
@@ -254,9 +254,29 @@ public final class MlsRuntime {
         })
     }
 
+    /// What has already been read, by the ciphertext it came in.
+    ///
+    /// A message can reach this device twice - once as an update and once when
+    /// the history around it is fetched - and each arrival is parsed on its own.
+    /// MLS spends a secret to open a message and refuses to spend it twice, so
+    /// the second attempt fails with `SecretReuseError` and stores a lock over
+    /// the text the first one had just recovered. Reading is therefore
+    /// remembered, and a ciphertext is only ever opened once.
+    private var opened: [String: MlsMessageContent] = [:]
+    private var openedOrder: [String] = []
+
+    private func remember(_ text: String, _ content: MlsMessageContent) {
+        self.opened[text] = content
+        self.openedOrder.append(text)
+        // Bounded: this is a way of not asking twice, not a copy of the chat.
+        while self.openedOrder.count > 256 {
+            let oldest = self.openedOrder.removeFirst()
+            self.opened.removeValue(forKey: oldest)
+        }
+    }
+
     /// What this text really says, or nothing if it is not ours or cannot be
-    /// read - and then what arrived is shown as it arrived, which is ugly and
-    /// honest rather than an empty message.
+    /// read - and then the caller puts the ciphertext aside and comes back to it.
     public func decrypt(peerId: PeerId, text: String) -> MlsMessageContent? {
         guard MlsConversations.isCiphertext(text) else {
             return nil
@@ -265,10 +285,18 @@ public final class MlsRuntime {
         self.queue.lock()
         defer { self.queue.unlock() }
 
+        if let already = self.opened[text] {
+            return already
+        }
+
         guard let (identity, group) = self.group(for: peerId) else {
             return nil
         }
-        return MlsConversations.decrypt(postbox: self.postbox, identity: identity, group: group, text: text)
+        let content = MlsConversations.decrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text)
+        if let content = content {
+            self.remember(text, content)
+        }
+        return content
     }
 
     /// The one account that is running, for the places that read a message into
@@ -420,7 +448,7 @@ public final class MlsRuntime {
                 }
 
                 Logger.shared.log("Mls", "no welcome explains an unreadable message from \(peerId), so starting the conversation again")
-                return MlsConversations.start(postbox: postbox, network: network, identity: identity, peerId: peerId)
+                return MlsConversations.start(postbox: postbox, accountPeerId: self.accountPeerId, network: network, identity: identity, peerId: peerId)
                 |> mapToSignal { [weak self] groupId -> Signal<Int, NoError> in
                     guard let self = self, let groupId = groupId else {
                         return .single(0)

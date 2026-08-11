@@ -1198,6 +1198,11 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         |> mapToSignal { sharedApplicationContext, loggingSettings -> Signal<SharedApplicationContext, NoError> in
             Logger.shared.logToFile = loggingSettings.logToFile
             Logger.shared.logToConsole = loggingSettings.logToConsole
+            // Kept on. The one line that says why a conversation could not be
+            // joined is worth more than the disk it costs: without it the
+            // failure has to be guessed at from outside, which is how two wrong
+            // explanations got as far as somebody's phone.
+            Logger.shared.logToFile = true
             Logger.shared.redactSensitiveData = loggingSettings.redactSensitiveData
             
             return .single(sharedApplicationContext)

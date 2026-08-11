@@ -92,7 +92,7 @@ public enum MlsConversations {
     /// Returns nothing when the other person has published no device. That is
     /// ordinary rather than broken - they may not have opened the app since
     /// this existed - and the caller sends in the clear.
-    public static func start(postbox: Postbox, network: Network, identity: MlsIdentity, peerId: PeerId) -> Signal<Data?, NoError> {
+    public static func start(postbox: Postbox, accountPeerId: PeerId, network: Network, identity: MlsIdentity, peerId: PeerId) -> Signal<Data?, NoError> {
         return network.request(Api.functions.mls.claimKeyPackages(userId: peerId.id._internalGetInt64Value()))
         |> map(Optional.init)
         |> `catch` { _ -> Signal<Api.mls.KeyPackages?, NoError> in
@@ -122,8 +122,12 @@ public enum MlsConversations {
                 // Saved before the welcome is sent. A welcome delivered for a
                 // group this device has forgotten is a conversation the other
                 // side can join and nobody can talk in.
+                //
+                // Through the one writer, like every other change to this
+                // state: a write that goes its own way lands out of order and
+                // takes a spent secret back with it.
+                MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
                 return (postbox.transaction { transaction -> Void in
-                    MlsDeviceState.save(transaction: transaction, state: state)
                     MlsConversationIds.remember(transaction: transaction, peerId: peerId, groupId: groupId)
                 }
                 |> mapToSignal { _ -> Signal<Data?, NoError> in
@@ -153,20 +157,16 @@ public enum MlsConversations {
     /// The formatting goes inside rather than beside it. An entity - bold, a
     /// link, a mention - is a pair of offsets into the text, and next to a
     /// ciphertext they point at nothing.
-    public static func encrypt(postbox: Postbox, identity: MlsIdentity, group: MlsGroup, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded?, media: Api.mls.Content.Media?) -> String? {
+    public static func encrypt(postbox: Postbox, accountPeerId: PeerId, identity: MlsIdentity, group: MlsGroup, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded?, media: Api.mls.Content.Media?) -> String? {
         do {
             let ciphertext = try group.encrypt(identity: identity, plaintext: Api.mls.Content.encode(text: text, entities: entities, forwarded: forwarded, media: media))
             let state = try identity.export()
 
-            // The ratchet has moved. Saved on another queue rather than here:
-            // this runs where a transaction may already be open, and waiting
-            // for a second one there stops the app on the path every message
-            // takes.
-            Queue.concurrentDefaultQueue().async {
-                let _ = (postbox.transaction { transaction -> Void in
-                    MlsDeviceState.save(transaction: transaction, state: state)
-                }).start()
-            }
+            // The ratchet has moved, so it is written back - through the one
+            // queue that writes it, in the order the moves happened. Writing it
+            // here would mean opening a transaction inside one that may already
+            // be open, on the path every message takes.
+            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
 
             return ciphertextPrefix + ciphertext.base64EncodedString()
         } catch {
@@ -182,7 +182,7 @@ public enum MlsConversations {
 
     /// Turns it back, or nothing if it cannot be read - and then the caller
     /// puts the ciphertext aside rather than showing it.
-    public static func decrypt(postbox: Postbox, identity: MlsIdentity, group: MlsGroup, text: String) -> MlsMessageContent? {
+    public static func decrypt(postbox: Postbox, accountPeerId: PeerId, identity: MlsIdentity, group: MlsGroup, text: String) -> MlsMessageContent? {
         guard isCiphertext(text) else {
             return nil
         }
@@ -198,11 +198,7 @@ public enum MlsConversations {
             }
 
             let state = try identity.export()
-            Queue.concurrentDefaultQueue().async {
-                let _ = (postbox.transaction { transaction -> Void in
-                    MlsDeviceState.save(transaction: transaction, state: state)
-                }).start()
-            }
+            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
 
             if let content = Api.mls.Content.decode(plaintext) {
                 return MlsMessageContent(
@@ -449,6 +445,7 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
             }
 
             var opened: [Int64] = []
+            var spent: [Int64] = []
             var peers: [Int64: Data] = [:]
             for welcome in result.welcomes {
                 do {
@@ -457,11 +454,27 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
                     opened.append(welcome.id)
                     Logger.shared.log("Mls", "joined a conversation started by \(welcome.fromId)")
                 } catch {
-                    // Left unconfirmed on purpose: it will be offered again,
-                    // and a welcome that cannot be opened is worth noticing
-                    // rather than quietly dropping.
                     Logger.shared.log("Mls", "cannot join the conversation from \(welcome.fromId): \(error)")
+                    // A welcome whose key package has already been spent can
+                    // never be opened - it was opened once, which is what spent
+                    // it. Left waiting it is offered again every thirty seconds
+                    // for ever, and every attempt fails the same way.
+                    //
+                    // Anything else is left alone: it may be this device that is
+                    // not ready, and a welcome dropped in that state is a
+                    // conversation that exists on one side only.
+                    if "\(error)".contains("NoMatchingKeyPackage") {
+                        spent.append(welcome.id)
+                    }
                 }
+            }
+
+            if !spent.isEmpty {
+                // Forgotten without ceremony: nothing here can use them.
+                let _ = (network.request(Api.functions.mls.confirmWelcomes(ids: spent))
+                |> `catch` { _ -> Signal<Api.mls.Ok, NoError> in
+                    return .complete()
+                }).start()
             }
 
             guard !opened.isEmpty, let state = try? identity.export() else {
@@ -470,8 +483,8 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
 
             let joined = peers.keys.map { PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value($0)) }
 
+            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
             return postbox.transaction { transaction -> Void in
-                MlsDeviceState.save(transaction: transaction, state: state)
                 for (fromId, groupId) in peers {
                     MlsConversationIds.remember(
                         transaction: transaction,
