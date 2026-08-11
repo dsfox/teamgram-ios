@@ -95,33 +95,55 @@ func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: Pe
 /// members of the same conversation, which is what makes several devices
 /// possible at all.
 func mlsIdentity(postbox: Postbox, accountPeerId: PeerId) throws -> MlsIdentity {
-    var stored: Data?
-    let loaded = DispatchSemaphore(value: 0)
-    let _ = (postbox.transaction { transaction -> Data? in
-        return MlsDeviceState.load(transaction: transaction)?.state
-    }).start(next: { value in
-        stored = value
-        loaded.signal()
-    })
-    // Waited for rather than made asynchronous: this is called once, off the
-    // main queue, and an identity that arrives later is an identity the caller
-    // has already decided it does not have.
-    _ = loaded.wait(timeout: .now() + 5.0)
+    // Read and create in one transaction, so that two callers arriving at once
+    // cannot both find nothing and both make one.
+    //
+    // They did. This is called from three places that start together on a fresh
+    // account - the key package publisher, the runtime, the welcome poll - and
+    // each used to read, see nothing, make an identity and save it. The last
+    // save won. The key packages sitting on the server then belonged to an
+    // identity the device no longer had, so a conversation built on one of them
+    // produced a welcome this device could not open, ever. That is what a lock
+    // that never turns into a message actually was.
+    //
+    // Postbox runs transactions one at a time, so inside one the check and the
+    // write cannot be split.
+    var result: Result<MlsIdentity, Error>?
+    let done = DispatchSemaphore(value: 0)
 
-    if let stored = stored, let identity = try? MlsIdentity.open(state: stored) {
-        return identity
-    }
-
-    // A name that says which device this is. The account id alone would name
-    // the person, and then two phones would look like one member.
-    let name = "\(accountPeerId.id._internalGetInt64Value())/\(UInt32.random(in: 0 ... UInt32.max))"
-    let identity = try MlsIdentity(name: Data(name.utf8))
-
-    let state = try identity.export()
     let _ = (postbox.transaction { transaction -> Void in
-        MlsDeviceState.save(transaction: transaction, state: state)
-    }).start()
+        if let stored = MlsDeviceState.load(transaction: transaction)?.state,
+           let identity = try? MlsIdentity.open(state: stored) {
+            result = .success(identity)
+            return
+        }
 
-    Logger.shared.log("Mls", "a device identity was made for this account")
-    return identity
+        do {
+            // A name that says which device this is. The account id alone would
+            // name the person, and then two phones would look like one member.
+            let name = "\(accountPeerId.id._internalGetInt64Value())/\(UInt32.random(in: 0 ... UInt32.max))"
+            let identity = try MlsIdentity(name: Data(name.utf8))
+            MlsDeviceState.save(transaction: transaction, state: try identity.export())
+            Logger.shared.log("Mls", "a device identity was made for this account")
+            result = .success(identity)
+        } catch {
+            result = .failure(error)
+        }
+    }).start(completed: {
+        done.signal()
+    })
+
+    // Waited for without a way out. A timeout here used to mean "make another
+    // one", which is the very thing that broke: being slow is not the same as
+    // having none.
+    done.wait()
+
+    switch result {
+    case let .success(identity):
+        return identity
+    case let .failure(error):
+        throw error
+    case nil:
+        throw MlsError.failed("the device identity could not be read or made")
+    }
 }

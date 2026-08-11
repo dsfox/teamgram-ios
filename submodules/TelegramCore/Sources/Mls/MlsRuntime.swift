@@ -398,6 +398,39 @@ public final class MlsRuntime {
                 }
                 return repairUnreadableMessages(postbox: postbox, runtime: self, peerId: peerId)
             }
+            |> mapToSignal { [weak self] repaired -> Signal<Int, NoError> in
+                guard let self = self, repaired == 0 else {
+                    return .single(repaired)
+                }
+                // Still unreadable, and no welcome explains it. The conversation
+                // the other side is encrypting to is one this device is not in
+                // and will never be invited to again - their client sees a
+                // conversation and sends into it, this one can only wait, and
+                // the two never meet. It has to be started over, and only this
+                // side knows anything is wrong.
+                //
+                // Starting it here means creating a group and inviting them:
+                // their client replaces theirs with it when the welcome
+                // arrives, so both ends converge on this one.
+                self.queue.lock()
+                let identity = self.identity
+                self.queue.unlock()
+                guard let identity = identity else {
+                    return .single(0)
+                }
+
+                Logger.shared.log("Mls", "no welcome explains an unreadable message from \(peerId), so starting the conversation again")
+                return MlsConversations.start(postbox: postbox, network: network, identity: identity, peerId: peerId)
+                |> mapToSignal { [weak self] groupId -> Signal<Int, NoError> in
+                    guard let self = self, let groupId = groupId else {
+                        return .single(0)
+                    }
+                    self.queue.lock()
+                    self.remember(peerId: peerId.id._internalGetInt64Value(), groupId: groupId)
+                    self.queue.unlock()
+                    return .single(0)
+                }
+            }
             |> deliverOn(Queue.concurrentDefaultQueue())).start(next: { [weak self] _ in
                 guard let self = self else {
                     return
