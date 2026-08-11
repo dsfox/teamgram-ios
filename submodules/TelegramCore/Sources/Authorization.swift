@@ -2,6 +2,7 @@ import Foundation
 import Postbox
 import SwiftSignalKit
 import TelegramApi
+import MlsCore
 import MtProtoKit
 
 
@@ -1026,7 +1027,16 @@ public func authorizeWithCode(accountManager: AccountManager<TelegramAccountMana
                     switch code {
                         case let .phoneCode(code):
                             flags = 1 << 0
-                            phoneCode = code
+                            // Words rather than digits mean a recovery phrase,
+                            // and the phrase itself does not travel: the server
+                            // is checked against a one-way derivation of it, so
+                            // that holding the server never means holding the
+                            // way into somebody's account.
+                            if MlsRecovery.looksLikeAPhrase(code), let secret = try? MlsRecovery.authSecret(phrase: code) {
+                                phoneCode = secret
+                            } else {
+                                phoneCode = code
+                            }
                         case let .emailVerification(verification):
                             flags = 1 << 1
                             switch verification {

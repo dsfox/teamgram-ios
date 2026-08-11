@@ -1567,6 +1567,8 @@ public class Account {
         // Joins the conversations other people have started with this device.
         self.managedOperationsDisposable.add(managedMlsWelcomes(postbox: self.postbox, network: self.network, accountPeerId: self.peerId).start())
         MlsRuntime.instance(postbox: self.postbox, accountPeerId: self.peerId).attach(network: self.network)
+        // A way back into this account, made here rather than by the server.
+        self.managedOperationsDisposable.add(ensureRecoveryPhrase(postbox: self.postbox, network: self.network, accountPeerId: self.peerId).start())
     }
     
     private func postSmallLogIfNeeded() {

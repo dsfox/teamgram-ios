@@ -68,6 +68,23 @@ public extension Api.functions {
             })
         }
 
+        /// mls.setRecoverySecret secret:string = mls.Ok;
+        ///
+        /// The way back into this account, registered by the device that owns
+        /// it. What travels is a one-way derivation of the recovery phrase; the
+        /// words are made here and never leave. The server used to make them
+        /// and send them as a message, which left every one of them in its
+        /// message table in plain text.
+        public static func setRecoverySecret(secret: String) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Ok>) {
+            let buffer = Buffer()
+            buffer.appendInt32(-369099376)
+            serializeString(secret, buffer: buffer, boxed: false)
+            return (FunctionDescription(name: "mls.setRecoverySecret", parameters: []), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Ok? in
+                let reader = BufferReader(buffer)
+                return Api.mls.Ok.parse(reader)
+            })
+        }
+
         /// mls.claimKeyPackages user_id:long = mls.KeyPackages;
         public static func claimKeyPackages(userId: Int64) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.KeyPackages>) {
             let buffer = Buffer()

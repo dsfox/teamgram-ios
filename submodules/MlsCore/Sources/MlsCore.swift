@@ -248,3 +248,48 @@ public func mlsSelfCheck() -> String {
         return "FAIL: \(error)"
     }
 }
+
+/// The words that get an account back, and what they stand for.
+///
+/// Made here, on the device. The server is told only `authSecret` - enough to
+/// recognise somebody typing the words and nothing else - and never sees the
+/// words or the backup key. It used to make the phrase itself and send it as a
+/// message, which left every one of them in its message table in plain text.
+public enum MlsRecovery {
+    /// Six words, and the only copy of them is the one shown to the person.
+    public static func phrase(words: Int = 6) throws -> String {
+        let data = try take(mls_recovery_phrase(UInt(words)), "cannot make a recovery phrase")
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw MlsError.failed("the recovery phrase is not readable text")
+        }
+        return text
+    }
+
+    /// What is sent in place of the words, and what a sign-in is checked
+    /// against. Lower-case hex.
+    public static func authSecret(phrase: String) throws -> String {
+        let bytes = [UInt8](phrase.utf8)
+        let data = try take(bytes.withUnsafeBufferPointer {
+            mls_recovery_auth_secret($0.baseAddress, UInt($0.count))
+        }, "cannot derive the recovery secret")
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw MlsError.failed("the recovery secret is not readable text")
+        }
+        return text
+    }
+
+    /// The key the history backup is encrypted with. It never leaves here.
+    public static func backupKey(phrase: String) throws -> Data {
+        let bytes = [UInt8](phrase.utf8)
+        return try take(bytes.withUnsafeBufferPointer {
+            mls_recovery_backup_key($0.baseAddress, UInt($0.count))
+        }, "cannot derive the backup key")
+    }
+
+    /// Whether what somebody typed into the code field is words rather than a
+    /// code. Six digits is a code; anything with a letter in it is a phrase, and
+    /// what gets sent for it is the derivation rather than the words.
+    public static func looksLikeAPhrase(_ typed: String) -> Bool {
+        return typed.contains(where: { $0.isLetter })
+    }
+}
