@@ -1545,9 +1545,20 @@ public func signUpWithName(accountManager: AccountManager<TelegramAccountManager
                     }
                     let appliedState = account.postbox.transaction { transaction -> Void in
                         let state = AuthorizedAccountState(isTestingEnvironment: account.testingEnvironment, masterDatacenterId: account.masterDatacenterId, peerId: user.id, state: nil, invalidatedChannels: [])
-                        if let hole = account.postbox.seedConfiguration.initializeChatListWithHole.topLevel {
-                            transaction.replaceChatListHole(groupId: .root, index: hole.index, hole: nil)
-                        }
+                        // The hole stays. Upstream clears it here because a
+                        // newly registered account has no chats to fetch - and
+                        // ours does: the server puts a chat there while the
+                        // account is being created, with the sign-in code in
+                        // it and, until recently, the recovery phrase.
+                        //
+                        // Clearing it is what made that chat invisible for
+                        // good. The messages arrive as updates before the
+                        // client is listening, `updates.getState` then returns
+                        // a state that already includes them, and with no hole
+                        // nothing ever asks for the dialog list - so the chat
+                        // exists on the server, is counted in the badge, and
+                        // is nowhere on screen.
+                        let _ = account.postbox.seedConfiguration.initializeChatListWithHole.topLevel
                         initializedAppSettingsAfterLogin(transaction: transaction, appVersion: account.networkArguments.appVersion, syncContacts: syncContacts)
                         transaction.setState(state)
                         if let otherwiseReloginDays = otherwiseReloginDays, let value = forcedPasswordSetupNotice(otherwiseReloginDays) {

@@ -16,9 +16,17 @@ import MlsCore
 /// meant anything until this changed: its key comes from the same words.
 public struct MlsRecoveryState: Codable, Equatable {
     public var phrase: String
+    /// Whether the words have been put in front of the person yet.
+    ///
+    /// Separate from having them, because the two happen at different moments:
+    /// the account's own chat does not exist in the first seconds of a
+    /// registration, and words nobody was shown are worse than no words - the
+    /// account has a way back that nobody knows.
+    public var shown: Bool
 
-    public init(phrase: String) {
+    public init(phrase: String, shown: Bool) {
         self.phrase = phrase
+        self.shown = shown
     }
 
     // Written out by hand, one string under one key. The encoder underneath is
@@ -28,11 +36,13 @@ public struct MlsRecoveryState: Codable, Equatable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: StringCodingKey.self)
         self.phrase = try container.decode(String.self, forKey: "p")
+        self.shown = (try container.decodeIfPresent(Int32.self, forKey: "s") ?? 0) != 0
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: StringCodingKey.self)
         try container.encode(self.phrase, forKey: "p")
+        try container.encode(Int32(self.shown ? 1 : 0), forKey: "s")
     }
 }
 
@@ -42,9 +52,9 @@ public extension MlsRecoveryState {
             .get(MlsRecoveryState.self)
     }
 
-    static func save(transaction: Transaction, phrase: String) {
+    static func save(transaction: Transaction, phrase: String, shown: Bool) {
         transaction.updatePreferencesEntry(key: PreferencesKeys.mlsRecovery, { _ in
-            return PreferencesEntry(MlsRecoveryState(phrase: phrase))
+            return PreferencesEntry(MlsRecoveryState(phrase: phrase, shown: shown))
         })
     }
 }
@@ -63,8 +73,17 @@ func ensureRecoveryPhrase(postbox: Postbox, network: Network, accountPeerId: Pee
         return MlsRecoveryState.load(transaction: transaction)
     }
     |> mapToSignal { existing -> Signal<Void, NoError> in
-        if existing != nil {
-            return .complete()
+        if let existing = existing {
+            // Already has words. If they were never shown - the account's own
+            // chat did not exist yet when they were made - try again now.
+            if existing.shown {
+                return .complete()
+            }
+            return postbox.transaction { transaction -> Void in
+                if showRecoveryPhrase(transaction: transaction, accountPeerId: accountPeerId, phrase: existing.phrase) {
+                    MlsRecoveryState.save(transaction: transaction, phrase: existing.phrase, shown: true)
+                }
+            }
         }
         guard let phrase = try? MlsRecovery.phrase(),
               let secret = try? MlsRecovery.authSecret(phrase: phrase) else {
@@ -87,9 +106,9 @@ func ensureRecoveryPhrase(postbox: Postbox, network: Network, accountPeerId: Pee
             }
 
             return postbox.transaction { transaction -> Void in
-                MlsRecoveryState.save(transaction: transaction, phrase: phrase)
-                showRecoveryPhrase(transaction: transaction, accountPeerId: accountPeerId, phrase: phrase)
-                Logger.shared.log("Mls", "a recovery phrase was made on this device")
+                let shown = showRecoveryPhrase(transaction: transaction, accountPeerId: accountPeerId, phrase: phrase)
+                MlsRecoveryState.save(transaction: transaction, phrase: phrase, shown: shown)
+                Logger.shared.log("Mls", "a recovery phrase was made on this device, shown: \(shown)")
             }
         }
     }
@@ -100,13 +119,15 @@ func ensureRecoveryPhrase(postbox: Postbox, network: Network, accountPeerId: Pee
 /// The message is local and stays local: it is never sent, which is the entire
 /// point. A proper screen that has to be acknowledged would be better and is
 /// what this should become - a message can be scrolled past.
-private func showRecoveryPhrase(transaction: Transaction, accountPeerId: PeerId, phrase: String) {
+@discardableResult
+private func showRecoveryPhrase(transaction: Transaction, accountPeerId: PeerId, phrase: String) -> Bool {
     // Into Saved Messages rather than the service chat. The service chat is not
     // there on a freshly registered account - see #45 - and words nobody is
     // shown are an account with no way back at all.
     let servicePeerId = accountPeerId
     guard transaction.getPeer(servicePeerId) != nil else {
-        return
+        // Not yet. Tried again on the next start rather than given up on.
+        return false
     }
 
     let text = "Recovery phrase:\n\n\(phrase)\n\nWrite it down on paper and keep it. It is the only way back into this account if the phone is lost, it works once, and nobody - including this service - can give it to you again."
@@ -132,4 +153,5 @@ private func showRecoveryPhrase(transaction: Transaction, accountPeerId: PeerId,
         text: text,
         attributes: [entities],
         media: [])], location: .Random)
+    return true
 }
