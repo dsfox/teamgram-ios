@@ -881,9 +881,26 @@ final class AuthorizedApplicationContext {
                 } else {
                     isOutgoingMessage = .single(false)
                 }
+                // Waited for rather than looked up once.
+                //
+                // A notification can arrive before the message it is about: the
+                // server sends the two by different roads, and on a phone that
+                // has just been set up there is nothing about that person here
+                // yet at all. Looking once then found nothing and the tap did
+                // nothing - the app opened on the chat list, and the person who
+                // had just been told they had a message had to go and search for
+                // the sender to find it. A few seconds is enough for the message
+                // to land; after that this gives up as it always did.
+                let peerHere = self.context.engine.data.subscribe(TelegramEngine.EngineData.Item.Peer.Peer(id: peerId))
+                |> filter { peer in
+                    return peer != nil
+                }
+                |> take(1)
+                |> timeout(5.0, queue: Queue.mainQueue(), alternate: .single(nil))
+
                 let _ = combineLatest(
                     queue: Queue.mainQueue(),
-                    self.context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: peerId)),
+                    peerHere,
                     isOutgoingMessage
                 ).start(next: { peer, isOutgoingMessage in
                     guard let peer = peer else {
