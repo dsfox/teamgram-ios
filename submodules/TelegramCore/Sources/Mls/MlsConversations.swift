@@ -21,6 +21,18 @@ import MlsCore
 /// old client should be able to tell what it is instead of seeing mojibake.
 private let ciphertextPrefix = "mls1:"
 
+/// A conversation, short enough to read in a log and long enough to tell two
+/// apart.
+///
+/// Every question worth asking about encryption is which conversation something
+/// happened in - which one a message was written in, which one this device is
+/// sending in, which one it just joined - and none of it was in the log. A whole
+/// evening went on reasoning about which group was which when the answer would
+/// have been one line.
+func mlsShortId(_ groupId: Data) -> String {
+    return groupId.prefix(6).map({ String(format: "%02x", $0) }).joined()
+}
+
 public struct MlsConversationIds: Codable, Equatable {
     /// Which MLS group belongs to which peer. Kept beside the account rather
     /// than inside the crypto state, because it is not a secret - it is a note
@@ -133,7 +145,7 @@ public enum MlsConversations {
                 |> mapToSignal { _ -> Signal<Data?, NoError> in
                     return network.request(Api.functions.mls.sendWelcome(userId: peerId.id._internalGetInt64Value(), welcome: Buffer(data: welcome)))
                     |> map { _ -> Data? in
-                        Logger.shared.log("Mls", "started a conversation with \(peerId)")
+                        Logger.shared.log("Mls", "started conversation \(mlsShortId(groupId)) with \(peerId.id._internalGetInt64Value())")
                         return groupId
                     }
                     |> `catch` { _ -> Signal<Data?, NoError> in
@@ -178,6 +190,23 @@ public enum MlsConversations {
     /// Whether this text is one of ours at all.
     public static func isCiphertext(_ text: String) -> Bool {
         return text.hasPrefix(ciphertextPrefix)
+    }
+
+    /// Which conversation this message belongs to, or nothing when it says
+    /// nothing this device can use.
+    ///
+    /// The message is opened with the conversation it names rather than the one
+    /// this device happens to keep for the person who sent it, because those are
+    /// not always the same conversation. Every reinstall makes them differ: the
+    /// phone that was set up again has lost every group it was in and starts a
+    /// new one, while the other side goes on sending in the old one until the
+    /// welcome arrives. Picking by person there opens neither.
+    public static func conversation(ofCiphertext text: String) -> Data? {
+        guard isCiphertext(text),
+              let ciphertext = Data(base64Encoded: String(text.dropFirst(ciphertextPrefix.count))) else {
+            return nil
+        }
+        return try? MlsGroup.groupId(ofMessage: ciphertext)
     }
 
     /// Turns it back, or nothing if it cannot be read - and then the caller
@@ -450,9 +479,10 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
             for welcome in result.welcomes {
                 do {
                     let group = try MlsGroup.join(identity: identity, welcome: welcome.welcome.makeData())
-                    peers[welcome.fromId] = try group.id
+                    let joinedId = try group.id
+                    peers[welcome.fromId] = joinedId
                     opened.append(welcome.id)
-                    Logger.shared.log("Mls", "joined a conversation started by \(welcome.fromId)")
+                    Logger.shared.log("Mls", "joined conversation \(mlsShortId(joinedId)) started by \(welcome.fromId)")
                 } catch {
                     Logger.shared.log("Mls", "cannot join the conversation from \(welcome.fromId): \(error)")
                     // A welcome whose key package has already been spent can
@@ -484,6 +514,18 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
             let joined = peers.keys.map { PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value($0)) }
 
             MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
+
+            // Taken here rather than only written down. Everything after this
+            // point is asynchronous, and a message sent before it lands goes
+            // into the conversation this device had before - the one the other
+            // side has just left behind.
+            let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+            for (fromId, groupId) in peers {
+                runtime.adopt(
+                    peerId: PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value(fromId)),
+                    groupId: groupId)
+            }
+
             return postbox.transaction { transaction -> Void in
                 for (fromId, groupId) in peers {
                     MlsConversationIds.remember(

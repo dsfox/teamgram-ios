@@ -23,7 +23,9 @@ public final class MlsRuntime {
     private let postbox: Postbox
     private let accountPeerId: PeerId
     private var identity: MlsIdentity?
-    private var groups: [Int64: MlsGroup] = [:]
+    /// The conversations this device is in, by their own id rather than by the
+    /// person they are with - because a person can be in more than one of them.
+    private var groups: [String: MlsGroup] = [:]
     /// Conversations being started, so that a burst of messages to somebody new
     /// starts one conversation rather than a race of several - and several
     /// would be worse than slow: each one would replace the last, and the other
@@ -74,7 +76,9 @@ public final class MlsRuntime {
     /// next message finds it without going back to disk.
     private func remember(peerId: Int64, groupId: Data) {
         self.conversationIds[peerId] = groupId
-        self.groups.removeValue(forKey: peerId)
+        // The group itself is not dropped here: it is held by its own id, and a
+        // conversation this device is in stays readable whoever it is now
+        // sending to.
     }
 
     public static func instance(postbox: Postbox, accountPeerId: PeerId) -> MlsRuntime {
@@ -105,17 +109,29 @@ public final class MlsRuntime {
     /// account attached, because this is called from inside a transaction and
     /// opening another would stop the app on the path every message takes.
     private func group(for peerId: PeerId) -> (MlsIdentity, MlsGroup)? {
+        guard let groupId = self.conversationIds[peerId.id._internalGetInt64Value()] else {
+            return nil
+        }
+        return self.group(named: groupId)
+    }
+
+    /// One conversation by its own id, whoever it is with.
+    ///
+    /// This is what reading a message goes through: the message says which
+    /// conversation it belongs to, and a device that is in it can open it. A
+    /// device can be in two with the same person - one it started and one it was
+    /// invited into - and both are real for as long as messages keep arriving in
+    /// them.
+    private func group(named groupId: Data) -> (MlsIdentity, MlsGroup)? {
         guard let identity = self.identity else {
             return nil
         }
 
-        let key = peerId.id._internalGetInt64Value()
+        let key = groupId.base64EncodedString()
         if let group = self.groups[key] {
             return (identity, group)
         }
-
-        guard let groupId = self.conversationIds[key],
-              let group = try? MlsGroup.load(identity: identity, id: groupId) else {
+        guard let group = try? MlsGroup.load(identity: identity, id: groupId) else {
             return nil
         }
         self.groups[key] = group
@@ -171,6 +187,9 @@ public final class MlsRuntime {
                 self.startConversation(with: peerId)
             }
             return nil
+        }
+        if let groupId = self.conversationIds[peerId.id._internalGetInt64Value()] {
+            Logger.shared.log("Mls", "sending to \(peerId.id._internalGetInt64Value()) in conversation \(mlsShortId(groupId))")
         }
         return MlsConversations.encrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text, entities: entities, forwarded: forwarded, media: media)
     }
@@ -289,7 +308,29 @@ public final class MlsRuntime {
             return already
         }
 
-        guard let (identity, group) = self.group(for: peerId) else {
+        // The conversation the message names, not the one kept for the person
+        // who sent it. Those differ for as long as it takes a welcome to cross
+        // after a reinstall, and reading with the wrong one fails for ever:
+        // MLS answers `ValidationError(WrongGroupId)`, the text never appears,
+        // and nothing about it ever changes.
+        //
+        // An older message from before the group id travelled, or one this
+        // device cannot parse, falls back to the conversation kept for the
+        // sender - which is what this always did.
+        let found: (MlsIdentity, MlsGroup)?
+        if let named = MlsConversations.conversation(ofCiphertext: text) {
+            found = self.group(named: named)
+            if found == nil {
+                // Worth saying plainly: this device is not in the conversation
+                // the message was written in, so nothing here can ever open it.
+                // It is the shape a reinstall leaves, and the answer is a
+                // conversation rebuilt rather than another attempt.
+                Logger.shared.log("Mls", "a message from \(peerId.id._internalGetInt64Value()) is in conversation \(mlsShortId(named)), which this device is not in")
+            }
+        } else {
+            found = self.group(for: peerId)
+        }
+        guard let (identity, group) = found else {
             return nil
         }
         let content = MlsConversations.decrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text)
@@ -470,12 +511,20 @@ public final class MlsRuntime {
         }
     }
 
-    /// Forgets a conversation that has been rebuilt, so the next message is
-    /// read with the group that exists rather than the one that did.
-    public func forget(peerId: PeerId) {
+    /// Takes a conversation that was just joined, at once and without waiting
+    /// for anything else.
+    ///
+    /// The welcome poll writes the conversation down and then reloads
+    /// everything, and until that reload lands this device goes on sending in
+    /// the conversation it had before - which after a reinstall is one the other
+    /// side is no longer in. It was measured: the two phones only agreed after
+    /// the app was restarted, because a restart is what reads the note back.
+    /// Nothing about a message that will not open should depend on a signal
+    /// chain finishing.
+    public func adopt(peerId: PeerId, groupId: Data) {
         self.queue.lock()
         defer { self.queue.unlock() }
-        self.groups.removeValue(forKey: peerId.id._internalGetInt64Value())
+        self.conversationIds[peerId.id._internalGetInt64Value()] = groupId
     }
 
     /// Drops everything held and reads it again, completing when the new state

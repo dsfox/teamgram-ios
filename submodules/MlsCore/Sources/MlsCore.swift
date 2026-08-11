@@ -137,6 +137,22 @@ public final class MlsGroup {
         }
     }
 
+    /// Which conversation a message was written in, read from the message.
+    ///
+    /// A device can hold two conversations with the same person - after one
+    /// side is reinstalled each of them starts its own - so the group cannot be
+    /// chosen by who sent the message. It has to be the one the message names,
+    /// and it names it in the clear.
+    public static func groupId(ofMessage ciphertext: Data) throws -> Data {
+        let buffer = ciphertext.withUnsafeBytes { raw -> MlsBuffer in
+            mls_message_group_id(
+                raw.bindMemory(to: UInt8.self).baseAddress,
+                UInt(ciphertext.count)
+            )
+        }
+        return try take(buffer, "the message names no conversation")
+    }
+
     /// Joins a conversation this device was invited into.
     public static func join(identity: MlsIdentity, welcome: Data) throws -> MlsGroup {
         guard let handle = welcome.withUnsafeBytes({ raw -> OpaquePointer? in
