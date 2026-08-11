@@ -432,6 +432,24 @@ public final class MlsRuntime {
     /// messages asks the server once rather than once each.
     private var recovering: Set<Int64> = []
 
+    /// When a conversation with somebody was last rebuilt from this side.
+    ///
+    /// A device that has just been set up again cannot read anything that was
+    /// sent before it existed, and no new conversation will change that - the
+    /// keys those messages were written to never reached this phone. Without
+    /// this, every one of those old messages started another conversation: two
+    /// were built four tenths of a second apart in the first clean run of the
+    /// reinstall scenario, each with its own welcome and its own key package
+    /// taken from the other side. A chat with a hundred messages behind it would
+    /// have built a hundred.
+    private var rebuilt: [Int64: Double] = [:]
+
+    /// How long a rebuilt conversation is given before this side will build
+    /// another. Long enough that the old messages of one chat are done with,
+    /// short enough that a real second failure is still repaired within a few
+    /// minutes.
+    private static let betweenRebuilds: Double = 600.0
+
     private func recover(peerId: PeerId) {
         self.queue.lock()
         let key = peerId.id._internalGetInt64Value()
@@ -483,8 +501,16 @@ public final class MlsRuntime {
                 // arrives, so both ends converge on this one.
                 self.queue.lock()
                 let identity = self.identity
+                let lastRebuild = self.rebuilt[key]
                 self.queue.unlock()
                 guard let identity = identity else {
+                    return .single(0)
+                }
+                if let lastRebuild = lastRebuild, CFAbsoluteTimeGetCurrent() - lastRebuild < MlsRuntime.betweenRebuilds {
+                    // Already rebuilt, and still unreadable - so this message is
+                    // older than the rebuild and always will be. Another
+                    // conversation would not open it and would cost the other
+                    // side a key package to say so.
                     return .single(0)
                 }
 
@@ -496,6 +522,7 @@ public final class MlsRuntime {
                     }
                     self.queue.lock()
                     self.remember(peerId: peerId.id._internalGetInt64Value(), groupId: groupId)
+                    self.rebuilt[key] = CFAbsoluteTimeGetCurrent()
                     self.queue.unlock()
                     return .single(0)
                 }

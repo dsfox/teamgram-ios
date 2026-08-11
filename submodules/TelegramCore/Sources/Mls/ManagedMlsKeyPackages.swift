@@ -18,11 +18,10 @@ import MlsCore
 /// sending in the clear.
 private let packagesPerRefill = 30
 
-/// How long to wait before trying again after a failure. The supply is not
-/// urgent - it only matters when somebody starts a conversation - so a failure
-/// costs nothing until then, and hammering the server would be worse than
-/// waiting.
-private let retryAfterFailure: Double = 5 * 60
+/// How long between looks at the supply. It only matters when somebody starts a
+/// conversation with this device, and the low-water mark leaves plenty of slack,
+/// so there is nothing to gain by asking often.
+private let betweenChecks: Double = 15 * 60
 
 func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
     let refill = Signal<Void, NoError> { subscriber in
@@ -35,34 +34,60 @@ func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: Pe
             return EmptyDisposable
         }
 
-        var packages: [Buffer] = []
-        var lastResort = Buffer()
-        do {
-            for _ in 0 ..< packagesPerRefill {
-                packages.append(Buffer(data: try identity.keyPackage()))
+        /// What this device has left, asked for rather than assumed.
+        ///
+        /// Publishing was unconditional and every fifteen minutes, so a device
+        /// nobody was starting conversations with reached the hundred it is
+        /// allowed to hold within the hour and was refused from then on - once
+        /// per wake, for as long as it stayed signed in. On the server that is
+        /// an error line every few minutes, which is what the health check was
+        /// firing about; on the phone it is work and battery spent making keys
+        /// that were thrown away on arrival.
+        ///
+        /// An empty publish is the question "how many do I have?": nothing is
+        /// stored and the count comes back, so no separate method is needed for
+        /// it.
+        let ask = network.request(Api.functions.mls.publishKeyPackages(keyPackages: [], lastResort: Buffer()))
+        |> map(Optional.init)
+        |> `catch` { _ -> Signal<Api.mls.PublishResult?, NoError> in
+            return .single(nil)
+        }
+
+        let disposable = (ask
+        |> mapToSignal { asked -> Signal<Api.mls.PublishResult?, NoError> in
+            guard let asked = asked else {
+                Logger.shared.log("Mls", "the server did not say how many key packages are left")
+                return .single(nil)
             }
-            // One that is handed out repeatedly once the others run out, so a
-            // conversation can still start with a device that has been quiet.
-            lastResort = Buffer(data: try identity.keyPackage())
-        } catch {
-            Logger.shared.log("Mls", "cannot make key packages: \(error)")
-            subscriber.putCompletion()
-            return EmptyDisposable
-        }
+            guard asked.shouldRefill else {
+                return .single(asked)
+            }
 
-        // Through the one writer, so it cannot land after something older.
-        if let state = try? identity.export() {
-            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
-        }
-        let saveState = postbox.transaction { transaction -> Void in
-        }
+            var packages: [Buffer] = []
+            var lastResort = Buffer()
+            do {
+                for _ in 0 ..< packagesPerRefill {
+                    packages.append(Buffer(data: try identity.keyPackage()))
+                }
+                // One that is handed out repeatedly once the others run out, so
+                // a conversation can still start with a device that has been
+                // quiet.
+                lastResort = Buffer(data: try identity.keyPackage())
+            } catch {
+                Logger.shared.log("Mls", "cannot make key packages: \(error)")
+                return .single(nil)
+            }
 
-        // Saved before publishing, not after. A package published but not
-        // saved is one this device cannot answer for - somebody would encrypt
-        // to a key that no longer exists here, and the conversation would fail
-        // to start with no explanation on either side.
-        let disposable = (saveState
-        |> mapToSignal { _ -> Signal<Api.mls.PublishResult?, NoError> in
+            // Saved before publishing, not after. A package published but not
+            // saved is one this device cannot answer for - somebody would
+            // encrypt to a key that no longer exists here, and the conversation
+            // would fail to start with no explanation on either side.
+            //
+            // Through the one writer, so it cannot land after something older.
+            if let state = try? identity.export() {
+                MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
+            }
+
             return network.request(Api.functions.mls.publishKeyPackages(keyPackages: packages, lastResort: lastResort))
             |> map(Optional.init)
             |> `catch` { _ -> Signal<Api.mls.PublishResult?, NoError> in
@@ -82,10 +107,7 @@ func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: Pe
         }
     }
 
-    // Once at start, and then only when the server says the supply is low -
-    // which it does in the answer to publishing. Until there is a reason to
-    // publish again, this stays quiet.
-    return (refill |> then(Signal<Void, NoError>.complete() |> suspendAwareDelay(retryAfterFailure, queue: Queue.concurrentDefaultQueue())))
+    return (refill |> then(Signal<Void, NoError>.complete() |> suspendAwareDelay(betweenChecks, queue: Queue.concurrentDefaultQueue())))
     |> restart
 }
 
