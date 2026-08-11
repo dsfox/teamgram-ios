@@ -118,15 +118,16 @@ public enum MlsConversations {
 
             do {
                 let group = try MlsGroup.create(identity: identity)
-                var welcome: Data?
-                // Every device of theirs is a member of its own. Adding only
-                // the first would leave their other phones unable to read.
-                for package in claimed.packages {
-                    welcome = try group.addMember(identity: identity, keyPackage: package.makeData()).welcome
-                }
-                guard let welcome = welcome else {
-                    return .single(nil)
-                }
+                // Every device of theirs at once, because there is one welcome
+                // to send and it has to serve all of them. Added one at a time
+                // this kept the last welcome and threw the rest away, so which
+                // of their phones could join was chance - and for somebody who
+                // has set a phone up more than once, most of those rows belong
+                // to devices that no longer exist. Both sides then held a
+                // conversation the other was not in.
+                let welcome = try group.addMembers(
+                    identity: identity,
+                    keyPackages: claimed.packages.map { $0.makeData() }).welcome
 
                 let groupId = try group.id
                 let state = try identity.export()

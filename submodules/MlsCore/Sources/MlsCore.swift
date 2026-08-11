@@ -170,6 +170,39 @@ public final class MlsGroup {
     /// Adds a device. The commit goes to everybody already here; the welcome
     /// goes to the newcomer. Both have to be delivered, or the conversation
     /// splits in two.
+    /// Adds every one of these devices in one go, and gives back the single
+    /// welcome that lets all of them in.
+    ///
+    /// One per device is what a person with more than one phone - or one phone
+    /// set up more than once - has published. Adding them one at a time makes a
+    /// welcome each, and a caller with one welcome to send sends the last: every
+    /// other device is then a member of a conversation nobody ever told it
+    /// about, and the person reads nothing.
+    public func addMembers(identity: MlsIdentity, keyPackages: [Data]) throws -> (commit: Data, welcome: Data) {
+        // Length first, four bytes, most significant first - the shape the
+        // other side of the boundary reads.
+        var joined = Data()
+        for package in keyPackages {
+            var length = UInt32(package.count).bigEndian
+            withUnsafeBytes(of: &length) { joined.append(contentsOf: $0) }
+            joined.append(package)
+        }
+
+        var commitBuffer = MlsBuffer(ptr: nil, len: 0)
+        let welcomeBuffer = joined.withUnsafeBytes { raw -> MlsBuffer in
+            mls_group_add_members(
+                self.handle,
+                identity.handle,
+                raw.bindMemory(to: UInt8.self).baseAddress,
+                UInt(joined.count),
+                &commitBuffer
+            )
+        }
+        let welcome = try take(welcomeBuffer, "the members were not added")
+        let commit = try take(commitBuffer, "no commit was produced")
+        return (commit: commit, welcome: welcome)
+    }
+
     public func addMember(identity: MlsIdentity, keyPackage: Data) throws -> (commit: Data, welcome: Data) {
         var commitBuffer = MlsBuffer(ptr: nil, len: 0)
         let welcomeBuffer = keyPackage.withUnsafeBytes { raw -> MlsBuffer in
