@@ -13,6 +13,7 @@ swift_library(
         "//submodules/MlsCore:MlsCore",
         "//submodules/TelegramApi:TelegramApi",
         "//submodules/MtProtoKit:MtProtoKit",
+        "//submodules/ImageCompression:ImageCompression",
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",
         "//submodules/Postbox:Postbox",
         "//submodules/CloudData:CloudData",

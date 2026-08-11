@@ -1215,7 +1215,7 @@ public final class PendingMessageManager {
                                     // a picture message the server could read.
                                     var outgoingText = text
                                     if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                                        .encrypt(peerId: message.id.peerId, text: text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message)) {
+                                        .encrypt(peerId: message.id.peerId, text: text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message), media: content.mlsMedia) {
                                         outgoingText = ciphertext
                                         messageEntities = nil
                                     }

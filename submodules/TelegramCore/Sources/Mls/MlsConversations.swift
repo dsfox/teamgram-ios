@@ -350,10 +350,14 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
 func mlsKeepingWhatIsReadable(_ messages: [StoreMessage], transaction: Transaction) -> [StoreMessage] {
     var result = messages
     for index in 0 ..< result.count {
+        // Readable means text or a file: a picture sent without a caption has
+        // nothing to say and is still the thing this device is holding. Asking
+        // for text alone left every uncaptioned photo and video replaced by the
+        // server's blob in the sender's own chat.
         guard result[index].attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }),
               case let .Id(id) = result[index].id,
               let existing = transaction.getMessage(id),
-              !existing.text.isEmpty,
+              !existing.text.isEmpty || !existing.media.isEmpty,
               !existing.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) else {
             continue
         }

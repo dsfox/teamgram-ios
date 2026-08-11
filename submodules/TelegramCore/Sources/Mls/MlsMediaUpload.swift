@@ -2,6 +2,8 @@ import Foundation
 import Postbox
 import SwiftSignalKit
 import TelegramApi
+import ImageCompression
+import UIKit
 
 /// Sending a file into an encrypted conversation.
 ///
@@ -125,6 +127,18 @@ func mlsUploadedMediaContent(network: Network, postbox: Postbox, peerId: PeerId,
             return .fail(.generic)
         }
 
+        // The blurred placeholder, made here because the server cannot make one
+        // - it is holding noise. A couple of hundred bytes, which is why it fits
+        // inside the message rather than travelling as a file of its own.
+        //
+        // Only for a picture: pulling a frame out of a video needs the media
+        // pipeline and belongs with the rest of the video work.
+        var thumbnail = Data()
+        if uploadable.kind == .image, let image = UIImage(contentsOfFile: data.path),
+           let mini = compressImageMiniThumbnail(image) {
+            thumbnail = mini
+        }
+
     return multipartUpload(
         network: network,
         postbox: postbox,
@@ -175,7 +189,7 @@ func mlsUploadedMediaContent(network: Network, postbox: Postbox, peerId: PeerId,
                 duration: uploadable.duration,
                 key: key.aesKey,
                 iv: key.aesIv,
-                thumb: Data())
+                thumb: thumbnail)
 
             Logger.shared.log("Mls", "uploaded \(containerSize) encrypted bytes for \(peerId)")
 
