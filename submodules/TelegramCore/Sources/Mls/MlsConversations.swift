@@ -39,8 +39,18 @@ public struct MlsConversationIds: Codable, Equatable {
     /// about which conversation is which.
     public var groupIdByPeer: [Int64: Data]
 
-    public init(groupIdByPeer: [Int64: Data] = [:]) {
+    /// When a conversation with each peer was last built or joined, in seconds.
+    ///
+    /// Kept on disk rather than in memory because it is what stops this device
+    /// building another one over an old message that will never open. In memory
+    /// it was reset by every launch, so a phone that had been set up again built
+    /// a fresh conversation - and took a key package of the other side - every
+    /// single time the app started.
+    public var rebuiltAtByPeer: [Int64: Int32]
+
+    public init(groupIdByPeer: [Int64: Data] = [:], rebuiltAtByPeer: [Int64: Int32] = [:]) {
         self.groupIdByPeer = groupIdByPeer
+        self.rebuiltAtByPeer = rebuiltAtByPeer
     }
 
     // Two parallel arrays of the simplest types there are.
@@ -62,6 +72,14 @@ public struct MlsConversationIds: Codable, Equatable {
             }
         }
         self.groupIdByPeer = result
+
+        let rebuiltPeers = try container.decodeIfPresent([Int64].self, forKey: "rp") ?? []
+        let rebuiltAt = try container.decodeIfPresent([Int32].self, forKey: "rt") ?? []
+        var rebuilt: [Int64: Int32] = [:]
+        for (index, peer) in rebuiltPeers.enumerated() where index < rebuiltAt.count {
+            rebuilt[peer] = rebuiltAt[index]
+        }
+        self.rebuiltAtByPeer = rebuilt
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -70,6 +88,10 @@ public struct MlsConversationIds: Codable, Equatable {
         let sorted = self.groupIdByPeer.sorted(by: { $0.key < $1.key })
         try container.encode(sorted.map({ $0.key }), forKey: "p")
         try container.encode(sorted.map({ $0.value.base64EncodedString() }), forKey: "g")
+
+        let rebuilt = self.rebuiltAtByPeer.sorted(by: { $0.key < $1.key })
+        try container.encode(rebuilt.map({ $0.key }), forKey: "rp")
+        try container.encode(rebuilt.map({ $0.value }), forKey: "rt")
     }
 }
 
@@ -83,6 +105,7 @@ public extension MlsConversationIds {
         transaction.updatePreferencesEntry(key: PreferencesKeys.mlsConversations, { entry in
             var ids = entry?.get(MlsConversationIds.self) ?? MlsConversationIds()
             ids.groupIdByPeer[peerId.id._internalGetInt64Value()] = groupId
+            ids.rebuiltAtByPeer[peerId.id._internalGetInt64Value()] = Int32(Date().timeIntervalSince1970)
             return PreferencesEntry(ids)
         })
     }
@@ -210,42 +233,75 @@ public enum MlsConversations {
         return try? MlsGroup.groupId(ofMessage: ciphertext)
     }
 
-    /// Turns it back, or nothing if it cannot be read - and then the caller
-    /// puts the ciphertext aside rather than showing it.
-    public static func decrypt(postbox: Postbox, accountPeerId: PeerId, identity: MlsIdentity, group: MlsGroup, text: String) -> MlsMessageContent? {
-        guard isCiphertext(text) else {
+    /// What came of trying to read a message.
+    ///
+    /// Not readable is three different things, and telling them apart decides
+    /// what happens next. A message this device wrote is the one that matters:
+    /// MLS never lets a sender read their own ciphertext, so an outgoing message
+    /// comes back from the server looking exactly like a conversation that is
+    /// broken - and the client, believing it, threw the conversation away and
+    /// built another one after every message it sent. Both sides chased each
+    /// other through new groups all evening.
+    public enum Reading {
+        case content(MlsMessageContent)
+        /// A handshake message, or nothing this device can show.
+        case nothing
+        /// Written here. Nobody on this device will ever read it back, and that
+        /// is the design rather than a fault.
+        case writtenHere
+        /// Not readable here, and it may mean the conversation needs rebuilding.
+        case unreadable
+
+        /// What there is to show, for the callers that only want that.
+        public var content: MlsMessageContent? {
+            if case let .content(content) = self {
+                return content
+            }
             return nil
+        }
+    }
+
+    /// Turns it back, or says why it could not - and the caller puts the
+    /// ciphertext aside rather than showing it.
+    public static func decrypt(postbox: Postbox, accountPeerId: PeerId, identity: MlsIdentity, group: MlsGroup, text: String) -> Reading {
+        guard isCiphertext(text) else {
+            return .nothing
         }
         guard let ciphertext = Data(base64Encoded: String(text.dropFirst(ciphertextPrefix.count))) else {
             Logger.shared.log("Mls", "a message marked as ours is not readable base64")
-            return nil
+            return .unreadable
         }
 
         do {
             guard let plaintext = try group.decrypt(identity: identity, ciphertext: ciphertext) else {
                 // A handshake message rather than something to show.
-                return nil
+                return .nothing
             }
 
             let state = try identity.export()
             MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
 
             if let content = Api.mls.Content.decode(plaintext) {
-                return MlsMessageContent(
+                return .content(MlsMessageContent(
                     text: content.text,
                     entities: messageTextEntitiesFromApiEntities(content.entities),
                     forwarded: content.forwarded,
-                    media: content.media)
+                    media: content.media))
             }
             // From a version that encrypted the bare text. Read as text rather
             // than refused: those messages are still in people's chats.
             guard let text = String(data: plaintext, encoding: .utf8) else {
-                return nil
+                return .unreadable
             }
-            return MlsMessageContent(text: text, entities: [], forwarded: nil)
+            return .content(MlsMessageContent(text: text, entities: [], forwarded: nil))
         } catch {
+            // The sender's own message. Said quietly, because it happens to
+            // every message anybody sends and means nothing is wrong.
+            if "\(error)".contains("CannotDecryptOwnMessage") {
+                return .writtenHere
+            }
             Logger.shared.log("Mls", "cannot decrypt: \(error)")
-            return nil
+            return .unreadable
         }
     }
 }
@@ -516,10 +572,10 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
 
             MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
 
-            // Taken here rather than only written down. Everything after this
-            // point is asynchronous, and a message sent before it lands goes
-            // into the conversation this device had before - the one the other
-            // side has just left behind.
+            // Taken here rather than written down by what follows. Everything
+            // after this point is asynchronous and does not always run to the
+            // end; a conversation that exists only until the next restart is
+            // one the device rebuilds, and then the two sides have one each.
             let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
             for (fromId, groupId) in peers {
                 runtime.adopt(
@@ -527,30 +583,13 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
                     groupId: groupId)
             }
 
-            return postbox.transaction { transaction -> Void in
-                for (fromId, groupId) in peers {
-                    MlsConversationIds.remember(
-                        transaction: transaction,
-                        peerId: PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value(fromId)),
-                        groupId: groupId)
-                }
-            }
-            |> mapToSignal { _ -> Signal<[PeerId], NoError> in
-                // Only now: the conversation is open and written down. Waited
-                // for rather than started and left, because the caller reads
-                // messages back with these conversations the moment this
-                // returns - and would find none of them.
-                return MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).reload()
-                |> mapToSignal { _ -> Signal<[PeerId], NoError> in
-                    return network.request(Api.functions.mls.confirmWelcomes(ids: opened))
-                    |> map { _ -> [PeerId] in joined }
-                    |> `catch` { _ -> Signal<[PeerId], NoError> in
-                        // The conversations are open here either way, so the
-                        // messages waiting in them are worth reading back even
-                        // when the server was not told.
-                        return .single(joined)
-                    }
-                }
+            return network.request(Api.functions.mls.confirmWelcomes(ids: opened))
+            |> map { _ -> [PeerId] in joined }
+            |> `catch` { _ -> Signal<[PeerId], NoError> in
+                // The conversations are open here either way, so the messages
+                // waiting in them are worth reading back even when the server
+                // was not told.
+                return .single(joined)
             }
         }).start(next: { peers in
             subscriber.putNext(peers)

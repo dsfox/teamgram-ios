@@ -64,12 +64,89 @@ public final class MlsRuntime {
                 PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value($0))
             }
             self.queue.unlock()
-            guard !peers.isEmpty else {
+            let repair: Signal<Void, NoError>
+            if peers.isEmpty {
+                repair = .complete()
+            } else {
+                repair = combineLatest(peers.map { repairUnreadableMessages(postbox: postbox, runtime: self, peerId: $0) })
+                |> map { _ -> Void in }
+            }
+            return repair
+            |> then(self.rebuildConversationsOfRecentChats())
+        }).start()
+    }
+
+    /// How many recent chats a device that has just been set up rebuilds.
+    ///
+    /// Enough for the people somebody actually writes to, small enough that a
+    /// fresh install is not a burst of requests. Everything older is rebuilt the
+    /// first time a message arrives from that person, as it always was.
+    private static let chatsToRebuild = 20
+
+    /// Starts a conversation with the people this device already has chats with,
+    /// when it holds none of its own.
+    ///
+    /// A phone that has been set up again has the chats - they come from the
+    /// server - and none of the encryption behind them. Waiting for a message to
+    /// notice that costs exactly one message: the one that arrives, finds no
+    /// conversation, sets the rebuild going and can never be read afterwards,
+    /// because the keys it was written to never existed here. That message is
+    /// usually the first thing somebody says after "I got a new phone".
+    ///
+    /// So it is done at the start instead, from what the chat list already says.
+    /// The other side takes the invitation and sends into the new conversation
+    /// from then on, before there is anything to lose.
+    private func rebuildConversationsOfRecentChats(attempt: Int = 0) -> Signal<Void, NoError> {
+        self.queue.lock()
+        let known = !self.conversationIds.isEmpty
+        self.queue.unlock()
+        // Not a fresh device: it has conversations, so there is nothing here to
+        // rebuild and no reason to spend a key package of anybody's.
+        if known {
+            return .complete()
+        }
+
+        let accountPeerId = self.accountPeerId
+        return self.postbox.transaction { transaction -> [PeerId] in
+            return transaction.getTopChatListEntries(groupId: .root, count: MlsRuntime.chatsToRebuild)
+                .compactMap { entry -> PeerId? in
+                    guard entry.peerId.namespace == Namespaces.Peer.CloudUser, entry.peerId != accountPeerId else {
+                        return nil
+                    }
+                    return entry.peerId
+                }
+        }
+        |> mapToSignal { [weak self] peers -> Signal<Void, NoError> in
+            guard let self = self else {
                 return .complete()
             }
-            return combineLatest(peers.map { repairUnreadableMessages(postbox: postbox, runtime: self, peerId: $0) })
-            |> map { _ -> Void in }
-        }).start()
+            if peers.isEmpty {
+                // The chat list arrives from the server after this runs, so an
+                // empty one here means "not yet" rather than "nobody". Asked
+                // again a few times and then left alone: a device with no chats
+                // at all is ordinary.
+                // Ten minutes of asking, because the list can take a while: on a
+                // phone signing in for the first time it arrives from the server
+                // after everything here has already run, and a minute of trying
+                // was not enough - the rebuild never happened and the first
+                // messages were lost exactly as before.
+                guard attempt < 20 else {
+                    return .complete()
+                }
+                return Signal<Void, NoError>.complete()
+                |> suspendAwareDelay(30.0, queue: Queue.concurrentDefaultQueue())
+                |> then(self.rebuildConversationsOfRecentChats(attempt: attempt + 1))
+            }
+            Logger.shared.log("Mls", "no conversations on this device, so rebuilding \(peers.count) recent chat(s) after \(attempt) wait(s)")
+            // One after another rather than all at once: each one claims a key
+            // package and leaves a welcome, and a fresh install has better
+            // things to do with the first seconds of its network.
+            var work: Signal<Void, NoError> = .complete()
+            for peerId in peers {
+                work = work |> then(self.ensureConversation(peerId: peerId))
+            }
+            return work
+        }
     }
 
     /// Remembers a conversation that has just been started or joined, so the
@@ -234,6 +311,9 @@ public final class MlsRuntime {
             self.queue.lock()
             if let groupId = groupId {
                 self.remember(peerId: key, groupId: groupId)
+                // Counted as a rebuild wherever it happened, so that a message
+                // which will not open a moment later does not start another one.
+                self.markRebuilt(key)
             } else {
                 self.withoutDevices[key] = CFAbsoluteTimeGetCurrent()
             }
@@ -266,6 +346,7 @@ public final class MlsRuntime {
             self.starting.remove(key)
             if let groupId = groupId {
                 self.remember(peerId: key, groupId: groupId)
+                self.markRebuilt(key)
             } else {
                 self.withoutDevices[key] = CFAbsoluteTimeGetCurrent()
             }
@@ -297,15 +378,21 @@ public final class MlsRuntime {
     /// What this text really says, or nothing if it is not ours or cannot be
     /// read - and then the caller puts the ciphertext aside and comes back to it.
     public func decrypt(peerId: PeerId, text: String) -> MlsMessageContent? {
+        return self.read(peerId: peerId, text: text).content
+    }
+
+    /// The same, with the reason kept - which the caller needs before deciding
+    /// that a conversation has to be rebuilt.
+    func read(peerId: PeerId, text: String) -> MlsConversations.Reading {
         guard MlsConversations.isCiphertext(text) else {
-            return nil
+            return .nothing
         }
 
         self.queue.lock()
         defer { self.queue.unlock() }
 
         if let already = self.opened[text] {
-            return already
+            return .content(already)
         }
 
         // The conversation the message names, not the one kept for the person
@@ -331,13 +418,13 @@ public final class MlsRuntime {
             found = self.group(for: peerId)
         }
         guard let (identity, group) = found else {
-            return nil
+            return .unreadable
         }
-        let content = MlsConversations.decrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text)
-        if let content = content {
+        let reading = MlsConversations.decrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text)
+        if case let .content(content) = reading {
             self.remember(text, content)
         }
-        return content
+        return reading
     }
 
     /// The one account that is running, for the places that read a message into
@@ -410,10 +497,28 @@ public final class MlsRuntime {
         let candidates = running
         instancesLock.unlock()
 
+        var writtenHere = false
         for runtime in candidates {
-            if let content = runtime.decrypt(peerId: peerId, text: text) {
+            switch runtime.read(peerId: peerId, text: text) {
+            case let .content(content):
                 return content
+            case .writtenHere:
+                writtenHere = true
+            case .nothing, .unreadable:
+                break
             }
+        }
+
+        // This device wrote it, so of course it cannot read it back - MLS gives
+        // a sender no way to. Nothing is wrong and nothing needs rebuilding.
+        //
+        // Believing otherwise cost the whole evening: every message anybody sent
+        // came back from the server, failed to open here, and was taken as proof
+        // that the conversation was broken. The client then built another one
+        // and invited the other side into it - after every message, on both
+        // sides, for ever.
+        if writtenHere {
+            return nil
         }
 
         // Ours, and unreadable. Almost always because the message overtook the
@@ -442,7 +547,14 @@ public final class MlsRuntime {
     /// reinstall scenario, each with its own welcome and its own key package
     /// taken from the other side. A chat with a hundred messages behind it would
     /// have built a hundred.
-    private var rebuilt: [Int64: Double] = [:]
+    /// Read from disk with the conversations, so that restarting the app does
+    /// not make this device forget it has just rebuilt and do it again. Seconds
+    /// since 1970, like everything else that is written down.
+    private var rebuilt: [Int64: Int32] = [:]
+
+    private func markRebuilt(_ key: Int64) {
+        self.rebuilt[key] = Int32(Date().timeIntervalSince1970)
+    }
 
     /// How long a rebuilt conversation is given before this side will build
     /// another. Long enough that the old messages of one chat are done with,
@@ -506,7 +618,7 @@ public final class MlsRuntime {
                 guard let identity = identity else {
                     return .single(0)
                 }
-                if let lastRebuild = lastRebuild, CFAbsoluteTimeGetCurrent() - lastRebuild < MlsRuntime.betweenRebuilds {
+                if let lastRebuild = lastRebuild, Date().timeIntervalSince1970 - Double(lastRebuild) < MlsRuntime.betweenRebuilds {
                     // Already rebuilt, and still unreadable - so this message is
                     // older than the rebuild and always will be. Another
                     // conversation would not open it and would cost the other
@@ -522,7 +634,7 @@ public final class MlsRuntime {
                     }
                     self.queue.lock()
                     self.remember(peerId: peerId.id._internalGetInt64Value(), groupId: groupId)
-                    self.rebuilt[key] = CFAbsoluteTimeGetCurrent()
+                    self.markRebuilt(key)
                     self.queue.unlock()
                     return .single(0)
                 }
@@ -550,8 +662,19 @@ public final class MlsRuntime {
     /// chain finishing.
     public func adopt(peerId: PeerId, groupId: Data) {
         self.queue.lock()
-        defer { self.queue.unlock() }
         self.conversationIds[peerId.id._internalGetInt64Value()] = groupId
+        self.markRebuilt(peerId.id._internalGetInt64Value())
+        self.queue.unlock()
+
+        // Written down here as well, on its own, rather than by whatever chain
+        // happened to be running. It was written by the chain, and the chain did
+        // not always get that far: the conversation was live in memory, the app
+        // was restarted, and the device came back knowing nothing about it - so
+        // it built another one and the two sides diverged again. Twice in one
+        // evening, and both times it looked like the join had failed.
+        let _ = (self.postbox.transaction { transaction -> Void in
+            MlsConversationIds.remember(transaction: transaction, peerId: peerId, groupId: groupId)
+        }).start()
     }
 
     /// Drops everything held and reads it again, completing when the new state
@@ -564,17 +687,18 @@ public final class MlsRuntime {
     public func reload() -> Signal<Void, NoError> {
         let postbox = self.postbox
         let accountPeerId = self.accountPeerId
-        return postbox.transaction { transaction -> [Int64: Data] in
-            return MlsConversationIds.load(transaction: transaction).groupIdByPeer
+        return postbox.transaction { transaction -> MlsConversationIds in
+            return MlsConversationIds.load(transaction: transaction)
         }
         |> deliverOn(Queue.concurrentDefaultQueue())
-        |> map { [weak self] ids -> Void in
+        |> map { [weak self] stored -> Void in
             guard let self = self else {
                 return
             }
             let identity = try? mlsIdentity(postbox: postbox, accountPeerId: accountPeerId)
             self.queue.lock()
-            self.conversationIds = ids
+            self.conversationIds = stored.groupIdByPeer
+            self.rebuilt = stored.rebuiltAtByPeer
             self.identity = identity
             self.groups.removeAll()
             self.queue.unlock()

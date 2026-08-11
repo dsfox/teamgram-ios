@@ -965,8 +965,17 @@ func fetchMessageHistoryHole(accountPeerId: PeerId, source: FetchMessageHistoryH
                     }
                     
                     return withResolvedAssociatedMessages(postbox: postbox, source: source, accountPeerId: accountPeerId, parsedPeers: parsedPeers, storeMessages: storeMessages, resolveThreads: true, { transaction, additionalParsedPeers, additionalMessages -> FetchMessageHistoryHoleResult? in
-                        let _ = transaction.addMessages(storeMessages, location: .Random)
-                        let _ = transaction.addMessages(additionalMessages, location: .Random)
+                        // Through the same guard as everything else that writes
+                        // a message the server sent back. What arrives here is
+                        // history, and for an encrypted chat every line of it is
+                        // ciphertext this device may already have opened - once,
+                        // because MLS will not open it twice. Written straight
+                        // in, it replaced the text with a lock the moment
+                        // somebody opened the chat after restarting the app, and
+                        // the chat list went on showing what the message really
+                        // said, which is how it was noticed.
+                        let _ = transaction.addMessages(mlsKeepingWhatIsReadable(storeMessages, transaction: transaction), location: .Random)
+                        let _ = transaction.addMessages(mlsKeepingWhatIsReadable(additionalMessages, transaction: transaction), location: .Random)
                         var filledRange: ClosedRange<MessageId.Id>
                         var strictFilledIndices: IndexSet
                         let ids = storeMessages.compactMap { message -> MessageId.Id? in
@@ -1136,8 +1145,10 @@ func fetchChatListHole(postbox: Postbox, network: Network, accountPeerId: PeerId
             }
             
             transaction.updateCurrentPeerNotificationSettings(fetchedChats.notificationSettings)
-            let _ = transaction.addMessages(fetchedChats.storeMessages, location: .UpperHistoryBlock)
-            let _ = transaction.addMessages(additionalMessages, location: .Random)
+            // The same guard: the chat list is fetched whole after a sign-in and
+            // carries the last message of every chat, ciphertext included.
+            let _ = transaction.addMessages(mlsKeepingWhatIsReadable(fetchedChats.storeMessages, transaction: transaction), location: .UpperHistoryBlock)
+            let _ = transaction.addMessages(mlsKeepingWhatIsReadable(additionalMessages, transaction: transaction), location: .Random)
             transaction.resetIncomingReadStates(fetchedChats.readStates)
             
             for (peerId, autoremoveValue) in fetchedChats.ttlPeriods {
