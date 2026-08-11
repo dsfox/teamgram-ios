@@ -99,10 +99,23 @@ public final class MlsRuntime {
     private func rebuildConversationsOfRecentChats(attempt: Int = 0) -> Signal<Void, NoError> {
         self.queue.lock()
         let known = !self.conversationIds.isEmpty
+        // Conversations written by a client that did not record when it built
+        // them. Those were built by inviting the other side's devices one at a
+        // time and sending only the last invitation, so most of them are
+        // conversations the other phone was never let into - and there is no way
+        // to tell which from here. Rebuilt once, on the first run of a client
+        // that knows better, and never again: the note this looks at is written
+        // by every rebuild from now on.
+        let fromAnOlderClient = known && self.rebuilt.isEmpty
+        let howMany = self.conversationIds.count
+        let noted = self.rebuilt.count
         self.queue.unlock()
+        if attempt == 0 {
+            Logger.shared.log("Mls", "looking at whether to rebuild: \(howMany) conversation(s) here, \(noted) of them noted")
+        }
         // Not a fresh device: it has conversations, so there is nothing here to
         // rebuild and no reason to spend a key package of anybody's.
-        if known {
+        if known && !fromAnOlderClient {
             return .complete()
         }
 
@@ -137,16 +150,52 @@ public final class MlsRuntime {
                 |> suspendAwareDelay(30.0, queue: Queue.concurrentDefaultQueue())
                 |> then(self.rebuildConversationsOfRecentChats(attempt: attempt + 1))
             }
-            Logger.shared.log("Mls", "no conversations on this device, so rebuilding \(peers.count) recent chat(s) after \(attempt) wait(s)")
+            Logger.shared.log("Mls", "rebuilding \(peers.count) recent chat(s) after \(attempt) wait(s)")
             // One after another rather than all at once: each one claims a key
-            // package and leaves a welcome, and a fresh install has better
-            // things to do with the first seconds of its network.
+            // package and leaves a welcome, and a phone that has just been set
+            // up has better things to do with the first seconds of its network.
             var work: Signal<Void, NoError> = .complete()
             for peerId in peers {
-                work = work |> then(self.ensureConversation(peerId: peerId))
+                work = work |> then(self.rebuildConversation(with: peerId))
             }
             return work
         }
+    }
+
+    /// Builds a conversation with somebody whether or not there is one already.
+    ///
+    /// Unlike ensuring one, which stops the moment it finds any. That is right
+    /// before sending and wrong here: the conversations this replaces are ones
+    /// the other side was never let into, and they look exactly like healthy
+    /// ones from this end.
+    private func rebuildConversation(with peerId: PeerId) -> Signal<Void, NoError> {
+        self.queue.lock()
+        let worth = self.worthEncrypting(to: peerId)
+        let network = self.network
+        let identity = self.identity
+        self.queue.unlock()
+
+        guard worth, let network = network, let identity = identity else {
+            return .single(Void())
+        }
+
+        let key = peerId.id._internalGetInt64Value()
+        return MlsConversations.start(postbox: self.postbox, accountPeerId: self.accountPeerId, network: network, identity: identity, peerId: peerId)
+        |> mapToSignal { [weak self] groupId -> Signal<Void, NoError> in
+            guard let self = self else {
+                return .complete()
+            }
+            self.queue.lock()
+            if let groupId = groupId {
+                self.remember(peerId: key, groupId: groupId)
+                self.markRebuilt(key)
+            } else {
+                self.withoutDevices[key] = CFAbsoluteTimeGetCurrent()
+            }
+            self.queue.unlock()
+            return .single(Void())
+        }
+        |> timeout(20.0, queue: Queue.concurrentDefaultQueue(), alternate: .single(Void()))
     }
 
     /// Remembers a conversation that has just been started or joined, so the
