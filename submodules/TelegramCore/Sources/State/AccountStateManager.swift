@@ -434,8 +434,10 @@ public final class AccountStateManager {
         public func forceUpdate() {
             self.queue.async {
                 guard self.updateService != nil else {
+                    Logger.shared.log("State", "asked what was missed before there was anything to miss it with")
                     return
                 }
+                Logger.shared.log("State", "asking what was missed")
                 self.addOperation(.pollDifference(self.getNextId(), AccountFinalStateEvents()), position: .first)
             }
         }
@@ -2181,7 +2183,7 @@ public final class AccountStateManager {
     }
 
     /// Asks for what was missed while the app was away. See the implementation.
-    func forceUpdate() {
+    public func forceUpdate() {
         self.impl.with { impl in
             impl.forceUpdate()
         }

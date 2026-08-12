@@ -2012,7 +2012,30 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         self.isActivePromise.set(true)
 
         self.resetBadge()
-        
+
+        // Ask every account what was missed while the screen was off.
+        //
+        // Tied to the app coming back rather than to it becoming master, which
+        // is what this was tied to first and was the wrong moment: a
+        // backgrounded app does not resign master, so returning from the
+        // background changed nothing and nothing asked. Measured on a phone
+        // afterwards - foreground at 20:51:38, no request for updates, and the
+        // message that a notification had just announced appeared at 20:51:55,
+        // dragged in by a hole in the update sequence. Seventeen seconds of an
+        // open chat with nothing in it, which is what a person reports as "the
+        // notification opened the chat and the message was not there".
+        let _ = (self.sharedContextPromise.get()
+        |> take(1)
+        |> deliverOnMainQueue).start(next: { sharedApplicationContext in
+            let _ = (sharedApplicationContext.sharedContext.activeAccountContexts
+            |> take(1)
+            |> deliverOnMainQueue).start(next: { _, contexts, _ in
+                for (_, context, _) in contexts {
+                    context.account.stateManager.forceUpdate()
+                }
+            })
+        })
+
         self.maybeCheckForUpdates()
         
         SharedDisplayLinkDriver.shared.updateForegroundState(self.isActiveValue)
