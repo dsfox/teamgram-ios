@@ -2849,6 +2849,9 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
                         self.openUrlWhenReady(accountId: accountId, url: url, external: true)
                     }
                 } else {
+                    // Said out loud, because a tap that goes nowhere leaves no
+                    // trace at all and there are four places it can stop.
+                    Logger.shared.log("Notification", "tapped: account \(String(describing: accountId)), sender \(String(describing: peerIdFromNotification(response.notification)?.peerId))")
                     if let (peerId, threadId) = peerIdFromNotification(response.notification) {
                         var messageId: MessageId? = nil
                         if response.notification.request.content.categoryIdentifier == "c" || response.notification.request.content.categoryIdentifier == "t" {

@@ -904,8 +904,10 @@ final class AuthorizedApplicationContext {
                     isOutgoingMessage
                 ).start(next: { peer, isOutgoingMessage in
                     guard let peer = peer else {
+                        Logger.shared.log("Notification", "nothing known about \(peerId) even after waiting, so the tap opens nothing")
                         return
                     }
+                    Logger.shared.log("Notification", "opening the chat with \(peerId)")
                     
                     let chatLocation: NavigateToChatControllerParams.Location
                     if let threadId = threadId {

@@ -1395,6 +1395,22 @@ public class Account {
             
             if value {
                 Logger.shared.log("Account", "Became master")
+
+                // And ask what was missed while it was not.
+                //
+                // Updates are pushed down the connection, and a connection the
+                // app was not holding cannot carry them: the server writes the
+                // message into a session nobody is reading, sends a
+                // notification instead, and that is the end of it. Nothing then
+                // asked - a message written while the phone was in somebody's
+                // pocket sat on the server until they opened the conversation,
+                // which took minutes and looked like the message had been lost.
+                //
+                // This is the moment the app is back and the connection is
+                // being kept again, so it is the moment to ask. A poll costs
+                // one request and answers with nothing when nothing was missed.
+                strongSelf.stateManager.forceUpdate()
+
                 let data = managedServiceViews(accountPeerId: peerId, network: network, postbox: postbox, stateManager: strongSelf.stateManager, pendingMessageManager: strongSelf.pendingMessageManager)
                 
                 let resetPeerHoles = data.resetPeerHoles

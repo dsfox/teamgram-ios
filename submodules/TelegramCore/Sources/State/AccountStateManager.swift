@@ -418,6 +418,28 @@ public final class AccountStateManager {
             self.updateEmojiGameInfoDisposable.dispose()
         }
         
+        /// Asks the server what was missed, without tearing anything down.
+        ///
+        /// For the moment the app comes back to the screen. Updates ride the
+        /// connection, and while the app was away there was no connection to
+        /// ride: the server wrote them into a session nobody was reading and
+        /// sent a notification instead. Nothing here asked afterwards, so a
+        /// message written while the phone was in a pocket waited until its
+        /// conversation was opened - minutes, and looking like it had been lost.
+        ///
+        /// Unlike reset() this leaves the update service and everything else
+        /// alone; it is one poll, and it answers with nothing when nothing was
+        /// missed. When the service has not been started yet there is nothing to
+        /// catch up on, and reset() is what runs instead.
+        public func forceUpdate() {
+            self.queue.async {
+                guard self.updateService != nil else {
+                    return
+                }
+                self.addOperation(.pollDifference(self.getNextId(), AccountFinalStateEvents()), position: .first)
+            }
+        }
+
         public func reset() {
             self.queue.async {
                 if self.updateService == nil {
@@ -2155,6 +2177,13 @@ public final class AccountStateManager {
     func reset() {
         self.impl.with { impl in
             impl.reset()
+        }
+    }
+
+    /// Asks for what was missed while the app was away. See the implementation.
+    func forceUpdate() {
+        self.impl.with { impl in
+            impl.forceUpdate()
         }
     }
     
