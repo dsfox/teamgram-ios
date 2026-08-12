@@ -472,6 +472,14 @@ public final class MlsRuntime {
         let reading = MlsConversations.decrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text)
         if case let .content(content) = reading {
             self.remember(text, content)
+            // Said as plainly as the failures are, and for the same reason:
+            // until now the log could only show that a message did not open,
+            // so "it worked" had to be read off a screen by a person. A test
+            // that drives two simulators can count these. No text is written
+            // out - only that something opened, from whom, and where.
+            if let groupId = try? group.id {
+                Logger.shared.log("Mls", "opened a message from \(peerId.id._internalGetInt64Value()) in conversation \(mlsShortId(groupId))")
+            }
         }
         return reading
     }
