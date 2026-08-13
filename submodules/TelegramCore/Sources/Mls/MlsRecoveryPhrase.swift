@@ -79,11 +79,7 @@ func ensureRecoveryPhrase(postbox: Postbox, network: Network, accountPeerId: Pee
             if existing.shown {
                 return .complete()
             }
-            return postbox.transaction { transaction -> Void in
-                if showRecoveryPhrase(transaction: transaction, accountPeerId: accountPeerId, phrase: existing.phrase) {
-                    MlsRecoveryState.save(transaction: transaction, phrase: existing.phrase, shown: true)
-                }
-            }
+            return showUntilItLands(postbox: postbox, accountPeerId: accountPeerId, phrase: existing.phrase)
         }
         guard let phrase = try? MlsRecovery.phrase(),
               let secret = try? MlsRecovery.authSecret(phrase: phrase) else {
@@ -106,11 +102,46 @@ func ensureRecoveryPhrase(postbox: Postbox, network: Network, accountPeerId: Pee
             }
 
             return postbox.transaction { transaction -> Void in
-                let shown = showRecoveryPhrase(transaction: transaction, accountPeerId: accountPeerId, phrase: phrase)
-                MlsRecoveryState.save(transaction: transaction, phrase: phrase, shown: shown)
-                Logger.shared.log("Mls", "a recovery phrase was made on this device, shown: \(shown)")
+                MlsRecoveryState.save(transaction: transaction, phrase: phrase, shown: false)
+                Logger.shared.log("Mls", "a recovery phrase was made on this device")
             }
+            |> then(showUntilItLands(postbox: postbox, accountPeerId: accountPeerId, phrase: phrase))
         }
+    }
+}
+
+/// How long to keep trying to put the words on screen, and how often.
+///
+/// The words are written into the account's own chat, and on a freshly
+/// registered account that chat does not exist for the first seconds - the
+/// record of who this person is arrives from the server after everything here
+/// has run. It was tried once per launch, so an account registered and left
+/// running never saw them at all: made, never shown, and the person has no way
+/// back without knowing it. Found by somebody on step two of a checklist.
+private let showAttempts = 30
+private let betweenShowAttempts: Double = 5.0
+
+private func showUntilItLands(postbox: Postbox, accountPeerId: PeerId, phrase: String, attempt: Int = 0) -> Signal<Void, NoError> {
+    return postbox.transaction { transaction -> Bool in
+        if showRecoveryPhrase(transaction: transaction, accountPeerId: accountPeerId, phrase: phrase) {
+            MlsRecoveryState.save(transaction: transaction, phrase: phrase, shown: true)
+            return true
+        }
+        return false
+    }
+    |> mapToSignal { shown -> Signal<Void, NoError> in
+        if shown {
+            Logger.shared.log("Mls", "the recovery phrase is in Saved Messages, after \(attempt) wait(s)")
+            return .complete()
+        }
+        guard attempt < showAttempts else {
+            // Left for the next launch rather than tried for ever.
+            Logger.shared.log("Mls", "the recovery phrase still has nowhere to go; it will be tried again next time")
+            return .complete()
+        }
+        return Signal<Void, NoError>.complete()
+        |> suspendAwareDelay(betweenShowAttempts, queue: Queue.concurrentDefaultQueue())
+        |> then(showUntilItLands(postbox: postbox, accountPeerId: accountPeerId, phrase: phrase, attempt: attempt + 1))
     }
 }
 
