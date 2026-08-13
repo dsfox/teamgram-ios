@@ -152,12 +152,19 @@ private func showUntilItLands(postbox: Postbox, accountPeerId: PeerId, phrase: S
 /// what this should become - a message can be scrolled past.
 @discardableResult
 private func showRecoveryPhrase(transaction: Transaction, accountPeerId: PeerId, phrase: String) -> Bool {
-    // Into Saved Messages rather than the service chat. The service chat is not
-    // there on a freshly registered account - see #45 - and words nobody is
-    // shown are an account with no way back at all.
-    let servicePeerId = accountPeerId
+    // Into the service chat, which is the one chat a freshly registered account
+    // has and the one its owner is looking at - the sign-in code is in it.
+    //
+    // It went into Saved Messages before, back when the service chat was
+    // invisible on a fresh account (#45, since fixed). That was worse in a way
+    // nobody checked: a local message does not put Saved Messages in the chat
+    // list, so the words were written where their owner could not see them.
+    // Two people registered, looked at their one chat, and reported that no
+    // phrase had arrived - twice.
+    let servicePeerId = PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value(777000))
     guard transaction.getPeer(servicePeerId) != nil else {
-        // Not yet. Tried again on the next start rather than given up on.
+        // Not yet - the service chat arrives from the server a moment after
+        // registering. Tried again rather than given up on.
         return false
     }
 
