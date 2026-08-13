@@ -4481,6 +4481,16 @@ func replayFinalState(
                     if let previousPaidContent = previousMessage.media.first(where: { $0 is TelegramMediaPaidContent }) as? TelegramMediaPaidContent, case .full = previousPaidContent.extendedMedia.first {
                         updatedMedia = previousMessage.media
                     }
+                    // An edit changes the caption, never the file - so the file
+                    // this device already opened is the right one. What arrives
+                    // is the blob the server is holding, and the key that opens
+                    // it travelled inside the original message; the edited one
+                    // carries a caption and nothing else. Taking the arriving
+                    // media left the picture unreadable the moment its caption
+                    // was changed, on both phones.
+                    if !previousMessage.media.isEmpty, MlsRuntime.isEncrypted(peerId: id.peerId) {
+                        updatedMedia = previousMessage.media
+                    }
                     
                     return .update(message.withUpdatedLocalTags(updatedLocalTags).withUpdatedFlags(updatedFlags).withUpdatedAttributes(updatedAttributes).withUpdatedMedia(updatedMedia))
                 })
