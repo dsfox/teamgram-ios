@@ -8905,10 +8905,36 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                         if case .default = navigation {
                             if case let .user(user) = peer, user.botInfo != nil {
                                 navigation = .chat(textInputState: nil, subject: nil, peekData: nil)
+                            } else if case .user = peer {
+                                // A person, so the card rather than the chat.
+                                //
+                                // The default is the chat, and here almost every
+                                // mention names the one person on the other side
+                                // of it: the tap then walks into the chat it was
+                                // made in and nothing on screen changes, which
+                                // reads as a mention that does not work. The card
+                                // says who they are and carries a button back to
+                                // the chat, so it is never the dead end.
+                                navigation = .info(nil)
                             }
                         }
+                        // Which of the two, not just that something happened: the
+                        // fault this replaced was a tap that opened the chat it
+                        // was made in, and from outside that is indistinguishable
+                        // from a tap nothing was listening to.
+                        let opening: String
+                        if case .info = navigation {
+                            opening = "their card"
+                        } else {
+                            opening = "the chat"
+                        }
+                        // The name arrives with the @ on some paths and without
+                        // it on others, so it is put on here rather than twice.
+                        let mention = name.hasPrefix("@") ? name : "@\(name)"
+                        Logger.shared.log("Mention", "\(mention) is \(peer.id.id._internalGetInt64Value()), opening \(opening)")
                         self.openResolved(result: .peer(peer._asPeer(), navigation), sourceMessageId: sourceMessageId)
                     } else {
+                        Logger.shared.log("Mention", "nobody answers to \(name.hasPrefix("@") ? name : "@\(name)")")
                         self.present(textAlertController(context: self.context, updatedPresentationData: self.updatedPresentationData, title: nil, text: self.presentationData.strings.Resolve_ErrorNotFound, actions: [TextAlertAction(type: .defaultAction, title: self.presentationData.strings.Common_OK, action: {})]), in: .window(.root))
                     }
                 }
