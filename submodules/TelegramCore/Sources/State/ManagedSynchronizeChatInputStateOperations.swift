@@ -126,6 +126,18 @@ func managedSynchronizeChatInputStateOperations(postbox: Postbox, network: Netwo
 }
 
 private func synchronizeChatInputState(transaction: Transaction, postbox: Postbox, network: Network, peerId: PeerId, threadId: Int64?, operation: SynchronizeChatInputStateOperation) -> Signal<Void, NoError> {
+    // A half-written message in an encrypted conversation stays on this device.
+    // Nothing is sent at all - not even an empty draft.
+    //
+    // It used to send one: the request went out with the text stripped, which
+    // says "there is no draft here" and comes back as an update that clears the
+    // one on this device too. On screen that is a draft in the chat list which
+    // is gone the moment the chat is opened, and it is what a person found on
+    // the checklist.
+    if MlsRuntime.isEncrypted(peerId: peerId) {
+        return .complete()
+    }
+
     var inputState: SynchronizeableChatInputState?
     let peerChatInterfaceState: StoredPeerChatInterfaceState?
     if let threadId {
@@ -139,13 +151,6 @@ private func synchronizeChatInputState(transaction: Transaction, postbox: Postbo
     }
 
     if let peer = transaction.getPeer(peerId), let inputPeer = apiInputPeer(peer) {
-        // A half-written message in an encrypted conversation stays on this
-        // device. Synchronising it puts the text on the server in the clear -
-        // often the very message that is about to be sent encrypted, and always
-        // before anybody decided to send it at all. The draft still works here;
-        // it just does not travel.
-        let inputState = MlsRuntime.isEncrypted(peerId: peerId) ? nil : inputState
-
         var flags: Int32 = 0
         if let inputState = inputState {
             if !inputState.entities.isEmpty {
