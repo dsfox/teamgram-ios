@@ -320,6 +320,7 @@ private enum PreferencesKeyValues: Int32 {
     case mlsDeviceState = 1001
     case mlsConversations = 1002
     case mlsRecovery = 1003
+    case mlsSearchIndex = 1004
     case botBiometricsState = 39
     case businessLinks = 40
     case starGifts = 41
@@ -455,6 +456,15 @@ public struct PreferencesKeys {
     public static let mlsRecovery: ValueBoxKey = {
         let key = ValueBoxKey(length: 4)
         key.setInt32(0, value: PreferencesKeyValues.mlsRecovery.rawValue)
+        return key
+    }()
+
+    /// Which conversations have already been written into the search index, so
+    /// that the walk over an existing history happens once and not on every
+    /// launch.
+    public static let mlsSearchIndex: ValueBoxKey = {
+        let key = ValueBoxKey(length: 4)
+        key.setInt32(0, value: PreferencesKeyValues.mlsSearchIndex.rawValue)
         return key
     }()
 

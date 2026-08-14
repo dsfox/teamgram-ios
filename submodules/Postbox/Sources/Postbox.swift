@@ -977,6 +977,19 @@ public final class Transaction {
             return []
         }
     }
+
+    /// Puts a chat that is already here into the search index, and says how many
+    /// messages it wrote down.
+    ///
+    /// Everything else indexes as it is stored, which covers a message arriving
+    /// from now on and nothing that arrived before. A chat somebody has been
+    /// using for weeks would stay unsearchable for exactly as long as they keep
+    /// using it, which is the opposite of what they would expect.
+    @discardableResult
+    public func indexMessageTextOfPeer(_ peerId: PeerId, limit: Int) -> Int {
+        assert(!self.disposed)
+        return self.postbox?.indexMessageTextOfPeer(peerId, limit: limit) ?? 0
+    }
     
     public func unorderedItemListScan(tag: UnorderedItemListEntryTag, _ f: (UnorderedItemListEntry) -> Void) {
         if let postbox = self.postbox {
@@ -3196,6 +3209,35 @@ final class PostboxImpl {
         self.messageHistoryTagsSummaryTable.replace(key: key, count: count, maxId: maxId, updatedSummaries: &self.currentUpdatedMessageTagSummaries)
     }
     
+    fileprivate func indexMessageTextOfPeer(_ peerId: PeerId, limit: Int) -> Int {
+        var written = 0
+        // Newest first, because the limit is there to keep a long history from
+        // holding up a launch, and the words somebody looks for are far more
+        // often in the last month than in the first.
+        for index in self.messageHistoryTable.allMessageIndices(peerId: peerId).reversed() {
+            if written >= limit {
+                break
+            }
+            guard let message = self.messageHistoryTable.getMessage(index) else {
+                continue
+            }
+            let rendered = self.renderIntermediateMessage(message)
+            var indexableText = rendered.text
+            for media in rendered.media {
+                if let mediaText = media.indexableText {
+                    indexableText.append(" ")
+                    indexableText.append(mediaText)
+                }
+            }
+            if indexableText.isEmpty {
+                continue
+            }
+            self.textIndexTable.add(messageId: rendered.id, text: indexableText, tags: rendered.tags)
+            written += 1
+        }
+        return written
+    }
+
     fileprivate func searchMessages(peerId: PeerId?, query: String, tags: MessageTags?) -> [Message] {
         var result: [Message] = []
         for messageId in self.textIndexTable.search(peerId: peerId, text: query, tags: tags) {

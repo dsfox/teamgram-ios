@@ -49,6 +49,14 @@ public let telegramPostboxSeedConfiguration: SeedConfiguration = {
         messageTagsWithThreadSummary: [.unseenPersonalMessage, .unseenReaction],
         existingGlobalMessageTags: GlobalMessageTags.all,
         peerNamespacesRequiringMessageTextIndex: [Namespaces.Peer.SecretChat],
+        // And every encrypted conversation, which here is nearly every chat
+        // there is. The server holds the ciphertext and can never find a word
+        // in it - `messages.search` answers nothing and is right to - so the
+        // only copy of the words that can be searched is the one on this
+        // device, and it has to be written down as the messages arrive.
+        peersRequiringMessageTextIndex: { peerId in
+            return MlsRuntime.isEncrypted(peerId: peerId)
+        },
         peerSummaryCounterTags: { peer, isContact in
             if let peer = peer as? TelegramUser {
                 if peer.botInfo != nil {

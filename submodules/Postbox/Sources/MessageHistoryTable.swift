@@ -1135,7 +1135,7 @@ final class MessageHistoryTable: Table {
             sharedBuffer.write(&threadId, length: 8)
         }
         
-        if self.seedConfiguration.peerNamespacesRequiringMessageTextIndex.contains(message.id.peerId.namespace) {
+        if self.seedConfiguration.requiresMessageTextIndex(message.id.peerId) {
             var indexableText = message.text
             for media in message.media {
                 if let mediaText = media.indexableText {
@@ -1432,9 +1432,12 @@ final class MessageHistoryTable: Table {
                 let _ = self.messageMediaTable.removeReference(mediaId)
             }
         
-            if self.seedConfiguration.peerNamespacesRequiringMessageTextIndex.contains(message.id.peerId.namespace) {
-                self.textIndexTable.remove(messageId: message.id)
-            }
+            // Asked for unconditionally, unlike the two places that add. Whether
+            // a chat is indexed is answered by something that loads after the
+            // app starts, so a message deleted early would be asked about too
+            // soon, kept in the index, and later found by a search that then has
+            // no message to show for it.
+            self.textIndexTable.remove(messageId: message.id)
         
             resultTags = message.tags
             resultGlobalTags = message.globalTags
@@ -1802,7 +1805,7 @@ final class MessageHistoryTable: Table {
                 }
             }
             
-            if self.seedConfiguration.peerNamespacesRequiringMessageTextIndex.contains(message.id.peerId.namespace) {
+            if self.seedConfiguration.requiresMessageTextIndex(message.id.peerId) {
                 if previousMessage.id != message.id || previousMessage.text != message.text || previousMessage.tags != message.tags {
                     self.textIndexTable.remove(messageId: previousMessage.id)
                     

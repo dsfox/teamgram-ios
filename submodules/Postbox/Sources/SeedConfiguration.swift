@@ -65,6 +65,13 @@ public final class SeedConfiguration {
     public let messageTagsWithThreadSummary: MessageTags
     public let existingGlobalMessageTags: GlobalMessageTags
     public let peerNamespacesRequiringMessageTextIndex: [PeerId.Namespace]
+    /// Chats outside those namespaces whose text is still only searchable here.
+    ///
+    /// A whole namespace is the wrong unit for an encrypted chat that lives in
+    /// the cloud one: its neighbours in the same namespace are searched by the
+    /// server, and indexing them too would return every one of their messages
+    /// twice - once from the server, once from here.
+    public let peersRequiringMessageTextIndex: (PeerId) -> Bool
     public let peerSummaryCounterTags: (Peer, Bool) -> PeerSummaryCounterTags
     public let peerSummaryIsThreadBased: (Peer, Peer?) -> (value: Bool, threadsArePeers: Bool)
     public let additionalChatListIndexNamespace: MessageId.Namespace?
@@ -96,6 +103,7 @@ public final class SeedConfiguration {
         messageTagsWithThreadSummary: MessageTags,
         existingGlobalMessageTags: GlobalMessageTags,
         peerNamespacesRequiringMessageTextIndex: [PeerId.Namespace],
+        peersRequiringMessageTextIndex: @escaping (PeerId) -> Bool = { _ in false },
         peerSummaryCounterTags: @escaping (Peer, Bool) -> PeerSummaryCounterTags,
         peerSummaryIsThreadBased: @escaping (Peer, Peer?) -> (value: Bool, threadsArePeers: Bool),
         additionalChatListIndexNamespace: MessageId.Namespace?,
@@ -122,6 +130,7 @@ public final class SeedConfiguration {
         self.messageTagsWithThreadSummary = messageTagsWithThreadSummary
         self.existingGlobalMessageTags = existingGlobalMessageTags
         self.peerNamespacesRequiringMessageTextIndex = peerNamespacesRequiringMessageTextIndex
+        self.peersRequiringMessageTextIndex = peersRequiringMessageTextIndex
         self.peerSummaryCounterTags = peerSummaryCounterTags
         self.peerSummaryIsThreadBased = peerSummaryIsThreadBased
         self.additionalChatListIndexNamespace = additionalChatListIndexNamespace
@@ -138,5 +147,13 @@ public final class SeedConfiguration {
         self.automaticThreadIndexInfo = automaticThreadIndexInfo
         self.customTagsFromAttributes = customTagsFromAttributes
         self.displaySavedMessagesAsTopicListPreferencesKey = displaySavedMessagesAsTopicListPreferencesKey
+    }
+
+    /// Whether this chat's words have to be findable from here.
+    func requiresMessageTextIndex(_ peerId: PeerId) -> Bool {
+        if self.peerNamespacesRequiringMessageTextIndex.contains(peerId.namespace) {
+            return true
+        }
+        return self.peersRequiringMessageTextIndex(peerId)
     }
 }

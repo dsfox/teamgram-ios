@@ -337,15 +337,28 @@ func _internal_searchMessages(account: Account, location: SearchMessagesLocation
     let remoteSearchResult: Signal<(Api.messages.Messages?, Api.messages.Messages?), NoError>
     switch location {
         case let .peer(peerId, fromId, tags, reactions, threadId, minDate, maxDate):
-            if peerId.namespace == Namespaces.Peer.SecretChat {
+            // An encrypted chat is searched the same way a secret one is: here,
+            // and only here. Asking the server would not fail - it would answer
+            // nothing, every time, for words that are sitting in the chat on
+            // screen.
+            if peerId.namespace == Namespaces.Peer.SecretChat || MlsRuntime.isEncrypted(peerId: peerId) {
                 return account.postbox.transaction { transaction -> (SearchMessagesResult, SearchMessagesState) in
                     var readStates: [PeerId: CombinedPeerReadState] = [:]
                     var threadInfo: [MessageId: MessageHistoryThreadData] = [:]
                     if let readState = transaction.getCombinedPeerReadState(peerId) {
                         readStates[peerId] = readState
                     }
+                    // What was here before any of this existed is written into
+                    // the index the first time somebody looks for something in
+                    // this chat, and never again.
+                    ensureMlsSearchIndex(transaction: transaction, peerIds: [peerId])
                     let result = transaction.searchMessages(peerId: peerId, query: query, tags: tags)
-                    
+                    // How many, and where - never what was looked for. Said at
+                    // all because this is the only place that can answer "did it
+                    // search, and did it find anything", and a search that finds
+                    // nothing looks exactly like a search that never ran.
+                    Logger.shared.log("Search", "\(result.count) message(s) found in \(peerId.id._internalGetInt64Value()) without asking the server")
+
                     for message in result {
                         for attribute in message.attributes {
                             if let attribute = attribute as? ReplyMessageAttribute {
@@ -572,9 +585,14 @@ func _internal_searchMessages(account: Account, location: SearchMessagesLocation
                         if case let .general(scope, _, _, _) = location, case .channels = scope {
                             secretMessages = []
                         } else {
+                            ensureMlsSearchIndex(transaction: transaction, peerIds: MlsRuntime.encryptedPeerIds())
                             secretMessages = transaction.searchMessages(peerId: nil, query: query, tags: tags)
                         }
-                        
+                        // The other half of the same answer: this is the search
+                        // that runs from the chat list, and what it finds in the
+                        // encrypted chats it can only have found here.
+                        Logger.shared.log("Search", "\(secretMessages.count) message(s) found across the chats here")
+
                         var filteredMessages: [Message] = []
                         var readStates: [PeerId: CombinedPeerReadState] = [:]
                         var threadInfo: [MessageId: MessageHistoryThreadData] = [:]

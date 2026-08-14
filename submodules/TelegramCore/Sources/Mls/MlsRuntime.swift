@@ -202,6 +202,7 @@ public final class MlsRuntime {
     /// next message finds it without going back to disk.
     private func remember(peerId: Int64, groupId: Data) {
         self.conversationIds[peerId] = groupId
+        MlsRuntime.publishEncrypted([peerId])
         // The group itself is not dropped here: it is held by its own id, and a
         // conversation this device is in stays readable whoever it is now
         // sending to.
@@ -530,19 +531,41 @@ public final class MlsRuntime {
     /// otherwise hand over in the clear exactly what the message beside it
     /// hides.
     public static func isEncrypted(peerId: PeerId) -> Bool {
-        instancesLock.lock()
-        let candidates = running
-        instancesLock.unlock()
+        encryptedPeersLock.lock()
+        defer { encryptedPeersLock.unlock() }
+        return encryptedPeers.contains(peerId.id._internalGetInt64Value())
+    }
 
-        for runtime in candidates {
-            runtime.queue.lock()
-            let known = runtime.conversationIds[peerId.id._internalGetInt64Value()] != nil
-            runtime.queue.unlock()
-            if known {
-                return true
-            }
-        }
-        return false
+    /// Everybody talked to in private, for the search that has to look at all of
+    /// them at once rather than at one chat.
+    public static func encryptedPeerIds() -> [PeerId] {
+        encryptedPeersLock.lock()
+        let peers = encryptedPeers
+        encryptedPeersLock.unlock()
+        return peers.map { PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value($0)) }
+    }
+
+    /// Everybody any account on this device holds a conversation with.
+    ///
+    /// A copy of what the runtimes know, behind a lock of its own, because the
+    /// question is now asked for every single message written into the database
+    /// - it decides whether the words go into the search index. Asking the
+    /// runtimes themselves would mean taking the lock a message is opened under,
+    /// from inside the transaction that stores that message.
+    ///
+    /// It only ever grows within a run. A conversation is never given up while
+    /// the app is running, and an account signed out leaves ids behind that
+    /// belong to nobody until the next launch - which costs a chat being indexed
+    /// for search that nobody can open anyway.
+    private static let encryptedPeersLock = NSLock()
+    private static var encryptedPeers: Set<Int64> = []
+
+    /// Says that these people are talked to in private now. Called with `queue`
+    /// held, and takes no other lock than its own.
+    private static func publishEncrypted<S: Sequence>(_ peers: S) where S.Element == Int64 {
+        encryptedPeersLock.lock()
+        encryptedPeers.formUnion(peers)
+        encryptedPeersLock.unlock()
     }
 
     public static func decryptIncoming(peerId: PeerId, text: String) -> MlsMessageContent? {
@@ -721,6 +744,7 @@ public final class MlsRuntime {
         self.queue.lock()
         self.conversationIds[peerId.id._internalGetInt64Value()] = groupId
         self.markRebuilt(peerId.id._internalGetInt64Value())
+        MlsRuntime.publishEncrypted([peerId.id._internalGetInt64Value()])
         self.queue.unlock()
 
         // Written down here as well, on its own, rather than by whatever chain
@@ -758,6 +782,7 @@ public final class MlsRuntime {
             self.rebuilt = stored.rebuiltAtByPeer
             self.identity = identity
             self.groups.removeAll()
+            MlsRuntime.publishEncrypted(stored.groupIdByPeer.keys)
             self.queue.unlock()
         }
     }
