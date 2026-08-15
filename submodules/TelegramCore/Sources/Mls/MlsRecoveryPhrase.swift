@@ -24,9 +24,23 @@ public struct MlsRecoveryState: Codable, Equatable {
     /// account has a way back that nobody knows.
     public var shown: Bool
 
-    public init(phrase: String, shown: Bool) {
+    /// Which derivation the server was told about.
+    ///
+    /// The words are turned into what the server holds through a string that
+    /// names the project, and the project was renamed. A secret registered
+    /// through the old name is not recognised through the new one, and the
+    /// failure would arrive at the worst possible moment - somebody typing six
+    /// words into a phone they have just bought, and being refused. So the
+    /// device registers again, from the words it is still holding, and writes
+    /// down that it has. Nothing on paper stops working.
+    public var derivation: Int32
+
+    public static let currentDerivation: Int32 = 2
+
+    public init(phrase: String, shown: Bool, derivation: Int32 = MlsRecoveryState.currentDerivation) {
         self.phrase = phrase
         self.shown = shown
+        self.derivation = derivation
     }
 
     // Written out by hand, one string under one key. The encoder underneath is
@@ -37,12 +51,16 @@ public struct MlsRecoveryState: Codable, Equatable {
         let container = try decoder.container(keyedBy: StringCodingKey.self)
         self.phrase = try container.decode(String.self, forKey: "p")
         self.shown = (try container.decodeIfPresent(Int32.self, forKey: "s") ?? 0) != 0
+        // Absent means it was written before this existed, which is exactly the
+        // state that needs re-registering.
+        self.derivation = try container.decodeIfPresent(Int32.self, forKey: "d") ?? 1
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: StringCodingKey.self)
         try container.encode(self.phrase, forKey: "p")
         try container.encode(Int32(self.shown ? 1 : 0), forKey: "s")
+        try container.encode(self.derivation, forKey: "d")
     }
 }
 
@@ -52,9 +70,10 @@ public extension MlsRecoveryState {
             .get(MlsRecoveryState.self)
     }
 
-    static func save(transaction: Transaction, phrase: String, shown: Bool) {
+    static func save(transaction: Transaction, phrase: String, shown: Bool,
+                     derivation: Int32 = MlsRecoveryState.currentDerivation) {
         transaction.updatePreferencesEntry(key: PreferencesKeys.mlsRecovery, { _ in
-            return PreferencesEntry(MlsRecoveryState(phrase: phrase, shown: shown))
+            return PreferencesEntry(MlsRecoveryState(phrase: phrase, shown: shown, derivation: derivation))
         })
     }
 }
@@ -68,18 +87,61 @@ public extension MlsRecoveryState {
 /// An account that had a phrase from the old server is a different matter - that
 /// one was delivered in a message and is compromised by definition, so this
 /// device makes a new one and says so.
+/// Tells the server what a phrase derives to, and writes down that it has been
+/// told. Used both when the words are new and when the derivation behind them
+/// has changed underneath an account that already had them.
+private func registerSecret(postbox: Postbox, network: Network, phrase: String) -> Signal<Void, NoError> {
+    guard let secret = try? MlsRecovery.authSecret(phrase: phrase) else {
+        Logger.shared.log("Mls", "cannot derive a recovery secret")
+        return .complete()
+    }
+    return network.request(Api.functions.mls.setRecoverySecret(secret: secret))
+    |> map(Optional.init)
+    |> `catch` { _ -> Signal<Api.mls.Ok?, NoError> in
+        return .single(nil)
+    }
+    |> mapToSignal { result -> Signal<Void, NoError> in
+        guard result != nil else {
+            // Left as it was, so this runs again next launch. Writing down that
+            // the server knows a secret it does not would lose the account.
+            Logger.shared.log("Mls", "the server did not take the recovery secret")
+            return .complete()
+        }
+        return postbox.transaction { transaction -> Void in
+            guard var state = MlsRecoveryState.load(transaction: transaction) else {
+                return
+            }
+            state.derivation = MlsRecoveryState.currentDerivation
+            MlsRecoveryState.save(transaction: transaction, phrase: state.phrase,
+                                  shown: state.shown, derivation: state.derivation)
+            Logger.shared.log("Mls", "the recovery phrase was registered again after the rename")
+        }
+    }
+}
+
 func ensureRecoveryPhrase(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
     return postbox.transaction { transaction -> MlsRecoveryState? in
         return MlsRecoveryState.load(transaction: transaction)
     }
     |> mapToSignal { existing -> Signal<Void, NoError> in
         if let existing = existing {
+            // The words are kept; what the server was told about them may be
+            // out of date. Registered again from the same words, so the paper
+            // in somebody's drawer keeps working.
+            let reregister: Signal<Void, NoError>
+            if existing.derivation < MlsRecoveryState.currentDerivation {
+                reregister = registerSecret(postbox: postbox, network: network, phrase: existing.phrase)
+            } else {
+                reregister = .complete()
+            }
+
             // Already has words. If they were never shown - the account's own
             // chat did not exist yet when they were made - try again now.
             if existing.shown {
-                return .complete()
+                return reregister
             }
-            return showUntilItLands(postbox: postbox, accountPeerId: accountPeerId, phrase: existing.phrase)
+            return reregister
+            |> then(showUntilItLands(postbox: postbox, accountPeerId: accountPeerId, phrase: existing.phrase))
         }
         guard let phrase = try? MlsRecovery.phrase(),
               let secret = try? MlsRecovery.authSecret(phrase: phrase) else {
