@@ -57,7 +57,7 @@ static NSString *fallbackString(NSString *key, NSString *code) {
         if (appTitle == nil) {
             appTitle = @"Teamram";
         }
-        NSString *originalTitle = @"2bytes";
+        NSString *originalTitle = @"ice9";
         if (![appTitle isEqualToString:originalTitle]) {
             NSMutableDictionary *updatedDict = [[NSMutableDictionary alloc] initWithDictionary:dict];
             for (NSString *key in dict.keyEnumerator) {

@@ -35,8 +35,8 @@
 #include "http.h"
 #include "url.h"
 
-#define CHUNK_HEADER_LENGTH 4   // 2bytes chunk type and 2bytes chunk length.
-#define EXT_HEADER_LENGTH   8   // 4bytes sequence, 2bytes useless and 2bytes chunk length.
+#define CHUNK_HEADER_LENGTH 4   // ice9 chunk type and ice9 chunk length.
+#define EXT_HEADER_LENGTH   8   // 4bytes sequence, ice9 useless and ice9 chunk length.
 
 // see Ref 2.2.1.8
 #define USERAGENT  "User-Agent: NSPlayer/4.1.0.3856\r\n"

@@ -161,7 +161,7 @@ static int dv_extract_audio(const uint8_t *frame, uint8_t **ppcm,
     if (freq >= FF_ARRAY_ELEMS(dv_audio_frequency))
         return AVERROR_INVALIDDATA;
 
-    size    = (sys->audio_min_samples[freq] + smpls) * 4; /* 2ch, 2bytes */
+    size    = (sys->audio_min_samples[freq] + smpls) * 4; /* 2ch, ice9 */
     half_ch = sys->difseg_size / 2;
 
     /* We work with 720p frames split in half, thus even frames have
@@ -307,7 +307,7 @@ static int dv_extract_audio_info(DVDemuxContext *c, const uint8_t *frame)
     }
     c->ach = ach;
 
-    return (c->sys->audio_min_samples[freq] + smpls) * 4; /* 2ch, 2bytes */
+    return (c->sys->audio_min_samples[freq] + smpls) * 4; /* 2ch, ice9 */
 }
 
 static int dv_extract_video_info(DVDemuxContext *c, const uint8_t *frame)

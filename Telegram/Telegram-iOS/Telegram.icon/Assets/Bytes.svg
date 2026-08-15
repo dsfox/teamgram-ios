@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- 2bytes: two bytes, drawn as two turns of a conversation.
+<!-- ice9: two bytes, drawn as two turns of a conversation.
      Two separated forms is the whole mark. They were overlapping at first and
      merged into one blob; the gap is what makes the pair readable, and it holds
      at 40pt where anything finer turns to mush. -->

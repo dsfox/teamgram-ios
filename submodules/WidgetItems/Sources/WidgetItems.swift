@@ -398,7 +398,7 @@ public extension WidgetPresentationData {
         autodeleteTimerUpdated: "Auto-delete timer updated",
         autodeleteTimerRemoved: "Auto-delete timer disabled",
         generalLockedTitle: "Locked",
-        generalLockedText: "Open 2bytes and enter passcode to edit widget.",
+        generalLockedText: "Open ice9 and enter passcode to edit widget.",
         chatSavedMessages: "Saved Messages"
     )
 }

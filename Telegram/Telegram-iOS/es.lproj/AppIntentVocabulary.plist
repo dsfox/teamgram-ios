@@ -9,7 +9,7 @@
 			<string>INSendMessageIntent</string>
 			<key>IntentExamples</key>
 			<array>
-				<string>Envía un mensaje de 2bytes a Alicia diciéndole que estarás allí en 15 minutos</string>
+				<string>Envía un mensaje de ice9 a Alicia diciéndole que estarás allí en 15 minutos</string>
 			</array>
 		</dict>
 	</array>

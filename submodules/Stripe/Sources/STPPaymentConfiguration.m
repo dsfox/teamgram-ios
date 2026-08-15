@@ -27,7 +27,7 @@
     if (self) {
         _additionalPaymentMethods = STPPaymentMethodTypeAll;
         _requiredBillingAddressFields = STPBillingAddressFieldsNone;
-        _companyName = @"2bytes";
+        _companyName = @"ice9";
         _smsAutofillDisabled = NO;
     }
     return self;

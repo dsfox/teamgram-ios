@@ -34,7 +34,7 @@ final class MlsStateWriter {
         return writer
     }
 
-    private let queue = Queue(name: "org.2bytes.mls.state", qos: .default)
+    private let queue = Queue(name: "org.ice9.mls.state", qos: .default)
 
     /// Writes the state, after everything written before it.
     ///
