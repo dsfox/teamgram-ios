@@ -725,7 +725,11 @@ private func revealOptions(strings: PresentationStrings, theme: PresentationThem
                     }
                 }
             }
-            if canArchive {
+            // Not offered. Moving a chat to the archive has no handler on this
+            // server, so the row slid away and came back on the next sync as
+            // though nothing had been asked for. See Offered, which is where
+            // everything switched off is written down.
+            if canArchive && Offered.archive {
                 if canArchivePeer(id: peerId, accountPeerId: accountPeerId) {
                     options.append(ItemListRevealOption(key: RevealOptionKey.archive.rawValue, title: strings.ChatList_ArchiveAction, icon: archiveIcon, color: theme.list.itemDisclosureActions.inactive.fillColor, textColor: theme.list.itemDisclosureActions.inactive.foregroundColor))
                 }
