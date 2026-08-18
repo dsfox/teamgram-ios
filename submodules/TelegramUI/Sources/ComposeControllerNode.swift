@@ -42,17 +42,24 @@ final class ComposeControllerNode: ASDisplayNode {
         var openCreateContactImpl: (() -> Void)?
         var openCreateNewChannelImpl: (() -> Void)?
         
-        self.contactListNode = ContactListNode(context: context, presentation: .single(.natural(options: [
+        // What the compose screen offers. A channel is not one of them: this is
+        // an invitation-only messenger for conversations between people, and
+        // broadcasting is a different thing with none of it built. See Offered,
+        // where everything switched off is written down.
+        var composeOptions: [ContactListAdditionalOption] = [
             ContactListAdditionalOption(title: self.presentationData.strings.Compose_NewGroup, icon: .generic(UIImage(bundleImageName: "Contact List/CreateGroupActionIcon")!), action: {
                 openCreateNewGroupImpl?()
             }),
             ContactListAdditionalOption(title: self.presentationData.strings.NewContact_Title, icon: .generic(UIImage(bundleImageName: "Contact List/AddMemberIcon")!), action: {
                 openCreateContactImpl?()
             }),
-            ContactListAdditionalOption(title: self.presentationData.strings.Compose_NewChannel, icon: .generic(UIImage(bundleImageName: "Contact List/CreateChannelActionIcon")!), action: {
+        ]
+        if Offered.channels {
+            composeOptions.append(ContactListAdditionalOption(title: self.presentationData.strings.Compose_NewChannel, icon: .generic(UIImage(bundleImageName: "Contact List/CreateChannelActionIcon")!), action: {
                 openCreateNewChannelImpl?()
-            })
-        ], includeChatList: false, topPeers: .none)), onlyWriteable: false, isGroupInvitation: false, displayPermissionPlaceholder: false)
+            }))
+        }
+        self.contactListNode = ContactListNode(context: context, presentation: .single(.natural(options: composeOptions, includeChatList: false, topPeers: .none)), onlyWriteable: false, isGroupInvitation: false, displayPermissionPlaceholder: false)
         
         super.init()
         
