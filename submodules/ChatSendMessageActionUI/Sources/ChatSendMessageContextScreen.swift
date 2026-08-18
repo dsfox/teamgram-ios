@@ -454,6 +454,13 @@ final class ChatSendMessageContextScreenComponent: Component {
                     isSecret = peerId.namespace == Namespaces.Peer.SecretChat
                     canSchedule = !isSecret
                 }
+                // Not offered at all. Reading the scheduled list is a stub on
+                // this server and sending one has no handler, so the picker
+                // took a date and nothing was ever sent or shown. See Offered,
+                // which is where everything switched off is written down.
+                if !Offered.scheduledMessages {
+                    canSchedule = false
+                }
                 if sendMessage.isScheduledMessages {
                     canSchedule = false
                 }
