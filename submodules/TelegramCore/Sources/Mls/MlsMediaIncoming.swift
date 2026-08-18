@@ -1,6 +1,8 @@
 import Foundation
 import Postbox
 import TelegramApi
+import ImageCompression
+import UIKit
 
 /// Turning what arrived back into a picture, a video or a file.
 ///
@@ -9,6 +11,30 @@ import TelegramApi
 /// ciphertext - is what those bytes are. This puts the two together: the
 /// document's location, so it can be downloaded, and the description, so it can
 /// be shown and decrypted.
+
+
+/// The blurred placeholder that travelled with the file, in whichever shape it
+/// came in.
+///
+/// Two are allowed, and they are told apart by their first byte rather than by
+/// a flag: a stripped thumbnail begins with 0x01 and a JPEG with 0xFF. This
+/// client makes the stripped shape, which is a couple of hundred bytes and what
+/// `immediateThumbnailData` expects. The other client cannot make it - its JPEG
+/// encoder writes its own tables, and the stripped shape has no room for tables
+/// at all - so it sends a small ordinary picture instead, and that is turned
+/// into the stripped shape here, where the encoder for it already exists.
+private func placeholder(_ bytes: Data) -> Data? {
+    guard bytes.count >= 4 else {
+        return nil
+    }
+    guard bytes[bytes.startIndex] == 0xFF else {
+        return bytes                        // already the shape this client reads
+    }
+    guard let image = UIImage(data: bytes), let stripped = compressImageMiniThumbnail(image) else {
+        return nil
+    }
+    return stripped
+}
 
 /// The media to store in place of the blob the server described.
 ///
@@ -32,7 +58,7 @@ func mlsIncomingMedia(from medias: [Media], descriptor: Api.mls.Content.Media) -
         decryptedSize: descriptor.size,
         key: SecretFileEncryptionKey(aesKey: descriptor.key, aesIv: descriptor.iv))
 
-    let thumbnail: Data? = descriptor.thumb.isEmpty ? nil : descriptor.thumb
+    let thumbnail = placeholder(descriptor.thumb)
     let kind = MlsMediaKind(rawValue: descriptor.kind) ?? .file
 
     if kind == .image {

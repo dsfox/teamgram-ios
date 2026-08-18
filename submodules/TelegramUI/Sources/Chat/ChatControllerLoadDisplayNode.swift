@@ -2879,7 +2879,20 @@ extension ChatControllerImpl {
             guard let strongSelf = self else {
                 return
             }
-            
+
+            // Not into a round video where the conversation encrypts. It is the
+            // one message uploaded while it is still being recorded, and an
+            // encrypted upload cannot send a file that is still growing - so it
+            // would either go out in the clear or stick half sent. Both were
+            // tried on the other client. See Offered, which is where everything
+            // switched off is written down.
+            if !Offered.roundVideoWhenEncrypted,
+               strongSelf.presentationInterfaceState.interfaceState.mediaRecordingMode == .audio,
+               let peerId = strongSelf.chatLocation.peerId,
+               MlsRuntime.isEncrypted(peerId: peerId) {
+                return
+            }
+
             var bannedMediaInput = false
             if let peer = strongSelf.presentationInterfaceState.renderedPeer?.peer {
                 if let channel = peer as? TelegramChannel {
