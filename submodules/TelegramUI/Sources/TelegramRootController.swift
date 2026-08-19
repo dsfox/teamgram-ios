@@ -310,6 +310,12 @@ public final class TelegramRootController: NavigationController, TelegramRootCon
     
     @discardableResult
     public func openStoryCamera(mode: StoryCameraMode, customTarget: Stories.PendingTarget?, resumeLiveStream: Bool, transitionIn: StoryCameraTransitionIn?, transitionedIn: @escaping () -> Void, transitionOut: @escaping (Stories.PendingTarget?, Bool) -> StoryCameraTransitionOut?) -> StoryCameraTransitionInCoordinator? {
+        // Stories are not offered. This is the shared implementation behind
+        // every posting entry - profiles, grids, deep links - so the door is
+        // held here for all of them at once. See Offered.
+        if !Offered.stories {
+            return nil
+        }
         guard let controller = self.viewControllers.last as? ViewController else {
             return nil
         }

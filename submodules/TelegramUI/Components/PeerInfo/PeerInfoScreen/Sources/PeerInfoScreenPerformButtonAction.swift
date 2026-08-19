@@ -490,12 +490,14 @@ extension PeerInfoScreenNode {
                 }
                 
                 if let user = peer as? TelegramUser {
-                    if user.botInfo == nil && strongSelf.data?.encryptionKeyFingerprint == nil && !user.isDeleted {
+                    // Chat themes are not offered - the sheet the entry opens
+                    // has nothing to draw. See Offered.
+                    if Offered.chatThemes && user.botInfo == nil && strongSelf.data?.encryptionKeyFingerprint == nil && !user.isDeleted {
                         items.append(.action(ContextMenuActionItem(text: presentationData.strings.UserInfo_ChangeWallpaper, icon: { theme in
                             generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/ApplyTheme"), color: theme.contextMenu.primaryColor)
                         }, action: { _, f in
                             f(.dismissWithoutContent)
-                            
+
                             self?.openChatForThemeChange()
                         })))
                     }

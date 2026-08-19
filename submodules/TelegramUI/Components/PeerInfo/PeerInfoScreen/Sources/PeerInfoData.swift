@@ -2449,7 +2449,10 @@ func peerInfoHeaderButtons(peer: Peer?, cachedData: CachedPeerData?, isOpenedFro
                 canViewStats = false
             }
             
-            if hasVoiceChat || canStartVoiceChat {
+            // Video chats are not offered: nothing implements them on the
+            // server, and the button would open a room nobody can enter.
+            // See Offered.
+            if Offered.videoChats, hasVoiceChat || canStartVoiceChat {
                 result.append(.voiceChat)
             }
             if case let .broadcast(info) = channel.info, info.flags.contains(.hasMonoforum), !channel.hasPermission(.manageDirect) {
@@ -2508,7 +2511,7 @@ func peerInfoHeaderButtons(peer: Peer?, cachedData: CachedPeerData?, isOpenedFro
             canStartVoiceChat = false
         }
 
-        if hasVoiceChat || canStartVoiceChat {
+        if Offered.videoChats, hasVoiceChat || canStartVoiceChat {
             result.append(.voiceChat)
         }
         result.append(.mute)

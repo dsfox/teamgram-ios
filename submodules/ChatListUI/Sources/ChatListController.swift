@@ -2873,6 +2873,12 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
     
     private weak var storyCameraTooltip: TooltipScreen?
     fileprivate func openStoryCamera(fromList: Bool, gesturePullOffset: CGFloat? = nil) {
+        // Stories are not offered: nothing on the server would keep one. This
+        // is the funnel every posting entry in the chat list runs through -
+        // the plus, the pull, the strip's menus. See Offered.
+        if !Offered.stories {
+            return
+        }
         guard !self.context.isFrozen else {
             let controller = self.context.sharedContext.makeAccountFreezeInfoScreen(context: self.context)
             self.push(controller)
@@ -6155,6 +6161,12 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
     }
     
     override public func tabBarItemContextAction(sourceView: ContextExtractedContentContainingView, gesture: ContextGesture) {
+        // Folders are not offered - the menu this opens is Add Folder and the
+        // folder list, and creating one has no handler on the server. See
+        // Offered.
+        if !Offered.folders {
+            return
+        }
         let _ = (combineLatest(queue: .mainQueue(),
             self.context.engine.peers.currentChatListFilters(),
             chatListFilterItems(context: self.context)
@@ -6938,7 +6950,8 @@ private final class ChatListLocationContext {
                         leftAction = ToolbarAction(title: presentationData.strings.ChatList_Read, isEnabled: enabled)
                     }
                     var archiveEnabled = options.delete
-                    var displayArchive = true
+                    // The archive is not offered. See Offered.
+                    var displayArchive = Offered.archive
                     if let filter = containerNode.currentItemNode.chatListFilter, case let .filter(_, _, _, data) = filter {
                         if !data.excludeArchived {
                             displayArchive = false

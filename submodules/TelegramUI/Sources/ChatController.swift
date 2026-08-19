@@ -9780,6 +9780,12 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
     }
     
     public override func joinGroupCall(peerId: PeerId, invite: String?, activeCall: EngineGroupCallDescription) {
+        // Video chats are not offered. The buttons are hidden; this holds the
+        // door for a service message or a link that still leads here. See
+        // Offered.
+        if !Offered.videoChats {
+            return
+        }
         let proceed = {
             super.joinGroupCall(peerId: peerId, invite: invite, activeCall: activeCall)
         }

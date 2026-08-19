@@ -878,7 +878,10 @@ func chatListNodeEntriesForView(view: EngineChatList, state: ChatListNodeState, 
             }
         }
         
-        if !view.hasLater, case .chatList = mode {
+        // The archive is not offered, so its folder row is not drawn: a row
+        // that opens a list nothing can be moved into is a door to an empty
+        // room. See Offered.
+        if Offered.archive, !view.hasLater, case .chatList = mode {
             for groupReference in groupItems {
                 let messageIndex = EngineMessage.Index(id: EngineMessage.Id(peerId: EnginePeer.Id(0), namespace: 0, id: 0), timestamp: 1)
                 var mappedStoryState: ChatListNodeState.StoryState?

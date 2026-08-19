@@ -127,6 +127,12 @@ import ChatThemeScreen
 
 extension ChatControllerImpl {
     public func presentThemeSelection() {
+        // Chat themes are not offered: the sheet asks the server for its
+        // list of themes and has nothing to draw. Held at the funnel, so a
+        // service message or a deep link cannot lead in either. See Offered.
+        if !Offered.chatThemes {
+            return
+        }
         guard self.themeScreen == nil else {
             return
         }
