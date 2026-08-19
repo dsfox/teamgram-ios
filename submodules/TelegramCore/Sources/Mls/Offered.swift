@@ -58,10 +58,11 @@ public enum Offered {
     /// phone that tapped it and is gone by the next sync.
     public static let reactions = false
 
-    /// A round video message, in a conversation that encrypts.
-    ///
-    /// It is the one message uploaded while it is still being recorded, and an
-    /// encrypted upload cannot send a file that is still growing. Elsewhere it
-    /// works and is offered - the only switch here that is not all-or-nothing.
-    public static let roundVideoWhenEncrypted = false
+    // A round video in a conversation that encrypts used to be switched off
+    // here: the one message uploaded while it was still being recorded, which
+    // an encrypted upload cannot take. It is offered again since #80 - the
+    // live upload is given up in ChatControllerMediaRecording where a secret
+    // chat already gives it up, and the finished file goes up whole and
+    // encrypted like any other video. Kept as a note rather than a switch,
+    // so the next person looking for the row finds where it went.
 }

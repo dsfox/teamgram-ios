@@ -111,10 +111,30 @@ func mlsUploadedMediaContent(network: Network, postbox: Postbox, peerId: PeerId,
     // of the decryption. Get it wrong and the download never finishes - the
     // client waits for bytes that are not coming, which is what happened the
     // first time this was tried.
-    return postbox.mediaBox.resourceData(uploadable.resource, option: .complete(waitUntilFetchStatus: false))
     // Waited for rather than sampled. A picture just chosen from the library is
     // still being written when the send begins, so the first answer is "not
     // here yet" - and reading a size from that failed the message outright.
+    //
+    // And the wait alone starts nothing: a video from the library, or a round
+    // video just recorded, is not on disk until its converter has run, and
+    // nothing else here would run it - the send sat at this line for ever,
+    // waiting for a file nobody was writing. So the fetch is started beside
+    // the wait, the way the ordinary outgoing-media path starts it, and both
+    // are stopped together.
+    let whole = Signal<MediaResourceData, NoError> { subscriber in
+        let fetch = fetchedMediaResource(mediaBox: postbox.mediaBox, userLocation: .other, userContentType: .video, reference: .standalone(resource: uploadable.resource)).start()
+        let data = postbox.mediaBox.resourceData(uploadable.resource, option: .complete(waitUntilFetchStatus: false)).start(next: { next in
+            subscriber.putNext(next)
+            if next.complete {
+                subscriber.putCompletion()
+            }
+        })
+        return ActionDisposable {
+            fetch.dispose()
+            data.dispose()
+        }
+    }
+    return whole
     |> filter { $0.complete }
     |> take(1)
     |> castError(PendingMessageUploadError.self)
