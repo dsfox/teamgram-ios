@@ -360,13 +360,11 @@ private func usernameSetupControllerEntries(presentationData: PresentationData, 
             }
             entries.append(.publicLinkInfo(presentationData.theme, infoText))
         } else {
-            var infoText = presentationData.strings.Username_Help
-            if otherUsernames.isEmpty {
-                infoText += "\n\n"
-                let hintText = presentationData.strings.Username_LinkHint(currentUsername.replacingOccurrences(of: "[", with: "").replacingOccurrences(of: "]", with: "")).string.replacingOccurrences(of: "]", with: "]()")
-                infoText += hintText
-            }
-            entries.append(.publicLinkInfo(presentationData.theme, infoText))
+            // Only the explanation. The line under it offered the name as a link
+            // on teamgram.me - a domain that is not ours, does not open this app,
+            // and cannot be made to (#87). Android's username screen shows no
+            // domain either.
+            entries.append(.publicLinkInfo(presentationData.theme, presentationData.strings.Username_Help))
         }
         
         if !otherUsernames.isEmpty {
