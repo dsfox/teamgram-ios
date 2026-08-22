@@ -1625,8 +1625,13 @@ final class PeerInfoScreenNode: ViewControllerTracingNode, PeerInfoScreenNodePro
                     }
                     if let peer = data.peer as? TelegramUser {
                         if strongSelf.isSettings || strongSelf.isMyProfile, let cachedData = data.cachedData as? CachedUserData {
-                            let firstName = strongSelf.headerNode.editingContentNode.editingTextForKey(.firstName) ?? ""
-                            let lastName = strongSelf.headerNode.editingContentNode.editingTextForKey(.lastName) ?? ""
+                            // A field that is not on the screen must not be read
+                            // as an empty one: that is how a name gets erased by
+                            // saving a screen that never offered it, and an
+                            // account left with no name could not be given one
+                            // again from this client.
+                            let firstName = strongSelf.headerNode.editingContentNode.editingTextForKey(.firstName) ?? (peer.firstName ?? "")
+                            let lastName = strongSelf.headerNode.editingContentNode.editingTextForKey(.lastName) ?? (peer.lastName ?? "")
                             let bio = strongSelf.state.updatingBio
                             let birthday = strongSelf.state.updatingBirthDate
                             

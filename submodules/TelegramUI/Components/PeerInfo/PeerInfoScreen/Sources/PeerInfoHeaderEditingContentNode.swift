@@ -75,7 +75,12 @@ final class PeerInfoHeaderEditingContentNode: ASDisplayNode {
         }
         var fieldKeys: [PeerInfoHeaderTextFieldNodeKey] = []
         if let user = peer as? TelegramUser {
-            if !user.isDeleted {
+            // isDeleted here means "has no name at all" - and for your own
+            // account that is a trap that locks behind you: with no name the
+            // fields are never built, so there is nowhere to type one, and
+            // saving sends the empty field straight back. Your own name is
+            // always editable.
+            if !user.isDeleted || user.id == self.context.account.peerId {
                 fieldKeys.append(.firstName)
                 if isEditableBot {
                     fieldKeys.append(.description)
