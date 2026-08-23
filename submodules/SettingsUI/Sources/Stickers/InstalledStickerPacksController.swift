@@ -558,7 +558,9 @@ private func installedStickerPacksControllerEntries(context: AccountContext, pre
         if emojiCount != 0 {
             entries.append(.emoji(presentationData.theme, presentationData.strings.StickerPacksSettings_Emoji, emojiCount))
         }
-        if let quickReaction = quickReaction, let availableReactions = availableReactions {
+        // The reaction a double tap sends, in a client whose reactions are
+        // switched off - the server keeps none. See Offered.
+        if Offered.reactions, let quickReaction = quickReaction, let availableReactions = availableReactions {
             entries.append(.quickReaction(presentationData.strings.Settings_QuickReactionSetup_NavigationTitle, quickReaction, availableReactions))
         }
         
@@ -576,7 +578,13 @@ private func installedStickerPacksControllerEntries(context: AccountContext, pre
         entries.append(.packOrder(presentationData.theme, presentationData.strings.StickerPacksSettings_DynamicOrder, stickerSettings.dynamicPackOrder))
         entries.append(.packOrderInfo(presentationData.theme, presentationData.strings.StickerPacksSettings_DynamicOrderInfo))
         
-        entries.append(.packsTitle(presentationData.theme, presentationData.strings.StickerPacksSettings_MyStickers.uppercased()))
+        // MY STICKERS is a heading over nothing: messages.getAllStickers is
+        // answered with an empty list and installing a pack has no handler
+        // (#20), so what was left under it was a footer pointing at a bot that
+        // does not exist here. See Offered.
+        if Offered.stickerPacks {
+            entries.append(.packsTitle(presentationData.theme, presentationData.strings.StickerPacksSettings_MyStickers.uppercased()))
+        }
     case .masks:
         if let archived = archived, !archived.isEmpty {
             entries.append(.archived(presentationData.theme, presentationData.strings.StickerPacksSettings_ArchivedMasks, Int32(archived.count), archived))
@@ -645,7 +653,12 @@ private func installedStickerPacksControllerEntries(context: AccountContext, pre
         markdownString.insert(contentsOf: "]()", at: markdownString.index(markdownString.startIndex, offsetBy: entity.range.upperBound))
         markdownString.insert(contentsOf: "[", at: markdownString.index(markdownString.startIndex, offsetBy: entity.range.lowerBound))
     }
-    entries.append(.packsInfo(presentationData.theme, markdownString))
+    // The line under the pack list points at a @stickers bot that does not
+    // exist here, over a list that is always empty. It goes with the list.
+    // See Offered.
+    if Offered.stickerPacks {
+        entries.append(.packsInfo(presentationData.theme, markdownString))
+    }
     
     return entries
 }

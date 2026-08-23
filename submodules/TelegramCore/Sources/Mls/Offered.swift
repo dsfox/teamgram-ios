@@ -58,6 +58,13 @@ public enum Offered {
     /// phone that tapped it and is gone by the next sync.
     public static let reactions = false
 
+    /// Sticker packs. messages.getAllStickers is answered with an empty list
+    /// and installing one has no handler (#20), so every list of packs opens
+    /// empty - MY STICKERS was a heading over a footer pointing at a bot that
+    /// does not exist here. The emoji and animation settings on the same screen
+    /// work and stay.
+    public static let stickerPacks = false
+
     /// A cloud password - the second step asked for when signing in.
     ///
     /// account.getPassword is answered with "there is no password" and nothing
