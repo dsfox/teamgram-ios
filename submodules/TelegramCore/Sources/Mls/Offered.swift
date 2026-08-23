@@ -58,6 +58,23 @@ public enum Offered {
     /// phone that tapped it and is gone by the next sync.
     public static let reactions = false
 
+    /// A cloud password - the second step asked for when signing in.
+    ///
+    /// account.getPassword is answered with "there is no password" and nothing
+    /// handles setting one, so the screen would take a password, send it, and
+    /// leave the account exactly as open as it was. Worse than absent: it reads
+    /// as a lock that is on.
+    public static let cloudPassword = false
+
+    /// An address to receive login codes at. account.sendVerifyEmailCode is
+    /// not implemented, so the screen would take an address and never confirm
+    /// it. Android already hides the row unless the account has one.
+    public static let loginEmail = false
+
+    /// Gifts. The catalogue is answered with an empty list and nothing can be
+    /// bought or sent, so a setting for who may send you one governs nothing.
+    public static let gifts = false
+
     // A round video in a conversation that encrypts used to be switched off
     // here: the one message uploaded while it was still being recorded, which
     // an encrypted upload cannot take. It is offered again since #80 - the

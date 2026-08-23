@@ -692,7 +692,13 @@ private func privacyAndSecurityControllerEntries(
     if let hasTwoStepAuth = hasTwoStepAuth {
         twoStepAuthString = hasTwoStepAuth ? presentationData.strings.PrivacySettings_PasscodeOn : presentationData.strings.PrivacySettings_PasscodeOff
     }
-    entries.append(.twoStepVerification(presentationData.theme, presentationData.strings.PrivacySettings_TwoStepAuth, twoStepAuthString, twoStepAuthData))
+    // A cloud password protects nothing here: the server answers
+    // account.getPassword with "there is no password" and has no handler for
+    // setting one, so the screen would take a password and leave the account
+    // exactly as open as before. See Offered.
+    if Offered.cloudPassword {
+        entries.append(.twoStepVerification(presentationData.theme, presentationData.strings.PrivacySettings_TwoStepAuth, twoStepAuthString, twoStepAuthData))
+    }
     
     if displayPasskeys {
         var passkeysString = ""
@@ -734,8 +740,14 @@ private func privacyAndSecurityControllerEntries(
         if let loginEmail {
             hasLoginEmail = !loginEmail.contains(" ")
         }
-        entries.append(.loginEmail(presentationData.theme, presentationData.strings.PrivacySettings_LoginEmail, loginEmail))
-        entries.append(.loginEmailInfo(presentationData.theme, !hasLoginEmail ? presentationData.strings.PrivacySettings_LoginEmailSetupInfo : presentationData.strings.PrivacySettings_LoginEmailInfo))
+        // An address to receive login codes at, from a server that refuses to
+        // send them: account.sendVerifyEmailCode is not implemented. Offering
+        // the row means a screen that takes an address and never confirms it.
+        // See Offered.
+        if Offered.loginEmail {
+            entries.append(.loginEmail(presentationData.theme, presentationData.strings.PrivacySettings_LoginEmail, loginEmail))
+            entries.append(.loginEmailInfo(presentationData.theme, !hasLoginEmail ? presentationData.strings.PrivacySettings_LoginEmailSetupInfo : presentationData.strings.PrivacySettings_LoginEmailInfo))
+        }
     }
     
     entries.append(.privacyHeader(presentationData.theme, presentationData.strings.PrivacySettings_PrivacyTitle))
@@ -744,11 +756,19 @@ private func privacyAndSecurityControllerEntries(
         entries.append(.lastSeenPrivacy(presentationData.theme, presentationData.strings.PrivacySettings_LastSeen, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.presence)))
         entries.append(.profilePhotoPrivacy(presentationData.theme, presentationData.strings.Privacy_ProfilePhoto, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.profilePhoto)))
         entries.append(.bioPrivacy(presentationData.theme, presentationData.strings.Privacy_Bio, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.bio)))
+        // Who may send you a gift, in a messenger where nobody can send one.
+        // See Offered.
+        if Offered.gifts {
         entries.append(.giftsAutoSavePrivacy(presentationData.theme, presentationData.strings.Privacy_Gifts, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.giftsAutoSave)))
+        }
         entries.append(.birthdayPrivacy(presentationData.theme, presentationData.strings.Privacy_Birthday, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.birthday)))
         entries.append(.savedMusicPrivacy(presentationData.theme, presentationData.strings.Privacy_SavedMusic, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.savedMusic)))
         entries.append(.forwardPrivacy(presentationData.theme, presentationData.strings.Privacy_Forwards, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.forwards)))
+        // Who may call you is not a choice worth offering while nobody can
+        // call anybody (#14). Android drops the same row.
+        if Offered.videoChats {
         entries.append(.voiceCallPrivacy(presentationData.theme, presentationData.strings.Privacy_Calls, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.voiceCalls)))
+        }
         if !isPremiumDisabled || isPremium {
             entries.append(.voiceMessagePrivacy(presentationData.theme, presentationData.strings.Privacy_VoiceMessages, stringForSelectiveSettings(strings: presentationData.strings, settings: isPremium ? privacySettings.voiceMessages : .enableEveryone(disableFor: [:])), isPremium))
             var effectiveValue = privacySettings.globalSettings.nonContactChatsPrivacy
@@ -774,11 +794,15 @@ private func privacyAndSecurityControllerEntries(
         entries.append(.lastSeenPrivacy(presentationData.theme, presentationData.strings.PrivacySettings_LastSeen, presentationData.strings.Channel_NotificationLoading))
         entries.append(.profilePhotoPrivacy(presentationData.theme, presentationData.strings.Privacy_ProfilePhoto, presentationData.strings.Channel_NotificationLoading))
         entries.append(.bioPrivacy(presentationData.theme, presentationData.strings.Privacy_GroupsAndChannels, presentationData.strings.Channel_NotificationLoading))
+        if Offered.gifts {
         entries.append(.giftsAutoSavePrivacy(presentationData.theme, presentationData.strings.Privacy_Gifts, presentationData.strings.Channel_NotificationLoading))
+        }
         entries.append(.birthdayPrivacy(presentationData.theme, presentationData.strings.Privacy_Birthday, presentationData.strings.Channel_NotificationLoading))
         entries.append(.savedMusicPrivacy(presentationData.theme, presentationData.strings.Privacy_SavedMusic, presentationData.strings.Channel_NotificationLoading))
         entries.append(.forwardPrivacy(presentationData.theme, presentationData.strings.Privacy_Forwards, presentationData.strings.Channel_NotificationLoading))
+        if Offered.videoChats {
         entries.append(.voiceCallPrivacy(presentationData.theme, presentationData.strings.Privacy_Calls, presentationData.strings.Channel_NotificationLoading))
+        }
         if !isPremiumDisabled || isPremium {
             entries.append(.voiceMessagePrivacy(presentationData.theme, presentationData.strings.Privacy_VoiceMessages, presentationData.strings.Channel_NotificationLoading, isPremium))
             entries.append(.messagePrivacy(presentationData.theme, presentationData.strings.Channel_NotificationLoading, isPremium))
