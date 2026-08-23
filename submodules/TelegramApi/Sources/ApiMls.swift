@@ -25,7 +25,7 @@ public extension Api.functions {
                 serializeBytes(item, buffer: buffer, boxed: false)
             }
             serializeBytes(lastResort, buffer: buffer, boxed: false)
-            return (FunctionDescription(name: "mls.publishKeyPackages", parameters: [("keyPackages", String(describing: keyPackages)), ("lastResort", String(describing: lastResort))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.PublishResult? in
+            return (FunctionDescription(name: "mls.publishKeyPackages", parameters: [("keyPackages", ConstructorParameterDescription(keyPackages)), ("lastResort", ConstructorParameterDescription(lastResort))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.PublishResult? in
                 let reader = BufferReader(buffer)
                 return Api.mls.PublishResult.parse(reader)
             })
@@ -37,7 +37,7 @@ public extension Api.functions {
             buffer.appendInt32(-773834602)
             serializeInt64(userId, buffer: buffer, boxed: false)
             serializeBytes(welcome, buffer: buffer, boxed: false)
-            return (FunctionDescription(name: "mls.sendWelcome", parameters: [("userId", String(describing: userId))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Ok? in
+            return (FunctionDescription(name: "mls.sendWelcome", parameters: [("userId", ConstructorParameterDescription(userId))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Ok? in
                 let reader = BufferReader(buffer)
                 return Api.mls.Ok.parse(reader)
             })
@@ -62,7 +62,7 @@ public extension Api.functions {
             for item in ids {
                 serializeInt64(item, buffer: buffer, boxed: false)
             }
-            return (FunctionDescription(name: "mls.confirmWelcomes", parameters: [("ids", String(describing: ids))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Ok? in
+            return (FunctionDescription(name: "mls.confirmWelcomes", parameters: [("ids", ConstructorParameterDescription(ids))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Ok? in
                 let reader = BufferReader(buffer)
                 return Api.mls.Ok.parse(reader)
             })
@@ -90,7 +90,7 @@ public extension Api.functions {
             let buffer = Buffer()
             buffer.appendInt32(88879177)
             serializeInt64(userId, buffer: buffer, boxed: false)
-            return (FunctionDescription(name: "mls.claimKeyPackages", parameters: [("userId", String(describing: userId))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.KeyPackages? in
+            return (FunctionDescription(name: "mls.claimKeyPackages", parameters: [("userId", ConstructorParameterDescription(userId))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.KeyPackages? in
                 let reader = BufferReader(buffer)
                 return Api.mls.KeyPackages.parse(reader)
             })

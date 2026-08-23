@@ -48,16 +48,6 @@ public struct CommunitiesState: Codable, Equatable {
     }
 }
 
-public extension ExportedChatFolderLink {
-    var slug: String {
-        var slug = self.link
-        if slug.hasPrefix("https://teamgram.me/addlist/") {
-            slug = String(slug[slug.index(slug.startIndex, offsetBy: "https://teamgram.me/addlist/".count)...])
-        }
-        return slug
-    }
-}
-
 public struct CommunityPeerRequest: Equatable {
     public let peerId: EnginePeer.Id
     public let requestedBy: EnginePeer.Id
