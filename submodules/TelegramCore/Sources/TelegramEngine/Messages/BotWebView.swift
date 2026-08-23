@@ -60,6 +60,9 @@ func _internal_requestSimpleWebView(postbox: Postbox, network: Network, botId: P
                 if (flags & (1 << 2)) != 0 {
                     resultFlags.insert(.fullScreen)
                 }
+                if (flags & (1 << 3)) != 0 {
+                    resultFlags.insert(.sameOrigin)
+                }
                 return .single(RequestWebViewResult(flags: resultFlags, queryId: queryId, url: url, keepAliveSignal: nil))
             }
         }
@@ -111,12 +114,49 @@ func _internal_requestMainWebView(postbox: Postbox, network: Network, peerId: Pe
                 if (flags & (1 << 2)) != 0 {
                     resultFlags.insert(.fullScreen)
                 }
+                if (flags & (1 << 3)) != 0 {
+                    resultFlags.insert(.sameOrigin)
+                }
                 return .single(RequestWebViewResult(flags: resultFlags, queryId: queryId, url: url, keepAliveSignal: nil))
             }
         }
     }
     |> castError(RequestWebViewError.self)
     |> switchToLatest
+}
+
+func _internal_requestChatJoinWebView(network: Network, queryId: Int64, themeParams: [String: Any]?) -> Signal<RequestWebViewResult, RequestWebViewError> {
+    var serializedThemeParams: Api.DataJSON?
+    if let themeParams = themeParams, let data = try? JSONSerialization.data(withJSONObject: themeParams, options: []), let dataString = String(data: data, encoding: .utf8) {
+        serializedThemeParams = .dataJSON(.init(data: dataString))
+    }
+
+    var flags: Int32 = 0
+    if let _ = serializedThemeParams {
+        flags |= (1 << 0)
+    }
+
+    return network.request(Api.functions.messages.requestChatJoinWebView(flags: flags, queryId: queryId, themeParams: serializedThemeParams, platform: botWebViewPlatform))
+    |> mapError { _ -> RequestWebViewError in
+        return .generic
+    }
+    |> mapToSignal { result -> Signal<RequestWebViewResult, RequestWebViewError> in
+        switch result {
+        case let .webViewResultUrl(webViewResultUrlData):
+            let (flags, queryId, url) = (webViewResultUrlData.flags, webViewResultUrlData.queryId, webViewResultUrlData.url)
+            var resultFlags: RequestWebViewResult.Flags = []
+            if (flags & (1 << 1)) != 0 {
+                resultFlags.insert(.fullSize)
+            }
+            if (flags & (1 << 2)) != 0 {
+                resultFlags.insert(.fullScreen)
+            }
+            if (flags & (1 << 3)) != 0 {
+                resultFlags.insert(.sameOrigin)
+            }
+            return .single(RequestWebViewResult(flags: resultFlags, queryId: queryId, url: url, keepAliveSignal: nil))
+        }
+    }
 }
 
 public enum KeepWebViewError {
@@ -137,12 +177,20 @@ public struct RequestWebViewResult {
         
         public static let fullSize = Flags(rawValue: 1 << 0)
         public static let fullScreen = Flags(rawValue: 1 << 1)
+        public static let sameOrigin = Flags(rawValue: 1 << 2)
     }
     
     public let flags: Flags
     public let queryId: Int64?
     public let url: String
     public let keepAliveSignal: Signal<Never, KeepWebViewError>?
+
+    public init(flags: Flags, queryId: Int64?, url: String, keepAliveSignal: Signal<Never, KeepWebViewError>?) {
+        self.flags = flags
+        self.queryId = queryId
+        self.url = url
+        self.keepAliveSignal = keepAliveSignal
+    }
 }
 
 public enum RequestWebViewError {
@@ -162,7 +210,7 @@ private func keepWebViewSignal(network: Network, stateManager: AccountStateManag
                     replyFlags |= 1 << 0
                     topMsgId = Int32(clamping: threadId)
                 }
-                replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyToMessageId.id, topMsgId: topMsgId, replyToPeerId: nil, quoteText: nil, quoteEntities: nil, quoteOffset: nil, monoforumPeerId: monoforumPeerId, todoItemId: nil))
+                replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyToMessageId.id, topMsgId: topMsgId, replyToPeerId: nil, quoteText: nil, quoteEntities: nil, quoteOffset: nil, monoforumPeerId: monoforumPeerId, todoItemId: nil, pollOption: nil))
             }
             let signal: Signal<Never, KeepWebViewError> = network.request(Api.functions.messages.prolongWebView(flags: flags, peer: peer, bot: bot, queryId: queryId, replyTo: replyTo, sendAs: sendAs))
             |> mapError { _ -> KeepWebViewError in
@@ -250,7 +298,7 @@ func _internal_requestWebView(postbox: Postbox, network: Network, stateManager: 
             } else if topMsgId != nil {
                 replyFlags |= 1 << 0
             }
-            replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyToMessageId.id, topMsgId: topMsgId, replyToPeerId: nil, quoteText: nil, quoteEntities: nil, quoteOffset: nil, monoforumPeerId: monoforumPeerId, todoItemId: nil))
+            replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyToMessageId.id, topMsgId: topMsgId, replyToPeerId: nil, quoteText: nil, quoteEntities: nil, quoteOffset: nil, monoforumPeerId: monoforumPeerId, todoItemId: nil, pollOption: nil))
         } else if let monoforumPeerId {
             replyTo = .inputReplyToMonoForum(.init(monoforumPeerId: monoforumPeerId))
         }
@@ -269,6 +317,9 @@ func _internal_requestWebView(postbox: Postbox, network: Network, stateManager: 
                 }
                 if (webViewFlags & (1 << 2)) != 0 {
                     resultFlags.insert(.fullScreen)
+                }
+                if (webViewFlags & (1 << 3)) != 0 {
+                    resultFlags.insert(.sameOrigin)
                 }
                 let keepAlive: Signal<Never, KeepWebViewError>?
                 if let queryId {
@@ -362,6 +413,9 @@ func _internal_requestAppWebView(postbox: Postbox, network: Network, stateManage
                 }
                 if (flags & (1 << 2)) != 0 {
                     resultFlags.insert(.fullScreen)
+                }
+                if (flags & (1 << 3)) != 0 {
+                    resultFlags.insert(.sameOrigin)
                 }
                 return .single(RequestWebViewResult(flags: resultFlags, queryId: queryId, url: url, keepAliveSignal: nil))
             }
@@ -702,7 +756,10 @@ func _internal_removeChatManagingBot(account: Account, chatId: EnginePeer.Id) ->
                         excludePeers: excludePeers,
                         exclude: connectedBot.recipients.exclude
                     ),
-                    rights: connectedBot.rights
+                    rights: connectedBot.rights,
+                    device: connectedBot.device,
+                    date: connectedBot.date,
+                    location: connectedBot.location
                 ))
             } else {
                 return current

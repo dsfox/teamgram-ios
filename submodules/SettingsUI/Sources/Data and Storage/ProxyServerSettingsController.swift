@@ -11,6 +11,7 @@ import AccountContext
 import UrlEscaping
 import UrlHandling
 import ShareController
+import QrCodeUI
 
 private func shareLink(for server: ProxyServerSettings) -> String {
     var link: String
@@ -301,7 +302,7 @@ func proxyServerSettingsController(sharedContext: SharedAccountContext, context:
         statePromise.set(stateValue.modify { f($0) })
     }
     
-    var presentControllerImpl: ((ViewController, Any?) -> Void)?
+    var pushControllerImpl: ((ViewController) -> Void)?
     var dismissImpl: (() -> Void)?
     
     var shareImpl: (() -> Void)?
@@ -333,10 +334,14 @@ func proxyServerSettingsController(sharedContext: SharedAccountContext, context:
     let signal = combineLatest(updatedPresentationData, statePromise.get())
     |> deliverOnMainQueue
     |> map { presentationData, state -> (ItemListControllerState, (ItemListNodeState, Any)) in
-        let leftNavigationButton = ItemListNavigationButton(content: .text(presentationData.strings.Common_Cancel), style: .regular, enabled: true, action: {
+        var presentationData = presentationData
+        let updatedTheme = presentationData.theme.withModalBlocksBackground()
+        presentationData = presentationData.withUpdated(theme: updatedTheme)
+        
+        let leftNavigationButton = ItemListNavigationButton(content: .icon(.close), style: .regular, enabled: true, action: {
             dismissImpl?()
         })
-        let rightNavigationButton = ItemListNavigationButton(content: .text(presentationData.strings.Common_Done), style: .bold, enabled: state.isComplete, action: {
+        let rightNavigationButton = ItemListNavigationButton(content: .icon(.done), style: .bold, enabled: state.isComplete, action: {
             if let proxyServerSettings = proxyServerSettings(with: state) {
                 let _ = (updateProxySettingsInteractively(accountManager: accountManager, { settings in
                     var settings = settings
@@ -348,8 +353,11 @@ func proxyServerSettingsController(sharedContext: SharedAccountContext, context:
                             }
                         }
                     } else {
-                        settings.servers.append(proxyServerSettings)
-                        if settings.servers.count == 1 {
+                        let wasEmpty = settings.servers.isEmpty
+                        if !settings.servers.contains(proxyServerSettings) {
+                            settings.servers.append(proxyServerSettings)
+                        }
+                        if wasEmpty && settings.servers.count == 1 {
                             settings.activeServer = proxyServerSettings
                         }
                     }
@@ -368,8 +376,8 @@ func proxyServerSettingsController(sharedContext: SharedAccountContext, context:
     
     let controller = ItemListController(presentationData: ItemListPresentationData(presentationData), updatedPresentationData: updatedPresentationData |> map(ItemListPresentationData.init(_:)), state: signal, tabBarItem: nil)
     controller.navigationPresentation = .modal
-    presentControllerImpl = { [weak controller] c, d in
-        controller?.present(c, in: .window(.root), with: d)
+    pushControllerImpl = { [weak controller] c in
+        controller?.push(c)
     }
     dismissImpl = { [weak controller] in
         let _ = controller?.dismiss()
@@ -379,14 +387,15 @@ func proxyServerSettingsController(sharedContext: SharedAccountContext, context:
         guard let server = proxyServerSettings(with: state) else {
             return
         }
-        
-        let link = shareLink(for: server)
         controller?.view.endEditing(true)
         
-        let controller = ShareProxyServerActionSheetController(presentationData: presentationData, updatedPresentationData: updatedPresentationData, link: link)
-        presentControllerImpl?(controller, nil)
+        let controller = QrCodeScreen(
+            sharedContext: sharedContext,
+            updatedPresentationData: (presentationData, updatedPresentationData),
+            subject: .proxy(server: server, externalLink: false)
+        )
+        pushControllerImpl?(controller)
     }
     
     return controller
 }
-

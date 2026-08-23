@@ -2,7 +2,6 @@ import Foundation
 import UIKit
 import AsyncDisplayKit
 import Display
-import Postbox
 import TelegramCore
 import SwiftSignalKit
 import Photos
@@ -12,7 +11,6 @@ import TextFormat
 import TelegramStringFormatting
 import AccountContext
 import RadialStatusNode
-import ShareController
 import OpenInExternalAppUI
 import AppBundle
 import LocalizedPeerData
@@ -26,6 +24,7 @@ import TextNodeWithEntities
 import AnimationCache
 import MultiAnimationRenderer
 import Pasteboard
+import ChatRichTextEditorComposer
 import Speak
 import TranslateUI
 import TelegramNotices
@@ -50,7 +49,7 @@ private let cloudFetchIcon = generateTintedImage(image: UIImage(bundleImageName:
 
 enum ChatItemGalleryFooterContent: Equatable {
     case info
-    case fetch(status: MediaResourceStatus, seekable: Bool)
+    case fetch(status: EngineMediaResource.FetchStatus, seekable: Bool)
     case playback(paused: Bool, seekable: Bool)
     
     static func ==(lhs: ChatItemGalleryFooterContent, rhs: ChatItemGalleryFooterContent) -> Bool {
@@ -81,11 +80,11 @@ enum ChatItemGalleryFooterContentTapAction {
     case none
     case url(url: String, concealed: Bool)
     case textMention(String)
-    case peerMention(PeerId, String)
+    case peerMention(EnginePeer.Id, String)
     case botCommand(String)
     case hashtag(String?, String)
     case instantPage
-    case call(PeerId)
+    case call(EnginePeer.Id)
     case openMessage
     case ignore
 }
@@ -170,8 +169,9 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
     
     private var currentMessageText: NSAttributedString?
     
-    private var currentMessage: Message?
-    private var currentWebPageAndMedia: (TelegramMediaWebpage, Media)?
+    private var currentMessage: EngineRawMessage?
+    private var currentWebPageAndMedia: (TelegramMediaWebpage, EngineRawMedia)?
+    private var mediaSubject: GalleryMediaSubject?
     private let messageContextDisposable = MetaDisposable()
     
     private var videoFramePreviewNode: (ASImageNode, ImmediateTextNode)?
@@ -208,7 +208,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
     private var currentSpeechHolder: SpeechSynthesizerHolder?
     
     var performAction: ((GalleryControllerInteractionTapAction) -> Void)?
-    var openActionOptions: ((GalleryControllerInteractionTapAction, Message) -> Void)?
+    var openActionOptions: ((GalleryControllerInteractionTapAction, EngineRawMessage) -> Void)?
     
     private var isAd: Bool {
         if self.currentMessage?.adAttribute != nil {
@@ -310,8 +310,20 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
             }
         }
         didSet {
-             if let scrubberView = self.scrubberView {
+            if let scrubberView = self.scrubberView {
                 self.view.addSubview(scrubberView)
+                scrubberView.onRequestLayout = { [weak self] transition in
+                    guard let self else {
+                        return
+                    }
+                    if let requestLayout = self.requestLayout {
+                        requestLayout(transition)
+                    } else {
+                        if let validLayout = self.validLayout {
+                            let _ = self.updateLayout(size: validLayout.0, metrics: validLayout.1, leftInset: validLayout.2, rightInset: validLayout.3, bottomInset: validLayout.4, contentInset: validLayout.5, transition: transition)
+                        }
+                    }
+                }
                 scrubberView.updateScrubbingVisual = { [weak self] value in
                     guard let strongSelf = self else {
                         return
@@ -459,18 +471,18 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
         )
         self.textNode.visibility = true
         
-        let textSelectionNode = TextSelectionNode(theme: TextSelectionTheme(selection: defaultDarkPresentationTheme.list.itemAccentColor.withMultipliedAlpha(0.5), knob: defaultDarkPresentationTheme.list.itemAccentColor, isDark: true), strings: presentationData.strings, textNode: self.textNode, updateIsActive: { [weak self] value in
+        let textSelectionNode = TextSelectionNode(theme: TextSelectionTheme(selection: defaultDarkPresentationTheme.list.itemAccentColor.withMultipliedAlpha(0.5), knob: defaultDarkPresentationTheme.list.itemAccentColor, isDark: true), strings: presentationData.strings, textNodeOrView: .node(self.textNode), updateIsActive: { [weak self] value in
             guard let self else {
                 return
             }
             let _ = self
         }, present: { c, a in
             present(c, a)
-        }, rootNode: { [weak self] in
+        }, rootView: { [weak self] in
             guard let self else {
                 return nil
             }
-            return self.controllerInteraction?.controller()?.displayNode
+            return self.controllerInteraction?.controller()?.displayNode.view
         }, externalKnobSurface: self.textSelectionKnobSurface, performAction: { [weak self] text, action in
             guard let self else {
                 return
@@ -488,8 +500,8 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                 let theme = defaultDarkPresentationTheme
                 let updatedPresentationData: (initial: PresentationData, signal: Signal<PresentationData, NoError>) = (self.context.sharedContext.currentPresentationData.with({ $0 }).withUpdated(theme: theme), self.context.sharedContext.presentationData |> map { $0.withUpdated(theme: theme) })
                 
-                let shareController = ShareController(context: self.context, subject: .text(text.string), externalShare: true, immediateExternalShare: false, updatedPresentationData: updatedPresentationData)
-                
+                let shareController = self.context.sharedContext.makeShareController(context: self.context, params: ShareControllerParams(subject: .text(text.string), externalShare: true, immediateExternalShare: false, updatedPresentationData: updatedPresentationData))
+
                 self.controllerInteraction?.presentController(shareController, nil)
             case .lookup:
                 let controller = UIReferenceLibraryViewController(term: text.string)
@@ -535,34 +547,42 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                     let (_, language) = canTranslateText(context: self.context, text: text.string, showTranslate: translationSettings.showTranslate, showTranslateIfTopical: showTranslateIfTopical, ignoredLanguages: translationSettings.ignoredLanguages)
                     
                     let _ = ApplicationSpecificNotice.incrementTranslationSuggestion(accountManager: self.context.sharedContext.accountManager, timestamp: Int32(Date().timeIntervalSince1970)).start()
-                    
-                    let translateController = TranslateScreen(context: self.context, forceTheme: defaultDarkPresentationTheme, text: text.string, canCopy: true, fromLanguage: language, ignoredLanguages: translationSettings.ignoredLanguages)
-                    translateController.pushController = { [weak self] c in
+
+                    Task { @MainActor [weak self] in
                         guard let self else {
                             return
                         }
-                        self.controllerInteraction?.pushController(c)
+                        let translateController = await self.context.sharedContext.makeTextProcessingScreen(
+                            context: self.context,
+                            theme: defaultDarkPresentationTheme,
+                            mode: .translate(fromLanguage: language, applyResult: nil),
+                            inputText: .plain(text: text.string, entities: []),
+                            copyResult: { [weak self] text in
+                                guard let self else {
+                                    return
+                                }
+                                storeComposedRichMessageInPasteboard(text)
+                                let presentationData = self.context.sharedContext.currentPresentationData.with { $0 }
+                                let undoController = UndoOverlayController(presentationData: presentationData, content: .copy(text: presentationData.strings.Conversation_TextCopied), elevatedLayout: true, animateInAsReplacement: false, appearance: UndoOverlayController.Appearance(isBlurred: true), action: { _ in true })
+                                self.controllerInteraction?.presentController(undoController, nil)
+                            },
+                            translateChat: nil
+                        )
+
+                        //self.actionSheet = translateController
+                        //view.updateIsProgressPaused()
+
+                        /*translateController.wasDismissed = { [weak self, weak view] in
+                            guard let self, let view else {
+                                return
+                            }
+                            self.actionSheet = nil
+                            view.updateIsProgressPaused()
+                        }*/
+
+                        //component.controller()?.present(translateController, in: .window(.root))
+                        self.controllerInteraction?.presentController(translateController, nil)
                     }
-                    translateController.presentController = { [weak self] c in
-                        guard let self else {
-                            return
-                        }
-                        self.controllerInteraction?.presentController(c, nil)
-                    }
-                    
-                    //self.actionSheet = translateController
-                    //view.updateIsProgressPaused()
-                    
-                    /*translateController.wasDismissed = { [weak self, weak view] in
-                        guard let self, let view else {
-                            return
-                        }
-                        self.actionSheet = nil
-                        view.updateIsProgressPaused()
-                    }*/
-                    
-                    //component.controller()?.present(translateController, in: .window(.root))
-                    self.controllerInteraction?.presentController(translateController, nil)
                 })
             case .quote:
                 break
@@ -664,6 +684,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
         super.didLoad()
         self.scrollNode.view.delegate = self.wrappedScrollViewDelegate
         self.scrollNode.view.showsVerticalScrollIndicator = false
+        self.scrollNode.view.scrollsToTop = false
         
         let backwardLongPressGestureRecognizer = UILongPressGestureRecognizer(target: self, action: #selector(self.seekBackwardLongPress(_:)))
         backwardLongPressGestureRecognizer.minimumPressDuration = 0.3
@@ -834,8 +855,9 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
         }
     }
     
-    func setMessage(_ message: Message, displayInfo: Bool = true, translateToLanguage: String? = nil, peerIsCopyProtected: Bool = false, displayPictureInPictureButton: Bool = false, settingsButtonState: SettingsButtonState? = nil, displayTextRecognitionButton: Bool = false, displayStickersButton: Bool = false, animated: Bool = false) {
+    func setMessage(_ message: EngineRawMessage, mediaSubject: GalleryMediaSubject? = nil, displayInfo: Bool = true, translateToLanguage: String? = nil, peerIsCopyProtected: Bool = false, displayPictureInPictureButton: Bool = false, settingsButtonState: SettingsButtonState? = nil, displayTextRecognitionButton: Bool = false, displayStickersButton: Bool = false, animated: Bool = false) {
         self.currentMessage = message
+        self.mediaSubject = mediaSubject
         
         var displayInfo = displayInfo
         if Namespaces.Message.allNonRegular.contains(message.id.namespace) || message.timestamp == 0 {
@@ -848,7 +870,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
         var canEdit = false
         var isImage = false
         var isVideo = false
-        for media in message.media {
+        for media in message.effectiveMedia {
             if media is TelegramMediaImage {
                 canEdit = true
                 isImage = true
@@ -937,6 +959,10 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
             canFullscreen = false
         }
         
+        if message.media.contains(where: { $0 is TelegramMediaPoll }) {
+            canDelete = false
+        }
+        
         var authorNameText: String?
         if let forwardInfo = message.forwardInfo, forwardInfo.flags.contains(.isImported), let authorSignature = forwardInfo.authorSignature {
             authorNameText = authorSignature
@@ -954,6 +980,8 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                 hasCaption = true
             } else if media is TelegramMediaImage {
                 hasCaption = true
+            } else if media is TelegramMediaPoll {
+                hasCaption = true
             } else if let file = media as? TelegramMediaFile {
                 hasCaption = file.mimeType.hasPrefix("image/") || file.mimeType.hasPrefix("video/")
                 mediaDuration = file.duration
@@ -962,18 +990,11 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
             }
         }
         if hasCaption {
-            var entities: [MessageTextEntity] = []
-            for attribute in message.attributes {
-                if let attribute = attribute as? TextEntitiesMessageAttribute {
-                    entities = attribute.entities
-                    break
-                }
-            }
-            var text = message.text
+            var (text, entities) = galleryMessageCaptionText(message, mediaSubject: mediaSubject)
             if let result = addLocallyGeneratedEntities(text, enabledTypes: [.timecode], entities: entities, mediaDuration: mediaDuration) {
                 entities = result
             }
-            if let translateToLanguage, !text.isEmpty {
+            if let translateToLanguage, mediaSubject == nil && !text.isEmpty {
                 for attribute in message.attributes {
                     if let attribute = attribute as? TranslationMessageAttribute, !attribute.text.isEmpty, attribute.toLang == translateToLanguage {
                         text = attribute.text
@@ -1129,7 +1150,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
         }
     }
     
-    func setWebPage(_ webPage: TelegramMediaWebpage, media: Media) {
+    func setWebPage(_ webPage: TelegramMediaWebpage, media: EngineRawMedia) {
         self.currentWebPageAndMedia = (webPage, media)
     }
     
@@ -1296,7 +1317,13 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                 panelHeight -= 44.0
             }
             
-            let scrubberFrame = CGRect(origin: CGPoint(x: buttonPanelInsets.left, y: scrubberY), size: CGSize(width: width - buttonPanelInsets.left - buttonPanelInsets.right, height: 44.0))
+            var scrubberFrame = CGRect(origin: CGPoint(x: buttonPanelInsets.left, y: scrubberY), size: CGSize(width: width - buttonPanelInsets.left - buttonPanelInsets.right, height: 44.0))
+            if scrubberView.hasVisibleInfo {
+                let infoHeight: CGFloat = 16.0
+                scrubberFrame.size.height += infoHeight
+                panelHeight += infoHeight
+            }
+            
             scrubberView.updateLayout(size: scrubberFrame.size, leftInset: 0.0, rightInset: 0.0, isCollapsed: self.visibilityAlpha < 1.0, transition: transition)
             transition.updateBounds(layer: scrubberView.layer, bounds: CGRect(origin: CGPoint(), size: scrubberFrame.size))
             transition.updatePosition(layer: scrubberView.layer, position: CGPoint(x: scrubberFrame.midX, y: scrubberFrame.midY))
@@ -1339,7 +1366,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                         speed: settingsButtonState.speed,
                         quality: settingsButtonState.quality,
                         isOpen: false
-                    ))),
+                    )), insets: .zero),
                     action: { [weak self] in
                         guard let self, let buttonPanelView = self.buttonPanel.view as? GlassControlPanelComponent.View else {
                             return
@@ -1647,7 +1674,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                 var items: [ActionSheetItem] = []
                 var personalPeerName: String?
                 var isChannel = false
-                let peerId: PeerId = messages[0].id.peerId
+                let peerId: EnginePeer.Id = messages[0].id.peerId
                 if let user = messages[0].peers[messages[0].id.peerId] as? TelegramUser {
                     personalPeerName = EnginePeer(user).compactDisplayTitle
                 } else if let channel = messages[0].peers[messages[0].id.peerId] as? TelegramChannel, case .broadcast = channel.info {
@@ -1723,7 +1750,25 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                     var messageContentKinds = Set<MessageContentKindKey>()
                     
                     for message in messages {
-                        let currentKind = messageContentKind(contentSettings: strongSelf.context.currentContentSettings.with { $0 }, message: message, strings: presentationData.strings, nameDisplayOrder: presentationData.nameDisplayOrder, dateTimeFormat: presentationData.dateTimeFormat, accountPeerId: strongSelf.context.account.peerId)
+                        var currentKind = messageContentKind(contentSettings: strongSelf.context.currentContentSettings.with { $0 }, message: message, strings: presentationData.strings, nameDisplayOrder: presentationData.nameDisplayOrder, dateTimeFormat: presentationData.dateTimeFormat, accountPeerId: strongSelf.context.account.peerId)
+                        if case .poll = currentKind, let poll = message.media.first(where: { $0 is TelegramMediaPoll }) as? TelegramMediaPoll {
+                            var media: EngineRawMedia?
+                            switch strongSelf.mediaSubject {
+                            case .pollDescription:
+                                media = poll.attachedMedia
+                            case .pollSolution:
+                                media = poll.results.solution?.media
+                            case let .pollOption(opaqueIdentifier):
+                                if let option = poll.options.first(where: { $0.opaqueIdentifier == opaqueIdentifier }) {
+                                    media = option.media
+                                }
+                            default:
+                                break
+                            }
+                            if let media, let kind = mediaContentKind(EngineMedia(media)) {
+                                currentKind = kind
+                            }
+                        }
                         if beganContentKindScanning, let messageContentKind = generalMessageContentKind, !messageContentKind.isSemanticallyEqual(to: currentKind) {
                             generalMessageContentKind = nil
                         } else if !beganContentKindScanning || currentKind == generalMessageContentKind {
@@ -1758,8 +1803,25 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                     
                     if messages.count == 1 {
                         var subject: ShareControllerSubject = ShareControllerSubject.messages(messages.map { $0._asMessage() })
-                        for m in messages[0].media {
-                            if let image = m as? TelegramMediaImage {
+                        
+                        var media = messages[0].media.first
+                        if let poll = media as? TelegramMediaPoll {
+                            switch strongSelf.mediaSubject {
+                            case .pollDescription:
+                                media = poll.attachedMedia
+                            case .pollSolution:
+                                media = poll.results.solution?.media
+                            case let .pollOption(opaqueIdentifier):
+                                if let option = poll.options.first(where: { $0.opaqueIdentifier == opaqueIdentifier }) {
+                                    media = option.media
+                                }
+                            default:
+                                break
+                            }
+                        }
+                        
+                        if let m = media {
+                            if let image = media as? TelegramMediaImage {
                                 subject = .image(image.representations.map({ ImageRepresentationWithReference(representation: $0, reference: .media(media: .message(message: MessageReference(messages[0]._asMessage()), media: m), resource: $0.resource)) }))
                             } else if let webpage = m as? TelegramMediaWebpage, case let .Loaded(content) = webpage.content {
                                 if content.embedType == "iframe" {
@@ -1767,12 +1829,12 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                                     if availableOpenInOptions(context: strongSelf.context, item: item).count > 1 {
                                         preferredAction = .custom(action: ShareControllerAction(title: presentationData.strings.Conversation_FileOpenIn, action: { [weak self] in
                                             if let strongSelf = self {
-                                                let openInController = OpenInActionSheetController(context: strongSelf.context, forceTheme: defaultDarkColorPresentationTheme, item: item, additionalAction: nil, openUrl: { [weak self] url in
+                                                let openInController = OpenInOptionsScreen(context: strongSelf.context, forceTheme: defaultDarkColorPresentationTheme, item: item, additionalAction: nil, openUrl: { [weak self] url in
                                                     if let strongSelf = self {
                                                         strongSelf.context.sharedContext.openExternalUrl(context: strongSelf.context, urlContext: .generic, url: url, forceExternal: true, presentationData: presentationData, navigationController: nil, dismissInput: {})
                                                     }
                                                 })
-                                                strongSelf.controllerInteraction?.presentController(openInController, nil)
+                                                strongSelf.controllerInteraction?.pushController(openInController)
                                             }
                                         }))
                                     } else {
@@ -1852,41 +1914,14 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                             }
                         }
                         
-                        let shareController = ShareController(context: strongSelf.context, subject: subject, preferredAction: preferredAction, externalShare: hasExternalShare, forceTheme: forceTheme)
-                        shareController.dismissed = { [weak self] _ in
-                            self?.interacting?(false)
-                        }
-                        shareController.onMediaTimestampLinkCopied = { [weak self] timestamp in
-                            guard let self else {
-                                return
-                            }
-                            let presentationData = self.context.sharedContext.currentPresentationData.with { $0 }
-                            let text: String
-                            if let timestamp {
-                                let startTimeString: String
-                                let hours = timestamp / (60 * 60)
-                                let minutes = timestamp % (60 * 60) / 60
-                                let seconds = timestamp % 60
-                                if hours != 0 {
-                                    startTimeString = String(format: "%d:%02d:%02d", hours, minutes, seconds)
-                                } else {
-                                    startTimeString = String(format: "%d:%02d", minutes, seconds)
-                                }
-                                text = presentationData.strings.Conversation_VideoTimeLinkCopied(startTimeString).string
-                            } else {
-                                text = presentationData.strings.Conversation_LinkCopied
-                            }
-                            
-                            self.controllerInteraction?.presentController(UndoOverlayController(presentationData: presentationData, content: .linkCopied(title: nil, text: text), elevatedLayout: true, animateInAsReplacement: false, action: { _ in return true }), nil)
-                        }
-                        
-                        shareController.actionCompleted = { [weak self] in
+                        let shareController = strongSelf.context.sharedContext.makeShareController(context: strongSelf.context, params: ShareControllerParams(subject: subject, preferredAction: preferredAction, externalShare: hasExternalShare, forceTheme: forceTheme, actionCompleted: { [weak self] in
                             if let strongSelf = self, let actionCompletionText = actionCompletionText {
                                 let presentationData = strongSelf.context.sharedContext.currentPresentationData.with { $0 }
                                 strongSelf.controllerInteraction?.presentController(UndoOverlayController(presentationData: presentationData, content: .mediaSaved(text: actionCompletionText), elevatedLayout: true, animateInAsReplacement: false, action: { _ in return true }), nil)
                             }
-                        }
-                        shareController.completed = { [weak self] peerIds in
+                        }, dismissed: { [weak self] _ in
+                            self?.interacting?(false)
+                        }, completed: { [weak self] peerIds in
                             if let strongSelf = self {
                                 let _ = (strongSelf.context.engine.data.get(
                                     EngineDataList(
@@ -1897,7 +1932,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                                     if let strongSelf = self {
                                         let peers = peerList.compactMap { $0 }
                                         let presentationData = strongSelf.context.sharedContext.currentPresentationData.with { $0 }
-                                        
+
                                         let text: String
                                         var savedMessages = false
                                         if peerIds.count == 1, let peerId = peerIds.first, peerId == strongSelf.context.account.peerId {
@@ -1922,12 +1957,33 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                                                 text = ""
                                             }
                                         }
-                                        
+
                                         strongSelf.controllerInteraction?.presentController(UndoOverlayController(presentationData: presentationData, content: .forward(savedMessages: savedMessages, text: text), elevatedLayout: true, animateInAsReplacement: true, action: { _ in return false }), nil)
                                     }
                                 })
                             }
-                        }
+                        }, onMediaTimestampLinkCopied: { [weak self] timestamp in
+                            guard let self else {
+                                return
+                            }
+                            let presentationData = self.context.sharedContext.currentPresentationData.with { $0 }
+                            let text: String
+                            if let timestamp {
+                                let startTimeString: String
+                                let hours = timestamp / (60 * 60)
+                                let minutes = timestamp % (60 * 60) / 60
+                                let seconds = timestamp % 60
+                                if hours != 0 {
+                                    startTimeString = String(format: "%d:%02d:%02d", hours, minutes, seconds)
+                                } else {
+                                    startTimeString = String(format: "%d:%02d", minutes, seconds)
+                                }
+                                text = presentationData.strings.Conversation_VideoTimeLinkCopied(startTimeString).string
+                            } else {
+                                text = presentationData.strings.Conversation_LinkCopied
+                            }
+                            self.controllerInteraction?.presentController(UndoOverlayController(presentationData: presentationData, content: .linkCopied(title: nil, text: text), elevatedLayout: true, animateInAsReplacement: false, action: { _ in return true }), nil)
+                        }))
                         strongSelf.controllerInteraction?.presentController(shareController, nil)
                     } else {
                         var singleText = presentationData.strings.Media_ShareItem(1)
@@ -1946,19 +2002,16 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                             }
                         }
                         
-                        let shareAction: ([Message]) -> Void = { messages in
+                        let shareAction: ([EngineRawMessage]) -> Void = { messages in
                             if let strongSelf = self {
-                                let shareController = ShareController(context: strongSelf.context, subject: .messages(messages), preferredAction: preferredAction, forceTheme: forceTheme)
-                                shareController.dismissed = { [weak self] _ in
-                                    self?.interacting?(false)
-                                }
-                                shareController.actionCompleted = { [weak self, weak shareController] in
-                                    if let strongSelf = self, let shareController = shareController, shareController.actionIsMediaSaving {
+                                let shareController = strongSelf.context.sharedContext.makeShareController(context: strongSelf.context, params: ShareControllerParams(subject: .messages(messages), preferredAction: preferredAction, forceTheme: forceTheme, actionCompleted: { [weak self] in
+                                    if let strongSelf = self {
                                         let presentationData = strongSelf.context.sharedContext.currentPresentationData.with { $0 }
                                         strongSelf.controllerInteraction?.presentController(UndoOverlayController(presentationData: presentationData, content: .mediaSaved(text: presentationData.strings.Gallery_ImageSaved), elevatedLayout: true, animateInAsReplacement: false, action: { _ in return true }), nil)
                                     }
-                                }
-                                shareController.completed = { [weak self] peerIds in
+                                }, dismissed: { [weak self] _ in
+                                    self?.interacting?(false)
+                                }, completed: { [weak self] peerIds in
                                     if let strongSelf = self {
                                         let _ = (strongSelf.context.engine.data.get(
                                             EngineDataList(
@@ -1969,7 +2022,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                                             if let strongSelf = self {
                                                 let peers = peerList.compactMap { $0 }
                                                 let presentationData = strongSelf.context.sharedContext.currentPresentationData.with { $0 }
-                                                
+
                                                 let text: String
                                                 var savedMessages = false
                                                 if peerIds.count == 1, let peerId = peerIds.first, peerId == strongSelf.context.account.peerId {
@@ -1994,12 +2047,12 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                                                         text = ""
                                                     }
                                                 }
-                                                
+
                                                 strongSelf.controllerInteraction?.presentController(UndoOverlayController(presentationData: presentationData, content: .forward(savedMessages: savedMessages, text: text), elevatedLayout: true, animateInAsReplacement: true, action: { _ in return false }), nil)
                                             }
                                         })
                                     }
-                                }
+                                }))
                                 strongSelf.controllerInteraction?.presentController(shareController, nil)
                             }
                         }
@@ -2081,12 +2134,12 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                     if availableOpenInOptions(context: self.context, item: item).count > 1 {
                         preferredAction = .custom(action: ShareControllerAction(title: presentationData.strings.Conversation_FileOpenIn, action: { [weak self] in
                             if let strongSelf = self {
-                                let openInController = OpenInActionSheetController(context: strongSelf.context, forceTheme: forceTheme, item: item, additionalAction: nil, openUrl: { [weak self] url in
+                                let openInController = OpenInOptionsScreen(context: strongSelf.context, forceTheme: forceTheme, item: item, additionalAction: nil, openUrl: { [weak self] url in
                                     if let strongSelf = self {
                                         strongSelf.context.sharedContext.openExternalUrl(context: strongSelf.context, urlContext: .generic, url: url, forceExternal: true, presentationData: presentationData, navigationController: nil, dismissInput: {})
                                     }
                                 })
-                                strongSelf.controllerInteraction?.presentController(openInController, nil)
+                                strongSelf.controllerInteraction?.pushController(openInController)
                             }
                         }))
                     } else {
@@ -2106,11 +2159,9 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                     }
                 }
             }
-            let shareController = ShareController(context: self.context, subject: subject, preferredAction: preferredAction, forceTheme: forceTheme)
-            shareController.dismissed = { [weak self] _ in
+            let shareController = self.context.sharedContext.makeShareController(context: self.context, params: ShareControllerParams(subject: subject, preferredAction: preferredAction, forceTheme: forceTheme, dismissed: { [weak self] _ in
                 self?.interacting?(false)
-            }
-            shareController.completed = { [weak self] peerIds in
+            }, completed: { [weak self] peerIds in
                 if let strongSelf = self {
                     let _ = (strongSelf.context.engine.data.get(
                         EngineDataList(
@@ -2121,7 +2172,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                         if let strongSelf = self {
                             let peers = peerList.compactMap { $0 }
                             let presentationData = strongSelf.context.sharedContext.currentPresentationData.with { $0 }
-                            
+
                             let text: String
                             var savedMessages = false
                             if peerIds.count == 1, let peerId = peerIds.first, peerId == strongSelf.context.account.peerId {
@@ -2146,12 +2197,12 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode, ASScroll
                                     text = ""
                                 }
                             }
-                            
+
                             strongSelf.controllerInteraction?.presentController(UndoOverlayController(presentationData: presentationData, content: .forward(savedMessages: savedMessages, text: text), elevatedLayout: true, animateInAsReplacement: true, action: { _ in return false }), nil)
                         }
                     })
                 }
-            }
+            }))
             self.controllerInteraction?.presentController(shareController, nil)
         }
     }

@@ -86,6 +86,10 @@ xcode-files
 .bsp/**
 .sourcekit-lsp/**
 /.claude/
+**/.claude/settings.local.json
+**/.vscode/launch.json
 /buildbox/*
 third-party/mls/lib/
 third-party/mls/include/
+**/node_modules/
+tools/sim-watcher/dist/

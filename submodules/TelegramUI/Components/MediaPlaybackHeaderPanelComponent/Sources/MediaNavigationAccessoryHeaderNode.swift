@@ -115,8 +115,8 @@ private class MediaHeaderItemNode: ASDisplayNode {
         
         let minimizedTitleOffset: CGFloat = subtitleString == nil ? 6.0 : 0.0
         
-        let minimizedTitleFrame = CGRect(origin: CGPoint(x: floor((size.width - titleLayout.size.width) / 2.0), y: 4.0 + minimizedTitleOffset), size: titleLayout.size)
-        let minimizedSubtitleFrame = CGRect(origin: CGPoint(x: floor((size.width - subtitleLayout.size.width) / 2.0), y: 20.0), size: subtitleLayout.size)
+        let minimizedTitleFrame = CGRect(origin: CGPoint(x: floor((size.width - titleLayout.size.width) / 2.0), y: 5.0 + minimizedTitleOffset), size: titleLayout.size)
+        let minimizedSubtitleFrame = CGRect(origin: CGPoint(x: floor((size.width - subtitleLayout.size.width) / 2.0), y: 21.0), size: subtitleLayout.size)
         
         transition.updateFrame(node: self.titleNode, frame: minimizedTitleFrame)
         transition.updateFrame(node: self.subtitleNode, frame: minimizedSubtitleFrame)
@@ -257,7 +257,7 @@ public final class MediaNavigationAccessoryHeaderNode: ASDisplayNode, ASScrollVi
         self.closeButton.displaysAsynchronously = false
         
         self.rateButton = AudioRateButton()
-        self.rateButton.hitTestSlop = UIEdgeInsets(top: -8.0, left: -4.0, bottom: -8.0, right: -4.0)
+        self.rateButton.hitTestSlop = UIEdgeInsets(top: -8.0, left: -4.0, bottom: -8.0, right: -8.0)
         self.rateButton.displaysAsynchronously = false
         
         self.accessibilityAreaNode = AccessibilityAreaNode()
@@ -280,12 +280,9 @@ public final class MediaNavigationAccessoryHeaderNode: ASDisplayNode, ASScrollVi
         self.scrollNode.addSubnode(self.previousItemNode)
         self.scrollNode.addSubnode(self.nextItemNode)
         
-        self.addSubnode(self.closeButton)
-        self.addSubnode(self.rateButton)
         self.addSubnode(self.accessibilityAreaNode)
         
         self.actionButton.addSubnode(self.playPauseIconNode)
-        self.addSubnode(self.actionButton)
         
         self.closeButton.addTarget(self, action: #selector(self.closeButtonPressed), forControlEvents: .touchUpInside)
         self.actionButton.addTarget(self, action: #selector(self.actionButtonPressed), forControlEvents: .touchUpInside)
@@ -296,6 +293,10 @@ public final class MediaNavigationAccessoryHeaderNode: ASDisplayNode, ASScrollVi
         }
         
         self.addSubnode(self.scrubbingNode)
+        
+        self.addSubnode(self.actionButton)
+        self.addSubnode(self.closeButton)
+        self.addSubnode(self.rateButton)
         
         self.actionButton.highligthedChanged = { [weak self] highlighted in
             if let strongSelf = self {
@@ -350,6 +351,7 @@ public final class MediaNavigationAccessoryHeaderNode: ASDisplayNode, ASScrollVi
         self.scrollNode.view.isPagingEnabled = true
         self.scrollNode.view.showsHorizontalScrollIndicator = false
         self.scrollNode.view.showsVerticalScrollIndicator = false
+        self.scrollNode.view.scrollsToTop = false
         
         let tapRecognizer = UITapGestureRecognizer(target: self, action: #selector(self.tapGesture(_:)))
         self.tapRecognizer = tapRecognizer

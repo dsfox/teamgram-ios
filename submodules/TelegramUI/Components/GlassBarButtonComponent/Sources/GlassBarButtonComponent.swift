@@ -216,6 +216,7 @@ public final class GlassBarButtonComponent: Component {
                     }
                 }
                 componentTransition.setFrame(view: view, frame: componentFrame)
+                componentTransition.setAlpha(view: view, alpha: component.isVisible ? 1.0 : 0.0)
             }
             
             let effectiveState: DisplayState = component.state ?? .glass
@@ -266,7 +267,7 @@ public final class GlassBarButtonComponent: Component {
                     
                     transition.animateAlpha(view: glassBackgroundView, from: 0.0, to: 1.0)
                 }
-                glassBackgroundView.update(size: containerSize, cornerRadius: cornerRadius, isDark: component.isDark, tintColor: .init(kind: effectiveState == .tintedGlass ? .custom(style: .default, color: backgroundColor.withMultipliedAlpha(effectiveState == .tintedGlass ? 1.0 : 0.7)) : .panel), isInteractive: true, isVisible: component.isVisible, transition: glassBackgroundTransition)
+                glassBackgroundView.update(size: containerSize, cornerRadius: cornerRadius, isDark: component.isDark, tintColor: .init(kind: effectiveState == .tintedGlass ? .custom(style: .default, color: backgroundColor.withMultipliedAlpha(effectiveState == .tintedGlass ? 1.0 : 0.7)) : .panel), isInteractive: component.isEnabled, isVisible: component.isVisible, transition: glassBackgroundTransition)
                 glassBackgroundTransition.setFrame(view: glassBackgroundView, frame: bounds)
             } else if case .glass = component.state {
                 let glassBackgroundView: GlassBackgroundView
@@ -283,7 +284,7 @@ public final class GlassBarButtonComponent: Component {
                     
                     transition.animateAlpha(view: glassBackgroundView, from: 0.0, to: 1.0)
                 }
-                glassBackgroundView.update(size: containerSize, cornerRadius: cornerRadius, isDark: component.isDark, tintColor: .init(kind: .panel), isInteractive: true, isVisible: component.isVisible, transition: glassBackgroundTransition)
+                glassBackgroundView.update(size: containerSize, cornerRadius: cornerRadius, isDark: component.isDark, tintColor: .init(kind: .panel), isInteractive: component.isEnabled, isVisible: component.isVisible, transition: glassBackgroundTransition)
                 glassBackgroundTransition.setFrame(view: glassBackgroundView, frame: bounds)
             } else if let glassBackgroundView = self.glassBackgroundView {
                 self.glassBackgroundView = nil

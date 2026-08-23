@@ -24,6 +24,10 @@ public enum MessageActionCallbackError {
 }
 
 func _internal_requestMessageActionCallbackPasswordCheck(account: Account, messageId: MessageId, isGame: Bool, data: MemoryBuffer?) -> Signal<Never, MessageActionCallbackError> {
+    if messageId.namespace == Namespaces.Message.EphemeralLocal {
+        return .fail(.generic)
+    }
+
     return account.postbox.loadedPeerWithId(messageId.peerId)
      |> castError(MessageActionCallbackError.self)
      |> take(1)
@@ -72,6 +76,54 @@ func _internal_requestMessageActionCallbackPasswordCheck(account: Account, messa
 }
 
 func _internal_requestMessageActionCallback(account: Account, messageId: MessageId, isGame :Bool, password: String?, data: MemoryBuffer?) -> Signal<MessageActionCallbackResult, MessageActionCallbackError> {
+    if messageId.namespace == Namespaces.Message.EphemeralLocal {
+        if isGame || password != nil {
+            return .fail(.generic)
+        }
+
+        return account.postbox.loadedPeerWithId(messageId.peerId)
+        |> castError(MessageActionCallbackError.self)
+        |> take(1)
+        |> mapToSignal { peer in
+            guard let inputPeer = apiInputPeer(peer) else {
+                return .single(.none)
+            }
+
+            var flags: Int32 = 0
+            var dataBuffer: Buffer?
+            if let data {
+                flags |= Int32(1 << 1)
+                dataBuffer = Buffer(data: data.makeData())
+            }
+
+            return account.network.request(Api.functions.ephemeral.getCallbackAnswer(flags: flags, peer: inputPeer, id: messageId.id, data: dataBuffer))
+            |> mapError { error -> MessageActionCallbackError in
+                if error.errorDescription.hasPrefix("FLOOD_WAIT") {
+                    return .limitExceeded
+                } else {
+                    return .generic
+                }
+            }
+            |> map { result -> MessageActionCallbackResult in
+                switch result {
+                case let .botCallbackAnswer(botCallbackAnswerData):
+                    let (flags, message, url) = (botCallbackAnswerData.flags, botCallbackAnswerData.message, botCallbackAnswerData.url)
+                    if let message = message {
+                        if (flags & (1 << 1)) != 0 {
+                            return .alert(message)
+                        } else {
+                            return .toast(message)
+                        }
+                    } else if let url = url {
+                        return .url(url)
+                    } else {
+                        return .none
+                    }
+                }
+            }
+        }
+    }
+
     return account.postbox.loadedPeerWithId(messageId.peerId)
     |> castError(MessageActionCallbackError.self)
     |> take(1)
@@ -186,12 +238,16 @@ public enum MessageActionUrlAuthResult {
         public let platform: String
         public let ip: String
         public let region: String
+        public let isApp: Bool
+        public let appName: String?
         
-        public init(browser: String, platform: String, ip: String, region: String) {
+        public init(browser: String, platform: String, ip: String, region: String, isApp: Bool, appName: String?) {
             self.browser = browser
             self.platform = platform
             self.ip = ip
             self.region = region
+            self.isApp = isApp
+            self.appName = appName
         }
     }
     
@@ -254,7 +310,14 @@ func _internal_requestMessageActionUrlAuth(account: Account, subject: MessageAct
             let (apiFlags, bot, domain) = (urlAuthResultRequestData.flags, urlAuthResultRequestData.bot, urlAuthResultRequestData.domain)
             var clientData: MessageActionUrlAuthResult.ClientData?
             if let browser = urlAuthResultRequestData.browser, let platform = urlAuthResultRequestData.platform, let ip = urlAuthResultRequestData.ip, let region = urlAuthResultRequestData.region {
-                clientData = MessageActionUrlAuthResult.ClientData(browser: browser, platform: platform, ip: ip, region: region)
+                clientData = MessageActionUrlAuthResult.ClientData(
+                    browser: browser,
+                    platform: platform,
+                    ip: ip,
+                    region: region,
+                    isApp: (apiFlags & (1 << 6)) != 0,
+                    appName: urlAuthResultRequestData.verifiedAppName
+                )
             }
             var flags: MessageActionUrlAuthResult.Flags = []
             if (apiFlags & (1 << 0)) != 0 {
@@ -263,7 +326,6 @@ func _internal_requestMessageActionUrlAuth(account: Account, subject: MessageAct
             if (apiFlags & (1 << 1)) != 0 {
                 flags.insert(.requestPhoneNumber)
             }
-        
             if (apiFlags & (1 << 5)) != 0 {
                 flags.insert(.showMatchCodesFirst)
             }

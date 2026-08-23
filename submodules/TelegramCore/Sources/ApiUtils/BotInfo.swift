@@ -50,15 +50,15 @@ extension BotInfo {
         switch apiBotInfo {
             case let .botInfo(botInfoData):
                 let (_, _, description, descriptionPhoto, descriptionDocument, apiCommands, apiMenuButton, privacyPolicyUrl, appSettings, verifierSettings) = (botInfoData.flags, botInfoData.userId, botInfoData.description, botInfoData.descriptionPhoto, botInfoData.descriptionDocument, botInfoData.commands, botInfoData.menuButton, botInfoData.privacyPolicyUrl, botInfoData.appSettings, botInfoData.verifierSettings)
-                let photo: TelegramMediaImage? = descriptionPhoto.flatMap(telegramMediaImageFromApiPhoto)
+                let photo: TelegramMediaImage? = descriptionPhoto.flatMap { telegramMediaImageFromApiPhoto($0) }
                 let video: TelegramMediaFile? = descriptionDocument.flatMap { telegramMediaFileFromApiDocument($0, altDocuments: []) }
                 var commands: [BotCommand] = []
                 if let apiCommands = apiCommands {
                     commands = apiCommands.map { command in
                         switch command {
                             case let .botCommand(botCommandData):
-                                let (command, description) = (botCommandData.command, botCommandData.description)
-                                return BotCommand(text: command, description: description)
+                                let (flags, command, description) = (botCommandData.flags, botCommandData.command, botCommandData.description)
+                                return BotCommand(text: command, description: description, isEphemeral: (flags & (1 << 0)) != 0)
                         }
                     }
                 }

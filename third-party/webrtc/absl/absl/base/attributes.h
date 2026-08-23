@@ -808,10 +808,7 @@
 //
 // See also the upstream documentation:
 // https://clang.llvm.org/docs/AttributeReference.html#lifetimebound
-// Атрибут отключён: clang в Xcode 26.4 запрещает lifetimebound у параметров
-// функций, возвращающих void, а webrtc этой версии так его и применяет
-// (например, Candidate::set_type). Атрибут — подсказка статическому анализатору
-// и на генерируемый код не влияет, поэтому отключение безопасно.
+// Disabled: newer clang rejects lifetimebound on void-returning functions
 #define ABSL_ATTRIBUTE_LIFETIME_BOUND
 
 // ABSL_ATTRIBUTE_TRIVIAL_ABI

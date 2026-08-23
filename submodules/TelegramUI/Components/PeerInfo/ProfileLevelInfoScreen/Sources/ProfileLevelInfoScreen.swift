@@ -102,8 +102,7 @@ private final class SheetContent: Component {
             self.environment = environment
                                     
             var contentHeight: CGFloat = 0.0
-                      
-            let titleString: String = environment.strings.ProfileLevelInfo_Title
+
             let descriptionTextString: String
             var secondaryDescriptionTextString: String?
             if component.peer.id == component.context.account.peerId {
@@ -178,7 +177,6 @@ private final class SheetContent: Component {
                 ))
             }
             
-            let _ = titleString
             let titleSize = self.title.update(
                 transition: transition,
                 component: AnyComponent(AnimatedTextComponent(
@@ -479,10 +477,8 @@ private final class SheetContent: Component {
                 contentHeight += itemSize.height
             }
             
-            contentHeight += 31.0
-            
-            contentHeight += 82.0
-                        
+            contentHeight += 113.0
+        
             return CGSize(width: availableSize.width, height: contentHeight)
         }
     }
@@ -621,6 +617,7 @@ private final class ProfileLevelInfoSheetComponent: CombinedComponent {
                         theme: theme,
                         statusBarHeight: environment.statusBarHeight,
                         safeInsets: environment.safeInsets,
+                        inputHeight: 0.0,
                         metrics: environment.metrics,
                         deviceMetrics: environment.deviceMetrics,
                         isDisplaying: environment.value.isVisible,

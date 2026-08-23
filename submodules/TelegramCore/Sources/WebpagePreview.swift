@@ -39,10 +39,6 @@ public enum WebpagePreviewWithProgressResult {
     case progress(Float)
 }
 
-public func normalizedWebpagePreviewUrl(url: String) -> String {
-    return url
-}
-
 public func webpagePreviewWithProgress(account: Account, urls: [String], webpageId: MediaId? = nil, forPeerId: PeerId? = nil) -> Signal<WebpagePreviewWithProgressResult, NoError> {
     // Not for an encrypted conversation. The card is built by the server, which
     // means asking for one hands it the link - and a link is most of what a lot
@@ -142,7 +138,7 @@ public func webpagePreviewWithProgress(account: Account, urls: [String], webpage
                                     }
                                     
                                     if let imageProvider = metadata.imageProvider {
-                                        imageProvider.loadFileRepresentation(forTypeIdentifier: kUTTypeImage as String, completionHandler: { imageUrl, _ in
+                                        imageProvider.loadFileRepresentation(forTypeIdentifier: "public.image", completionHandler: { imageUrl, _ in
                                             guard let imageUrl, let imageData = try? Data(contentsOf: imageUrl) else {
                                                 completeWithImage(nil)
                                                 return

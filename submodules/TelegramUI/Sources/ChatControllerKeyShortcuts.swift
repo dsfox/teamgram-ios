@@ -1,7 +1,6 @@
 import Foundation
 import TelegramPresentationData
 import AccountContext
-import Postbox
 import ChatInterfaceState
 import TelegramCore
 import SwiftSignalKit
@@ -16,6 +15,9 @@ import ChatControllerInteraction
 extension ChatControllerImpl {    
     var keyShortcutsInternal: [KeyShortcut] {
         if !isTopmostChatController(self) {
+            return []
+        }
+        if self.attachmentController != nil {
             return []
         }
         
@@ -103,7 +105,7 @@ extension ChatControllerImpl {
                 KeyShortcut(input: "/", modifiers: [], action: { [weak self] in
                     if let strongSelf = self {
                         strongSelf.updateChatPresentationInterfaceState(animated: true, interactive: true, { state in
-                            if state.interfaceState.effectiveInputState.inputText.length == 0 {
+                            if state.interfaceState.effectiveInputState.isEmpty {
                                 return state.updatedInterfaceState { interfaceState in
                                     let effectiveInputState = ChatTextInputState(inputText: NSAttributedString(string: "/"))
                                     return interfaceState.withUpdatedEffectiveInputState(effectiveInputState)
@@ -117,7 +119,7 @@ extension ChatControllerImpl {
                 KeyShortcut(input: "2", modifiers: [.shift], action: { [weak self] in
                     if let strongSelf = self {
                         strongSelf.updateChatPresentationInterfaceState(animated: true, interactive: true, { state in
-                            if state.interfaceState.effectiveInputState.inputText.length == 0 {
+                            if state.interfaceState.effectiveInputState.isEmpty {
                                 return state.updatedInterfaceState { interfaceState in
                                     let effectiveInputState = ChatTextInputState(inputText: NSAttributedString(string: "@"))
                                     return interfaceState.withUpdatedEffectiveInputState(effectiveInputState)
@@ -131,7 +133,7 @@ extension ChatControllerImpl {
                 KeyShortcut(input: "3", modifiers: [.shift], action: { [weak self] in
                     if let strongSelf = self {
                         strongSelf.updateChatPresentationInterfaceState(animated: true, interactive: true, { state in
-                            if state.interfaceState.effectiveInputState.inputText.length == 0 {
+                            if state.interfaceState.effectiveInputState.isEmpty {
                                 return state.updatedInterfaceState { interfaceState in
                                     let effectiveInputState = ChatTextInputState(inputText: NSAttributedString(string: "#"))
                                     return interfaceState.withUpdatedEffectiveInputState(effectiveInputState)
@@ -174,7 +176,7 @@ extension ChatControllerImpl {
                                         return state.withUpdatedReplyMessageSubject(ChatInterfaceState.ReplyMessageSubject(
                                             messageId: message.id,
                                             quote: nil,
-                                            todoItemId: nil
+                                            innerSubject: nil
                                         ))
                                     })
                                     if updatedState.inputMode == .none {
@@ -195,7 +197,7 @@ extension ChatControllerImpl {
                                             return ChatInterfaceState.ReplyMessageSubject(
                                                 messageId: id,
                                                 quote: nil,
-                                                todoItemId: nil
+                                                innerSubject: nil
                                             )
                                         })
                                     })
@@ -229,7 +231,7 @@ extension ChatControllerImpl {
                             if replyMessageSubject.messageId == lastMessage?.id {
                                 updatedReplyMessageSubject = nil
                             } else if let message = strongSelf.chatDisplayNode.historyNode.messageInCurrentHistoryView(after: replyMessageSubject.messageId) {
-                                updatedReplyMessageSubject = ChatInterfaceState.ReplyMessageSubject(messageId: message.id, quote: nil, todoItemId: nil)
+                                updatedReplyMessageSubject = ChatInterfaceState.ReplyMessageSubject(messageId: message.id, quote: nil, innerSubject: nil)
                             }
                             
                             strongSelf.updateChatPresentationInterfaceState(interactive: true, { state in
@@ -254,7 +256,7 @@ extension ChatControllerImpl {
         }
         
         var canEdit = false
-        if self.presentationInterfaceState.interfaceState.effectiveInputState.inputText.length == 0 && self.presentationInterfaceState.interfaceState.editMessage == nil {
+        if self.presentationInterfaceState.interfaceState.effectiveInputState.isEmpty && self.presentationInterfaceState.interfaceState.editMessage == nil {
             canEdit = true
         }
                 

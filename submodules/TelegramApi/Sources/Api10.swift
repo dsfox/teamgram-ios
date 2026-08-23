@@ -1,4 +1,337 @@
 public extension Api {
+    enum InputEncryptedChat: TypeConstructorDescription {
+        public class Cons_inputEncryptedChat: TypeConstructorDescription {
+            public var chatId: Int32
+            public var accessHash: Int64
+            public init(chatId: Int32, accessHash: Int64) {
+                self.chatId = chatId
+                self.accessHash = accessHash
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputEncryptedChat", [("chatId", ConstructorParameterDescription(self.chatId)), ("accessHash", ConstructorParameterDescription(self.accessHash))])
+            }
+        }
+        case inputEncryptedChat(Cons_inputEncryptedChat)
+
+        public func serialize(_ buffer: Buffer, _ boxed: Swift.Bool) {
+            switch self {
+            case .inputEncryptedChat(let _data):
+                if boxed {
+                    buffer.appendInt32(-247351839)
+                }
+                serializeInt32(_data.chatId, buffer: buffer, boxed: false)
+                serializeInt64(_data.accessHash, buffer: buffer, boxed: false)
+                break
+            }
+        }
+
+        public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+            switch self {
+            case .inputEncryptedChat(let _data):
+                return ("inputEncryptedChat", [("chatId", ConstructorParameterDescription(_data.chatId)), ("accessHash", ConstructorParameterDescription(_data.accessHash))])
+            }
+        }
+
+        public static func parse_inputEncryptedChat(_ reader: BufferReader) -> InputEncryptedChat? {
+            var _1: Int32?
+            _1 = reader.readInt32()
+            var _2: Int64?
+            _2 = reader.readInt64()
+            let _c1 = _1 != nil
+            let _c2 = _2 != nil
+            if _c1 && _c2 {
+                return Api.InputEncryptedChat.inputEncryptedChat(Cons_inputEncryptedChat(chatId: _1!, accessHash: _2!))
+            }
+            else {
+                return nil
+            }
+        }
+    }
+}
+public extension Api {
+    enum InputEncryptedFile: TypeConstructorDescription {
+        public class Cons_inputEncryptedFile: TypeConstructorDescription {
+            public var id: Int64
+            public var accessHash: Int64
+            public init(id: Int64, accessHash: Int64) {
+                self.id = id
+                self.accessHash = accessHash
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputEncryptedFile", [("id", ConstructorParameterDescription(self.id)), ("accessHash", ConstructorParameterDescription(self.accessHash))])
+            }
+        }
+        public class Cons_inputEncryptedFileBigUploaded: TypeConstructorDescription {
+            public var id: Int64
+            public var parts: Int32
+            public var keyFingerprint: Int32
+            public init(id: Int64, parts: Int32, keyFingerprint: Int32) {
+                self.id = id
+                self.parts = parts
+                self.keyFingerprint = keyFingerprint
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputEncryptedFileBigUploaded", [("id", ConstructorParameterDescription(self.id)), ("parts", ConstructorParameterDescription(self.parts)), ("keyFingerprint", ConstructorParameterDescription(self.keyFingerprint))])
+            }
+        }
+        public class Cons_inputEncryptedFileUploaded: TypeConstructorDescription {
+            public var id: Int64
+            public var parts: Int32
+            public var md5Checksum: String
+            public var keyFingerprint: Int32
+            public init(id: Int64, parts: Int32, md5Checksum: String, keyFingerprint: Int32) {
+                self.id = id
+                self.parts = parts
+                self.md5Checksum = md5Checksum
+                self.keyFingerprint = keyFingerprint
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputEncryptedFileUploaded", [("id", ConstructorParameterDescription(self.id)), ("parts", ConstructorParameterDescription(self.parts)), ("md5Checksum", ConstructorParameterDescription(self.md5Checksum)), ("keyFingerprint", ConstructorParameterDescription(self.keyFingerprint))])
+            }
+        }
+        case inputEncryptedFile(Cons_inputEncryptedFile)
+        case inputEncryptedFileBigUploaded(Cons_inputEncryptedFileBigUploaded)
+        case inputEncryptedFileEmpty
+        case inputEncryptedFileUploaded(Cons_inputEncryptedFileUploaded)
+
+        public func serialize(_ buffer: Buffer, _ boxed: Swift.Bool) {
+            switch self {
+            case .inputEncryptedFile(let _data):
+                if boxed {
+                    buffer.appendInt32(1511503333)
+                }
+                serializeInt64(_data.id, buffer: buffer, boxed: false)
+                serializeInt64(_data.accessHash, buffer: buffer, boxed: false)
+                break
+            case .inputEncryptedFileBigUploaded(let _data):
+                if boxed {
+                    buffer.appendInt32(767652808)
+                }
+                serializeInt64(_data.id, buffer: buffer, boxed: false)
+                serializeInt32(_data.parts, buffer: buffer, boxed: false)
+                serializeInt32(_data.keyFingerprint, buffer: buffer, boxed: false)
+                break
+            case .inputEncryptedFileEmpty:
+                if boxed {
+                    buffer.appendInt32(406307684)
+                }
+                break
+            case .inputEncryptedFileUploaded(let _data):
+                if boxed {
+                    buffer.appendInt32(1690108678)
+                }
+                serializeInt64(_data.id, buffer: buffer, boxed: false)
+                serializeInt32(_data.parts, buffer: buffer, boxed: false)
+                serializeString(_data.md5Checksum, buffer: buffer, boxed: false)
+                serializeInt32(_data.keyFingerprint, buffer: buffer, boxed: false)
+                break
+            }
+        }
+
+        public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+            switch self {
+            case .inputEncryptedFile(let _data):
+                return ("inputEncryptedFile", [("id", ConstructorParameterDescription(_data.id)), ("accessHash", ConstructorParameterDescription(_data.accessHash))])
+            case .inputEncryptedFileBigUploaded(let _data):
+                return ("inputEncryptedFileBigUploaded", [("id", ConstructorParameterDescription(_data.id)), ("parts", ConstructorParameterDescription(_data.parts)), ("keyFingerprint", ConstructorParameterDescription(_data.keyFingerprint))])
+            case .inputEncryptedFileEmpty:
+                return ("inputEncryptedFileEmpty", [])
+            case .inputEncryptedFileUploaded(let _data):
+                return ("inputEncryptedFileUploaded", [("id", ConstructorParameterDescription(_data.id)), ("parts", ConstructorParameterDescription(_data.parts)), ("md5Checksum", ConstructorParameterDescription(_data.md5Checksum)), ("keyFingerprint", ConstructorParameterDescription(_data.keyFingerprint))])
+            }
+        }
+
+        public static func parse_inputEncryptedFile(_ reader: BufferReader) -> InputEncryptedFile? {
+            var _1: Int64?
+            _1 = reader.readInt64()
+            var _2: Int64?
+            _2 = reader.readInt64()
+            let _c1 = _1 != nil
+            let _c2 = _2 != nil
+            if _c1 && _c2 {
+                return Api.InputEncryptedFile.inputEncryptedFile(Cons_inputEncryptedFile(id: _1!, accessHash: _2!))
+            }
+            else {
+                return nil
+            }
+        }
+        public static func parse_inputEncryptedFileBigUploaded(_ reader: BufferReader) -> InputEncryptedFile? {
+            var _1: Int64?
+            _1 = reader.readInt64()
+            var _2: Int32?
+            _2 = reader.readInt32()
+            var _3: Int32?
+            _3 = reader.readInt32()
+            let _c1 = _1 != nil
+            let _c2 = _2 != nil
+            let _c3 = _3 != nil
+            if _c1 && _c2 && _c3 {
+                return Api.InputEncryptedFile.inputEncryptedFileBigUploaded(Cons_inputEncryptedFileBigUploaded(id: _1!, parts: _2!, keyFingerprint: _3!))
+            }
+            else {
+                return nil
+            }
+        }
+        public static func parse_inputEncryptedFileEmpty(_ reader: BufferReader) -> InputEncryptedFile? {
+            return Api.InputEncryptedFile.inputEncryptedFileEmpty
+        }
+        public static func parse_inputEncryptedFileUploaded(_ reader: BufferReader) -> InputEncryptedFile? {
+            var _1: Int64?
+            _1 = reader.readInt64()
+            var _2: Int32?
+            _2 = reader.readInt32()
+            var _3: String?
+            _3 = parseString(reader)
+            var _4: Int32?
+            _4 = reader.readInt32()
+            let _c1 = _1 != nil
+            let _c2 = _2 != nil
+            let _c3 = _3 != nil
+            let _c4 = _4 != nil
+            if _c1 && _c2 && _c3 && _c4 {
+                return Api.InputEncryptedFile.inputEncryptedFileUploaded(Cons_inputEncryptedFileUploaded(id: _1!, parts: _2!, md5Checksum: _3!, keyFingerprint: _4!))
+            }
+            else {
+                return nil
+            }
+        }
+    }
+}
+public extension Api {
+    enum InputFile: TypeConstructorDescription {
+        public class Cons_inputFile: TypeConstructorDescription {
+            public var id: Int64
+            public var parts: Int32
+            public var name: String
+            public var md5Checksum: String
+            public init(id: Int64, parts: Int32, name: String, md5Checksum: String) {
+                self.id = id
+                self.parts = parts
+                self.name = name
+                self.md5Checksum = md5Checksum
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputFile", [("id", ConstructorParameterDescription(self.id)), ("parts", ConstructorParameterDescription(self.parts)), ("name", ConstructorParameterDescription(self.name)), ("md5Checksum", ConstructorParameterDescription(self.md5Checksum))])
+            }
+        }
+        public class Cons_inputFileBig: TypeConstructorDescription {
+            public var id: Int64
+            public var parts: Int32
+            public var name: String
+            public init(id: Int64, parts: Int32, name: String) {
+                self.id = id
+                self.parts = parts
+                self.name = name
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputFileBig", [("id", ConstructorParameterDescription(self.id)), ("parts", ConstructorParameterDescription(self.parts)), ("name", ConstructorParameterDescription(self.name))])
+            }
+        }
+        public class Cons_inputFileStoryDocument: TypeConstructorDescription {
+            public var id: Api.InputDocument
+            public init(id: Api.InputDocument) {
+                self.id = id
+            }
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputFileStoryDocument", [("id", ConstructorParameterDescription(self.id))])
+            }
+        }
+        case inputFile(Cons_inputFile)
+        case inputFileBig(Cons_inputFileBig)
+        case inputFileStoryDocument(Cons_inputFileStoryDocument)
+
+        public func serialize(_ buffer: Buffer, _ boxed: Swift.Bool) {
+            switch self {
+            case .inputFile(let _data):
+                if boxed {
+                    buffer.appendInt32(-181407105)
+                }
+                serializeInt64(_data.id, buffer: buffer, boxed: false)
+                serializeInt32(_data.parts, buffer: buffer, boxed: false)
+                serializeString(_data.name, buffer: buffer, boxed: false)
+                serializeString(_data.md5Checksum, buffer: buffer, boxed: false)
+                break
+            case .inputFileBig(let _data):
+                if boxed {
+                    buffer.appendInt32(-95482955)
+                }
+                serializeInt64(_data.id, buffer: buffer, boxed: false)
+                serializeInt32(_data.parts, buffer: buffer, boxed: false)
+                serializeString(_data.name, buffer: buffer, boxed: false)
+                break
+            case .inputFileStoryDocument(let _data):
+                if boxed {
+                    buffer.appendInt32(1658620744)
+                }
+                _data.id.serialize(buffer, true)
+                break
+            }
+        }
+
+        public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+            switch self {
+            case .inputFile(let _data):
+                return ("inputFile", [("id", ConstructorParameterDescription(_data.id)), ("parts", ConstructorParameterDescription(_data.parts)), ("name", ConstructorParameterDescription(_data.name)), ("md5Checksum", ConstructorParameterDescription(_data.md5Checksum))])
+            case .inputFileBig(let _data):
+                return ("inputFileBig", [("id", ConstructorParameterDescription(_data.id)), ("parts", ConstructorParameterDescription(_data.parts)), ("name", ConstructorParameterDescription(_data.name))])
+            case .inputFileStoryDocument(let _data):
+                return ("inputFileStoryDocument", [("id", ConstructorParameterDescription(_data.id))])
+            }
+        }
+
+        public static func parse_inputFile(_ reader: BufferReader) -> InputFile? {
+            var _1: Int64?
+            _1 = reader.readInt64()
+            var _2: Int32?
+            _2 = reader.readInt32()
+            var _3: String?
+            _3 = parseString(reader)
+            var _4: String?
+            _4 = parseString(reader)
+            let _c1 = _1 != nil
+            let _c2 = _2 != nil
+            let _c3 = _3 != nil
+            let _c4 = _4 != nil
+            if _c1 && _c2 && _c3 && _c4 {
+                return Api.InputFile.inputFile(Cons_inputFile(id: _1!, parts: _2!, name: _3!, md5Checksum: _4!))
+            }
+            else {
+                return nil
+            }
+        }
+        public static func parse_inputFileBig(_ reader: BufferReader) -> InputFile? {
+            var _1: Int64?
+            _1 = reader.readInt64()
+            var _2: Int32?
+            _2 = reader.readInt32()
+            var _3: String?
+            _3 = parseString(reader)
+            let _c1 = _1 != nil
+            let _c2 = _2 != nil
+            let _c3 = _3 != nil
+            if _c1 && _c2 && _c3 {
+                return Api.InputFile.inputFileBig(Cons_inputFileBig(id: _1!, parts: _2!, name: _3!))
+            }
+            else {
+                return nil
+            }
+        }
+        public static func parse_inputFileStoryDocument(_ reader: BufferReader) -> InputFile? {
+            var _1: Api.InputDocument?
+            if let signature = reader.readInt32() {
+                _1 = Api.parse(reader, signature: signature) as? Api.InputDocument
+            }
+            let _c1 = _1 != nil
+            if _c1 {
+                return Api.InputFile.inputFileStoryDocument(Cons_inputFileStoryDocument(id: _1!))
+            }
+            else {
+                return nil
+            }
+        }
+    }
+}
+public extension Api {
     indirect enum InputFileLocation: TypeConstructorDescription {
         public class Cons_inputDocumentFileLocation: TypeConstructorDescription {
             public var id: Int64
@@ -11,8 +344,8 @@ public extension Api {
                 self.fileReference = fileReference
                 self.thumbSize = thumbSize
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputDocumentFileLocation", [("id", self.id as Any), ("accessHash", self.accessHash as Any), ("fileReference", self.fileReference as Any), ("thumbSize", self.thumbSize as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputDocumentFileLocation", [("id", ConstructorParameterDescription(self.id)), ("accessHash", ConstructorParameterDescription(self.accessHash)), ("fileReference", ConstructorParameterDescription(self.fileReference)), ("thumbSize", ConstructorParameterDescription(self.thumbSize))])
             }
         }
         public class Cons_inputEncryptedFileLocation: TypeConstructorDescription {
@@ -22,8 +355,8 @@ public extension Api {
                 self.id = id
                 self.accessHash = accessHash
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputEncryptedFileLocation", [("id", self.id as Any), ("accessHash", self.accessHash as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputEncryptedFileLocation", [("id", ConstructorParameterDescription(self.id)), ("accessHash", ConstructorParameterDescription(self.accessHash))])
             }
         }
         public class Cons_inputFileLocation: TypeConstructorDescription {
@@ -37,8 +370,8 @@ public extension Api {
                 self.secret = secret
                 self.fileReference = fileReference
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputFileLocation", [("volumeId", self.volumeId as Any), ("localId", self.localId as Any), ("secret", self.secret as Any), ("fileReference", self.fileReference as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputFileLocation", [("volumeId", ConstructorParameterDescription(self.volumeId)), ("localId", ConstructorParameterDescription(self.localId)), ("secret", ConstructorParameterDescription(self.secret)), ("fileReference", ConstructorParameterDescription(self.fileReference))])
             }
         }
         public class Cons_inputGroupCallStream: TypeConstructorDescription {
@@ -56,8 +389,8 @@ public extension Api {
                 self.videoChannel = videoChannel
                 self.videoQuality = videoQuality
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputGroupCallStream", [("flags", self.flags as Any), ("call", self.call as Any), ("timeMs", self.timeMs as Any), ("scale", self.scale as Any), ("videoChannel", self.videoChannel as Any), ("videoQuality", self.videoQuality as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputGroupCallStream", [("flags", ConstructorParameterDescription(self.flags)), ("call", ConstructorParameterDescription(self.call)), ("timeMs", ConstructorParameterDescription(self.timeMs)), ("scale", ConstructorParameterDescription(self.scale)), ("videoChannel", ConstructorParameterDescription(self.videoChannel)), ("videoQuality", ConstructorParameterDescription(self.videoQuality))])
             }
         }
         public class Cons_inputPeerPhotoFileLocation: TypeConstructorDescription {
@@ -69,8 +402,8 @@ public extension Api {
                 self.peer = peer
                 self.photoId = photoId
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputPeerPhotoFileLocation", [("flags", self.flags as Any), ("peer", self.peer as Any), ("photoId", self.photoId as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputPeerPhotoFileLocation", [("flags", ConstructorParameterDescription(self.flags)), ("peer", ConstructorParameterDescription(self.peer)), ("photoId", ConstructorParameterDescription(self.photoId))])
             }
         }
         public class Cons_inputPhotoFileLocation: TypeConstructorDescription {
@@ -84,8 +417,8 @@ public extension Api {
                 self.fileReference = fileReference
                 self.thumbSize = thumbSize
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputPhotoFileLocation", [("id", self.id as Any), ("accessHash", self.accessHash as Any), ("fileReference", self.fileReference as Any), ("thumbSize", self.thumbSize as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputPhotoFileLocation", [("id", ConstructorParameterDescription(self.id)), ("accessHash", ConstructorParameterDescription(self.accessHash)), ("fileReference", ConstructorParameterDescription(self.fileReference)), ("thumbSize", ConstructorParameterDescription(self.thumbSize))])
             }
         }
         public class Cons_inputPhotoLegacyFileLocation: TypeConstructorDescription {
@@ -103,8 +436,8 @@ public extension Api {
                 self.localId = localId
                 self.secret = secret
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputPhotoLegacyFileLocation", [("id", self.id as Any), ("accessHash", self.accessHash as Any), ("fileReference", self.fileReference as Any), ("volumeId", self.volumeId as Any), ("localId", self.localId as Any), ("secret", self.secret as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputPhotoLegacyFileLocation", [("id", ConstructorParameterDescription(self.id)), ("accessHash", ConstructorParameterDescription(self.accessHash)), ("fileReference", ConstructorParameterDescription(self.fileReference)), ("volumeId", ConstructorParameterDescription(self.volumeId)), ("localId", ConstructorParameterDescription(self.localId)), ("secret", ConstructorParameterDescription(self.secret))])
             }
         }
         public class Cons_inputSecureFileLocation: TypeConstructorDescription {
@@ -114,8 +447,8 @@ public extension Api {
                 self.id = id
                 self.accessHash = accessHash
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputSecureFileLocation", [("id", self.id as Any), ("accessHash", self.accessHash as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputSecureFileLocation", [("id", ConstructorParameterDescription(self.id)), ("accessHash", ConstructorParameterDescription(self.accessHash))])
             }
         }
         public class Cons_inputStickerSetThumb: TypeConstructorDescription {
@@ -125,8 +458,8 @@ public extension Api {
                 self.stickerset = stickerset
                 self.thumbVersion = thumbVersion
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputStickerSetThumb", [("stickerset", self.stickerset as Any), ("thumbVersion", self.thumbVersion as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputStickerSetThumb", [("stickerset", ConstructorParameterDescription(self.stickerset)), ("thumbVersion", ConstructorParameterDescription(self.thumbVersion))])
             }
         }
         case inputDocumentFileLocation(Cons_inputDocumentFileLocation)
@@ -232,26 +565,26 @@ public extension Api {
             }
         }
 
-        public func descriptionFields() -> (String, [(String, Any)]) {
+        public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
             switch self {
             case .inputDocumentFileLocation(let _data):
-                return ("inputDocumentFileLocation", [("id", _data.id as Any), ("accessHash", _data.accessHash as Any), ("fileReference", _data.fileReference as Any), ("thumbSize", _data.thumbSize as Any)])
+                return ("inputDocumentFileLocation", [("id", ConstructorParameterDescription(_data.id)), ("accessHash", ConstructorParameterDescription(_data.accessHash)), ("fileReference", ConstructorParameterDescription(_data.fileReference)), ("thumbSize", ConstructorParameterDescription(_data.thumbSize))])
             case .inputEncryptedFileLocation(let _data):
-                return ("inputEncryptedFileLocation", [("id", _data.id as Any), ("accessHash", _data.accessHash as Any)])
+                return ("inputEncryptedFileLocation", [("id", ConstructorParameterDescription(_data.id)), ("accessHash", ConstructorParameterDescription(_data.accessHash))])
             case .inputFileLocation(let _data):
-                return ("inputFileLocation", [("volumeId", _data.volumeId as Any), ("localId", _data.localId as Any), ("secret", _data.secret as Any), ("fileReference", _data.fileReference as Any)])
+                return ("inputFileLocation", [("volumeId", ConstructorParameterDescription(_data.volumeId)), ("localId", ConstructorParameterDescription(_data.localId)), ("secret", ConstructorParameterDescription(_data.secret)), ("fileReference", ConstructorParameterDescription(_data.fileReference))])
             case .inputGroupCallStream(let _data):
-                return ("inputGroupCallStream", [("flags", _data.flags as Any), ("call", _data.call as Any), ("timeMs", _data.timeMs as Any), ("scale", _data.scale as Any), ("videoChannel", _data.videoChannel as Any), ("videoQuality", _data.videoQuality as Any)])
+                return ("inputGroupCallStream", [("flags", ConstructorParameterDescription(_data.flags)), ("call", ConstructorParameterDescription(_data.call)), ("timeMs", ConstructorParameterDescription(_data.timeMs)), ("scale", ConstructorParameterDescription(_data.scale)), ("videoChannel", ConstructorParameterDescription(_data.videoChannel)), ("videoQuality", ConstructorParameterDescription(_data.videoQuality))])
             case .inputPeerPhotoFileLocation(let _data):
-                return ("inputPeerPhotoFileLocation", [("flags", _data.flags as Any), ("peer", _data.peer as Any), ("photoId", _data.photoId as Any)])
+                return ("inputPeerPhotoFileLocation", [("flags", ConstructorParameterDescription(_data.flags)), ("peer", ConstructorParameterDescription(_data.peer)), ("photoId", ConstructorParameterDescription(_data.photoId))])
             case .inputPhotoFileLocation(let _data):
-                return ("inputPhotoFileLocation", [("id", _data.id as Any), ("accessHash", _data.accessHash as Any), ("fileReference", _data.fileReference as Any), ("thumbSize", _data.thumbSize as Any)])
+                return ("inputPhotoFileLocation", [("id", ConstructorParameterDescription(_data.id)), ("accessHash", ConstructorParameterDescription(_data.accessHash)), ("fileReference", ConstructorParameterDescription(_data.fileReference)), ("thumbSize", ConstructorParameterDescription(_data.thumbSize))])
             case .inputPhotoLegacyFileLocation(let _data):
-                return ("inputPhotoLegacyFileLocation", [("id", _data.id as Any), ("accessHash", _data.accessHash as Any), ("fileReference", _data.fileReference as Any), ("volumeId", _data.volumeId as Any), ("localId", _data.localId as Any), ("secret", _data.secret as Any)])
+                return ("inputPhotoLegacyFileLocation", [("id", ConstructorParameterDescription(_data.id)), ("accessHash", ConstructorParameterDescription(_data.accessHash)), ("fileReference", ConstructorParameterDescription(_data.fileReference)), ("volumeId", ConstructorParameterDescription(_data.volumeId)), ("localId", ConstructorParameterDescription(_data.localId)), ("secret", ConstructorParameterDescription(_data.secret))])
             case .inputSecureFileLocation(let _data):
-                return ("inputSecureFileLocation", [("id", _data.id as Any), ("accessHash", _data.accessHash as Any)])
+                return ("inputSecureFileLocation", [("id", ConstructorParameterDescription(_data.id)), ("accessHash", ConstructorParameterDescription(_data.accessHash))])
             case .inputStickerSetThumb(let _data):
-                return ("inputStickerSetThumb", [("stickerset", _data.stickerset as Any), ("thumbVersion", _data.thumbVersion as Any)])
+                return ("inputStickerSetThumb", [("stickerset", ConstructorParameterDescription(_data.stickerset)), ("thumbVersion", ConstructorParameterDescription(_data.thumbVersion))])
             case .inputTakeoutFileLocation:
                 return ("inputTakeoutFileLocation", [])
             }
@@ -323,19 +656,19 @@ public extension Api {
             var _4: Int32?
             _4 = reader.readInt32()
             var _5: Int32?
-            if Int(_1!) & Int(1 << 0) != 0 {
+            if Int(_1 ?? 0) & Int(1 << 0) != 0 {
                 _5 = reader.readInt32()
             }
             var _6: Int32?
-            if Int(_1!) & Int(1 << 0) != 0 {
+            if Int(_1 ?? 0) & Int(1 << 0) != 0 {
                 _6 = reader.readInt32()
             }
             let _c1 = _1 != nil
             let _c2 = _2 != nil
             let _c3 = _3 != nil
             let _c4 = _4 != nil
-            let _c5 = (Int(_1!) & Int(1 << 0) == 0) || _5 != nil
-            let _c6 = (Int(_1!) & Int(1 << 0) == 0) || _6 != nil
+            let _c5 = (Int(_1 ?? 0) & Int(1 << 0) == 0) || _5 != nil
+            let _c6 = (Int(_1 ?? 0) & Int(1 << 0) == 0) || _6 != nil
             if _c1 && _c2 && _c3 && _c4 && _c5 && _c6 {
                 return Api.InputFileLocation.inputGroupCallStream(Cons_inputGroupCallStream(flags: _1!, call: _2!, timeMs: _3!, scale: _4!, videoChannel: _5, videoQuality: _6))
             }
@@ -452,8 +785,8 @@ public extension Api {
                 self.peer = peer
                 self.folderId = folderId
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputFolderPeer", [("peer", self.peer as Any), ("folderId", self.folderId as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputFolderPeer", [("peer", ConstructorParameterDescription(self.peer)), ("folderId", ConstructorParameterDescription(self.folderId))])
             }
         }
         case inputFolderPeer(Cons_inputFolderPeer)
@@ -470,10 +803,10 @@ public extension Api {
             }
         }
 
-        public func descriptionFields() -> (String, [(String, Any)]) {
+        public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
             switch self {
             case .inputFolderPeer(let _data):
-                return ("inputFolderPeer", [("peer", _data.peer as Any), ("folderId", _data.folderId as Any)])
+                return ("inputFolderPeer", [("peer", ConstructorParameterDescription(_data.peer)), ("folderId", ConstructorParameterDescription(_data.folderId))])
             }
         }
 
@@ -504,8 +837,8 @@ public extension Api {
                 self.id = id
                 self.accessHash = accessHash
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputGameID", [("id", self.id as Any), ("accessHash", self.accessHash as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputGameID", [("id", ConstructorParameterDescription(self.id)), ("accessHash", ConstructorParameterDescription(self.accessHash))])
             }
         }
         public class Cons_inputGameShortName: TypeConstructorDescription {
@@ -515,8 +848,8 @@ public extension Api {
                 self.botId = botId
                 self.shortName = shortName
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputGameShortName", [("botId", self.botId as Any), ("shortName", self.shortName as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputGameShortName", [("botId", ConstructorParameterDescription(self.botId)), ("shortName", ConstructorParameterDescription(self.shortName))])
             }
         }
         case inputGameID(Cons_inputGameID)
@@ -541,12 +874,12 @@ public extension Api {
             }
         }
 
-        public func descriptionFields() -> (String, [(String, Any)]) {
+        public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
             switch self {
             case .inputGameID(let _data):
-                return ("inputGameID", [("id", _data.id as Any), ("accessHash", _data.accessHash as Any)])
+                return ("inputGameID", [("id", ConstructorParameterDescription(_data.id)), ("accessHash", ConstructorParameterDescription(_data.accessHash))])
             case .inputGameShortName(let _data):
-                return ("inputGameShortName", [("botId", _data.botId as Any), ("shortName", _data.shortName as Any)])
+                return ("inputGameShortName", [("botId", ConstructorParameterDescription(_data.botId)), ("shortName", ConstructorParameterDescription(_data.shortName))])
             }
         }
 
@@ -595,8 +928,8 @@ public extension Api {
                 self.long = long
                 self.accuracyRadius = accuracyRadius
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputGeoPoint", [("flags", self.flags as Any), ("lat", self.lat as Any), ("long", self.long as Any), ("accuracyRadius", self.accuracyRadius as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputGeoPoint", [("flags", ConstructorParameterDescription(self.flags)), ("lat", ConstructorParameterDescription(self.lat)), ("long", ConstructorParameterDescription(self.long)), ("accuracyRadius", ConstructorParameterDescription(self.accuracyRadius))])
             }
         }
         case inputGeoPoint(Cons_inputGeoPoint)
@@ -623,10 +956,10 @@ public extension Api {
             }
         }
 
-        public func descriptionFields() -> (String, [(String, Any)]) {
+        public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
             switch self {
             case .inputGeoPoint(let _data):
-                return ("inputGeoPoint", [("flags", _data.flags as Any), ("lat", _data.lat as Any), ("long", _data.long as Any), ("accuracyRadius", _data.accuracyRadius as Any)])
+                return ("inputGeoPoint", [("flags", ConstructorParameterDescription(_data.flags)), ("lat", ConstructorParameterDescription(_data.lat)), ("long", ConstructorParameterDescription(_data.long)), ("accuracyRadius", ConstructorParameterDescription(_data.accuracyRadius))])
             case .inputGeoPointEmpty:
                 return ("inputGeoPointEmpty", [])
             }
@@ -640,13 +973,13 @@ public extension Api {
             var _3: Double?
             _3 = reader.readDouble()
             var _4: Int32?
-            if Int(_1!) & Int(1 << 0) != 0 {
+            if Int(_1 ?? 0) & Int(1 << 0) != 0 {
                 _4 = reader.readInt32()
             }
             let _c1 = _1 != nil
             let _c2 = _2 != nil
             let _c3 = _3 != nil
-            let _c4 = (Int(_1!) & Int(1 << 0) == 0) || _4 != nil
+            let _c4 = (Int(_1 ?? 0) & Int(1 << 0) == 0) || _4 != nil
             if _c1 && _c2 && _c3 && _c4 {
                 return Api.InputGeoPoint.inputGeoPoint(Cons_inputGeoPoint(flags: _1!, lat: _2!, long: _3!, accuracyRadius: _4))
             }
@@ -668,8 +1001,8 @@ public extension Api {
                 self.id = id
                 self.accessHash = accessHash
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputGroupCall", [("id", self.id as Any), ("accessHash", self.accessHash as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputGroupCall", [("id", ConstructorParameterDescription(self.id)), ("accessHash", ConstructorParameterDescription(self.accessHash))])
             }
         }
         public class Cons_inputGroupCallInviteMessage: TypeConstructorDescription {
@@ -677,8 +1010,8 @@ public extension Api {
             public init(msgId: Int32) {
                 self.msgId = msgId
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputGroupCallInviteMessage", [("msgId", self.msgId as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputGroupCallInviteMessage", [("msgId", ConstructorParameterDescription(self.msgId))])
             }
         }
         public class Cons_inputGroupCallSlug: TypeConstructorDescription {
@@ -686,8 +1019,8 @@ public extension Api {
             public init(slug: String) {
                 self.slug = slug
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputGroupCallSlug", [("slug", self.slug as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputGroupCallSlug", [("slug", ConstructorParameterDescription(self.slug))])
             }
         }
         case inputGroupCall(Cons_inputGroupCall)
@@ -718,14 +1051,14 @@ public extension Api {
             }
         }
 
-        public func descriptionFields() -> (String, [(String, Any)]) {
+        public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
             switch self {
             case .inputGroupCall(let _data):
-                return ("inputGroupCall", [("id", _data.id as Any), ("accessHash", _data.accessHash as Any)])
+                return ("inputGroupCall", [("id", ConstructorParameterDescription(_data.id)), ("accessHash", ConstructorParameterDescription(_data.accessHash))])
             case .inputGroupCallInviteMessage(let _data):
-                return ("inputGroupCallInviteMessage", [("msgId", _data.msgId as Any)])
+                return ("inputGroupCallInviteMessage", [("msgId", ConstructorParameterDescription(_data.msgId))])
             case .inputGroupCallSlug(let _data):
-                return ("inputGroupCallSlug", [("slug", _data.slug as Any)])
+                return ("inputGroupCallSlug", [("slug", ConstructorParameterDescription(_data.slug))])
             }
         }
 
@@ -776,8 +1109,8 @@ public extension Api {
                 self.bot = bot
                 self.stars = stars
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoiceBusinessBotTransferStars", [("bot", self.bot as Any), ("stars", self.stars as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoiceBusinessBotTransferStars", [("bot", ConstructorParameterDescription(self.bot)), ("stars", ConstructorParameterDescription(self.stars))])
             }
         }
         public class Cons_inputInvoiceChatInviteSubscription: TypeConstructorDescription {
@@ -785,8 +1118,8 @@ public extension Api {
             public init(hash: String) {
                 self.hash = hash
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoiceChatInviteSubscription", [("hash", self.hash as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoiceChatInviteSubscription", [("hash", ConstructorParameterDescription(self.hash))])
             }
         }
         public class Cons_inputInvoiceMessage: TypeConstructorDescription {
@@ -796,8 +1129,8 @@ public extension Api {
                 self.peer = peer
                 self.msgId = msgId
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoiceMessage", [("peer", self.peer as Any), ("msgId", self.msgId as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoiceMessage", [("peer", ConstructorParameterDescription(self.peer)), ("msgId", ConstructorParameterDescription(self.msgId))])
             }
         }
         public class Cons_inputInvoicePremiumAuthCode: TypeConstructorDescription {
@@ -805,8 +1138,8 @@ public extension Api {
             public init(purpose: Api.InputStorePaymentPurpose) {
                 self.purpose = purpose
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoicePremiumAuthCode", [("purpose", self.purpose as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoicePremiumAuthCode", [("purpose", ConstructorParameterDescription(self.purpose))])
             }
         }
         public class Cons_inputInvoicePremiumGiftCode: TypeConstructorDescription {
@@ -816,8 +1149,8 @@ public extension Api {
                 self.purpose = purpose
                 self.option = option
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoicePremiumGiftCode", [("purpose", self.purpose as Any), ("option", self.option as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoicePremiumGiftCode", [("purpose", ConstructorParameterDescription(self.purpose)), ("option", ConstructorParameterDescription(self.option))])
             }
         }
         public class Cons_inputInvoicePremiumGiftStars: TypeConstructorDescription {
@@ -831,8 +1164,8 @@ public extension Api {
                 self.months = months
                 self.message = message
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoicePremiumGiftStars", [("flags", self.flags as Any), ("userId", self.userId as Any), ("months", self.months as Any), ("message", self.message as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoicePremiumGiftStars", [("flags", ConstructorParameterDescription(self.flags)), ("userId", ConstructorParameterDescription(self.userId)), ("months", ConstructorParameterDescription(self.months)), ("message", ConstructorParameterDescription(self.message))])
             }
         }
         public class Cons_inputInvoiceSlug: TypeConstructorDescription {
@@ -840,8 +1173,8 @@ public extension Api {
             public init(slug: String) {
                 self.slug = slug
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoiceSlug", [("slug", self.slug as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoiceSlug", [("slug", ConstructorParameterDescription(self.slug))])
             }
         }
         public class Cons_inputInvoiceStarGift: TypeConstructorDescription {
@@ -855,8 +1188,8 @@ public extension Api {
                 self.giftId = giftId
                 self.message = message
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoiceStarGift", [("flags", self.flags as Any), ("peer", self.peer as Any), ("giftId", self.giftId as Any), ("message", self.message as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoiceStarGift", [("flags", ConstructorParameterDescription(self.flags)), ("peer", ConstructorParameterDescription(self.peer)), ("giftId", ConstructorParameterDescription(self.giftId)), ("message", ConstructorParameterDescription(self.message))])
             }
         }
         public class Cons_inputInvoiceStarGiftAuctionBid: TypeConstructorDescription {
@@ -872,8 +1205,8 @@ public extension Api {
                 self.bidAmount = bidAmount
                 self.message = message
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoiceStarGiftAuctionBid", [("flags", self.flags as Any), ("peer", self.peer as Any), ("giftId", self.giftId as Any), ("bidAmount", self.bidAmount as Any), ("message", self.message as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoiceStarGiftAuctionBid", [("flags", ConstructorParameterDescription(self.flags)), ("peer", ConstructorParameterDescription(self.peer)), ("giftId", ConstructorParameterDescription(self.giftId)), ("bidAmount", ConstructorParameterDescription(self.bidAmount)), ("message", ConstructorParameterDescription(self.message))])
             }
         }
         public class Cons_inputInvoiceStarGiftDropOriginalDetails: TypeConstructorDescription {
@@ -881,8 +1214,8 @@ public extension Api {
             public init(stargift: Api.InputSavedStarGift) {
                 self.stargift = stargift
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoiceStarGiftDropOriginalDetails", [("stargift", self.stargift as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoiceStarGiftDropOriginalDetails", [("stargift", ConstructorParameterDescription(self.stargift))])
             }
         }
         public class Cons_inputInvoiceStarGiftPrepaidUpgrade: TypeConstructorDescription {
@@ -892,8 +1225,8 @@ public extension Api {
                 self.peer = peer
                 self.hash = hash
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoiceStarGiftPrepaidUpgrade", [("peer", self.peer as Any), ("hash", self.hash as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoiceStarGiftPrepaidUpgrade", [("peer", ConstructorParameterDescription(self.peer)), ("hash", ConstructorParameterDescription(self.hash))])
             }
         }
         public class Cons_inputInvoiceStarGiftResale: TypeConstructorDescription {
@@ -905,8 +1238,8 @@ public extension Api {
                 self.slug = slug
                 self.toId = toId
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoiceStarGiftResale", [("flags", self.flags as Any), ("slug", self.slug as Any), ("toId", self.toId as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoiceStarGiftResale", [("flags", ConstructorParameterDescription(self.flags)), ("slug", ConstructorParameterDescription(self.slug)), ("toId", ConstructorParameterDescription(self.toId))])
             }
         }
         public class Cons_inputInvoiceStarGiftTransfer: TypeConstructorDescription {
@@ -916,8 +1249,8 @@ public extension Api {
                 self.stargift = stargift
                 self.toId = toId
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoiceStarGiftTransfer", [("stargift", self.stargift as Any), ("toId", self.toId as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoiceStarGiftTransfer", [("stargift", ConstructorParameterDescription(self.stargift)), ("toId", ConstructorParameterDescription(self.toId))])
             }
         }
         public class Cons_inputInvoiceStarGiftUpgrade: TypeConstructorDescription {
@@ -927,8 +1260,8 @@ public extension Api {
                 self.flags = flags
                 self.stargift = stargift
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoiceStarGiftUpgrade", [("flags", self.flags as Any), ("stargift", self.stargift as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoiceStarGiftUpgrade", [("flags", ConstructorParameterDescription(self.flags)), ("stargift", ConstructorParameterDescription(self.stargift))])
             }
         }
         public class Cons_inputInvoiceStars: TypeConstructorDescription {
@@ -936,8 +1269,8 @@ public extension Api {
             public init(purpose: Api.InputStorePaymentPurpose) {
                 self.purpose = purpose
             }
-            public func descriptionFields() -> (String, [(String, Any)]) {
-                return ("inputInvoiceStars", [("purpose", self.purpose as Any)])
+            public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
+                return ("inputInvoiceStars", [("purpose", ConstructorParameterDescription(self.purpose))])
             }
         }
         case inputInvoiceBusinessBotTransferStars(Cons_inputInvoiceBusinessBotTransferStars)
@@ -1077,38 +1410,38 @@ public extension Api {
             }
         }
 
-        public func descriptionFields() -> (String, [(String, Any)]) {
+        public func descriptionFields() -> (String, [(String, ConstructorParameterDescription)]) {
             switch self {
             case .inputInvoiceBusinessBotTransferStars(let _data):
-                return ("inputInvoiceBusinessBotTransferStars", [("bot", _data.bot as Any), ("stars", _data.stars as Any)])
+                return ("inputInvoiceBusinessBotTransferStars", [("bot", ConstructorParameterDescription(_data.bot)), ("stars", ConstructorParameterDescription(_data.stars))])
             case .inputInvoiceChatInviteSubscription(let _data):
-                return ("inputInvoiceChatInviteSubscription", [("hash", _data.hash as Any)])
+                return ("inputInvoiceChatInviteSubscription", [("hash", ConstructorParameterDescription(_data.hash))])
             case .inputInvoiceMessage(let _data):
-                return ("inputInvoiceMessage", [("peer", _data.peer as Any), ("msgId", _data.msgId as Any)])
+                return ("inputInvoiceMessage", [("peer", ConstructorParameterDescription(_data.peer)), ("msgId", ConstructorParameterDescription(_data.msgId))])
             case .inputInvoicePremiumAuthCode(let _data):
-                return ("inputInvoicePremiumAuthCode", [("purpose", _data.purpose as Any)])
+                return ("inputInvoicePremiumAuthCode", [("purpose", ConstructorParameterDescription(_data.purpose))])
             case .inputInvoicePremiumGiftCode(let _data):
-                return ("inputInvoicePremiumGiftCode", [("purpose", _data.purpose as Any), ("option", _data.option as Any)])
+                return ("inputInvoicePremiumGiftCode", [("purpose", ConstructorParameterDescription(_data.purpose)), ("option", ConstructorParameterDescription(_data.option))])
             case .inputInvoicePremiumGiftStars(let _data):
-                return ("inputInvoicePremiumGiftStars", [("flags", _data.flags as Any), ("userId", _data.userId as Any), ("months", _data.months as Any), ("message", _data.message as Any)])
+                return ("inputInvoicePremiumGiftStars", [("flags", ConstructorParameterDescription(_data.flags)), ("userId", ConstructorParameterDescription(_data.userId)), ("months", ConstructorParameterDescription(_data.months)), ("message", ConstructorParameterDescription(_data.message))])
             case .inputInvoiceSlug(let _data):
-                return ("inputInvoiceSlug", [("slug", _data.slug as Any)])
+                return ("inputInvoiceSlug", [("slug", ConstructorParameterDescription(_data.slug))])
             case .inputInvoiceStarGift(let _data):
-                return ("inputInvoiceStarGift", [("flags", _data.flags as Any), ("peer", _data.peer as Any), ("giftId", _data.giftId as Any), ("message", _data.message as Any)])
+                return ("inputInvoiceStarGift", [("flags", ConstructorParameterDescription(_data.flags)), ("peer", ConstructorParameterDescription(_data.peer)), ("giftId", ConstructorParameterDescription(_data.giftId)), ("message", ConstructorParameterDescription(_data.message))])
             case .inputInvoiceStarGiftAuctionBid(let _data):
-                return ("inputInvoiceStarGiftAuctionBid", [("flags", _data.flags as Any), ("peer", _data.peer as Any), ("giftId", _data.giftId as Any), ("bidAmount", _data.bidAmount as Any), ("message", _data.message as Any)])
+                return ("inputInvoiceStarGiftAuctionBid", [("flags", ConstructorParameterDescription(_data.flags)), ("peer", ConstructorParameterDescription(_data.peer)), ("giftId", ConstructorParameterDescription(_data.giftId)), ("bidAmount", ConstructorParameterDescription(_data.bidAmount)), ("message", ConstructorParameterDescription(_data.message))])
             case .inputInvoiceStarGiftDropOriginalDetails(let _data):
-                return ("inputInvoiceStarGiftDropOriginalDetails", [("stargift", _data.stargift as Any)])
+                return ("inputInvoiceStarGiftDropOriginalDetails", [("stargift", ConstructorParameterDescription(_data.stargift))])
             case .inputInvoiceStarGiftPrepaidUpgrade(let _data):
-                return ("inputInvoiceStarGiftPrepaidUpgrade", [("peer", _data.peer as Any), ("hash", _data.hash as Any)])
+                return ("inputInvoiceStarGiftPrepaidUpgrade", [("peer", ConstructorParameterDescription(_data.peer)), ("hash", ConstructorParameterDescription(_data.hash))])
             case .inputInvoiceStarGiftResale(let _data):
-                return ("inputInvoiceStarGiftResale", [("flags", _data.flags as Any), ("slug", _data.slug as Any), ("toId", _data.toId as Any)])
+                return ("inputInvoiceStarGiftResale", [("flags", ConstructorParameterDescription(_data.flags)), ("slug", ConstructorParameterDescription(_data.slug)), ("toId", ConstructorParameterDescription(_data.toId))])
             case .inputInvoiceStarGiftTransfer(let _data):
-                return ("inputInvoiceStarGiftTransfer", [("stargift", _data.stargift as Any), ("toId", _data.toId as Any)])
+                return ("inputInvoiceStarGiftTransfer", [("stargift", ConstructorParameterDescription(_data.stargift)), ("toId", ConstructorParameterDescription(_data.toId))])
             case .inputInvoiceStarGiftUpgrade(let _data):
-                return ("inputInvoiceStarGiftUpgrade", [("flags", _data.flags as Any), ("stargift", _data.stargift as Any)])
+                return ("inputInvoiceStarGiftUpgrade", [("flags", ConstructorParameterDescription(_data.flags)), ("stargift", ConstructorParameterDescription(_data.stargift))])
             case .inputInvoiceStars(let _data):
-                return ("inputInvoiceStars", [("purpose", _data.purpose as Any)])
+                return ("inputInvoiceStars", [("purpose", ConstructorParameterDescription(_data.purpose))])
             }
         }
 
@@ -1196,7 +1529,7 @@ public extension Api {
             var _3: Int32?
             _3 = reader.readInt32()
             var _4: Api.TextWithEntities?
-            if Int(_1!) & Int(1 << 0) != 0 {
+            if Int(_1 ?? 0) & Int(1 << 0) != 0 {
                 if let signature = reader.readInt32() {
                     _4 = Api.parse(reader, signature: signature) as? Api.TextWithEntities
                 }
@@ -1204,7 +1537,7 @@ public extension Api {
             let _c1 = _1 != nil
             let _c2 = _2 != nil
             let _c3 = _3 != nil
-            let _c4 = (Int(_1!) & Int(1 << 0) == 0) || _4 != nil
+            let _c4 = (Int(_1 ?? 0) & Int(1 << 0) == 0) || _4 != nil
             if _c1 && _c2 && _c3 && _c4 {
                 return Api.InputInvoice.inputInvoicePremiumGiftStars(Cons_inputInvoicePremiumGiftStars(flags: _1!, userId: _2!, months: _3!, message: _4))
             }
@@ -1233,7 +1566,7 @@ public extension Api {
             var _3: Int64?
             _3 = reader.readInt64()
             var _4: Api.TextWithEntities?
-            if Int(_1!) & Int(1 << 1) != 0 {
+            if Int(_1 ?? 0) & Int(1 << 1) != 0 {
                 if let signature = reader.readInt32() {
                     _4 = Api.parse(reader, signature: signature) as? Api.TextWithEntities
                 }
@@ -1241,7 +1574,7 @@ public extension Api {
             let _c1 = _1 != nil
             let _c2 = _2 != nil
             let _c3 = _3 != nil
-            let _c4 = (Int(_1!) & Int(1 << 1) == 0) || _4 != nil
+            let _c4 = (Int(_1 ?? 0) & Int(1 << 1) == 0) || _4 != nil
             if _c1 && _c2 && _c3 && _c4 {
                 return Api.InputInvoice.inputInvoiceStarGift(Cons_inputInvoiceStarGift(flags: _1!, peer: _2!, giftId: _3!, message: _4))
             }
@@ -1253,7 +1586,7 @@ public extension Api {
             var _1: Int32?
             _1 = reader.readInt32()
             var _2: Api.InputPeer?
-            if Int(_1!) & Int(1 << 3) != 0 {
+            if Int(_1 ?? 0) & Int(1 << 3) != 0 {
                 if let signature = reader.readInt32() {
                     _2 = Api.parse(reader, signature: signature) as? Api.InputPeer
                 }
@@ -1263,16 +1596,16 @@ public extension Api {
             var _4: Int64?
             _4 = reader.readInt64()
             var _5: Api.TextWithEntities?
-            if Int(_1!) & Int(1 << 1) != 0 {
+            if Int(_1 ?? 0) & Int(1 << 1) != 0 {
                 if let signature = reader.readInt32() {
                     _5 = Api.parse(reader, signature: signature) as? Api.TextWithEntities
                 }
             }
             let _c1 = _1 != nil
-            let _c2 = (Int(_1!) & Int(1 << 3) == 0) || _2 != nil
+            let _c2 = (Int(_1 ?? 0) & Int(1 << 3) == 0) || _2 != nil
             let _c3 = _3 != nil
             let _c4 = _4 != nil
-            let _c5 = (Int(_1!) & Int(1 << 1) == 0) || _5 != nil
+            let _c5 = (Int(_1 ?? 0) & Int(1 << 1) == 0) || _5 != nil
             if _c1 && _c2 && _c3 && _c4 && _c5 {
                 return Api.InputInvoice.inputInvoiceStarGiftAuctionBid(Cons_inputInvoiceStarGiftAuctionBid(flags: _1!, peer: _2, giftId: _3!, bidAmount: _4!, message: _5))
             }
