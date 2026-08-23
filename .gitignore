@@ -93,3 +93,4 @@ third-party/mls/lib/
 third-party/mls/include/
 **/node_modules/
 tools/sim-watcher/dist/
+.mcp.json
