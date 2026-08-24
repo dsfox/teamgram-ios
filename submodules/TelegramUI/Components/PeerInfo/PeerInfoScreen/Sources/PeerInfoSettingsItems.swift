@@ -12,6 +12,7 @@ import ItemListPeerItem
 import DeviceAccess
 import TelegramStringFormatting
 import PeerNameColorItem
+import SettingsUI
 
 enum SettingsSection: Int, CaseIterable {
     case edit
@@ -252,6 +253,13 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
     let languageName = presentationData.strings.primaryComponent.localizedName
     items[.advanced]!.append(PeerInfoScreenDisclosureItem(id: 4, label: .text(languageName.isEmpty ? presentationData.strings.Localization_LanguageName : languageName), text: presentationData.strings.Settings_AppLanguage, icon: PresentationResourcesSettings.language, action: {
         interaction.openSettings(.language)
+    }))
+
+    // Which server this phone talks to, with the address on the row rather than
+    // one screen in: a promise about whose machine your messages are on is worth
+    // nothing if checking it takes a search. See ice9 #65.
+    items[.advanced]!.append(PeerInfoScreenDisclosureItem(id: 7, label: .text(ServerAddressStore(rootPath: context.sharedContext.basePath).effective.described), text: serverSettingsTitle(presentationData.strings), icon: PresentationResourcesSettings.proxy, action: {
+        interaction.openSettings(.server)
     }))
     
     let premiumConfiguration = PremiumConfiguration.with(appConfiguration: context.currentAppConfiguration.with { $0 })

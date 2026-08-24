@@ -167,6 +167,9 @@ enum PeerInfoSettingsSection {
     case dataAndStorage
     case appearance
     case language
+    // Which server this phone talks to, after the first launch has answered it
+    // (ice9 #65).
+    case server
     case stickers
     case premium
     case premiumGift

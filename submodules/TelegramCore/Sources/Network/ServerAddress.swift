@@ -87,35 +87,69 @@ public struct ServerAddress: Equatable {
 /// from then on. Writing here therefore does nothing on its own —
 /// `reseedFromAddress` is what makes it take.
 public final class ServerAddressStore {
+    /// Two lines: the address, and the word below it when somebody has answered
+    /// the question. Two states rather than one, because "which address to dial"
+    /// and "has anybody been asked" are different questions and the difference
+    /// is the whole of changing servers later: somebody who opens that screen
+    /// and walks away has to keep dialling the server they were already on.
+    private static let answered = "answered"
+
     private let path: String
 
     public init(rootPath: String) {
         self.path = rootPath + "/server-address"
     }
 
-    /// What somebody answered, or nil when nobody has been asked yet. Note that
-    /// this is not "is it ours": somebody who looked at the screen and kept the
-    /// default has still answered, and is not asked again.
-    public var chosen: ServerAddress? {
+    private var lines: [String] {
         guard let text = try? String(contentsOfFile: self.path, encoding: .utf8) else {
+            return []
+        }
+        return text.split(separator: "\n").map(String.init)
+    }
+
+    /// The address in hand, answered or not.
+    public var stored: ServerAddress? {
+        guard let first = self.lines.first else {
             return nil
         }
-        return ServerAddress.parse(text)
+        return ServerAddress.parse(first)
     }
 
-    /// What to dial: what was chosen, or ours until somebody says otherwise.
+    /// What somebody answered, or nil when the question is still to be asked.
+    /// Note that this is not "is it ours": somebody who looked at the screen and
+    /// kept the default has still answered, and is not asked again.
+    public var chosen: ServerAddress? {
+        guard self.lines.count > 1, self.lines[1] == ServerAddressStore.answered else {
+            return nil
+        }
+        return self.stored
+    }
+
+    /// What to dial: what is in hand, or ours until somebody says otherwise.
     public var effective: ServerAddress {
-        return self.chosen ?? ServerAddress.default
+        return self.stored ?? ServerAddress.default
     }
 
-    /// Keeps an address. Says nothing about whether it answers: that is checked
-    /// before this is called, because an address that does not answer turns into
-    /// a phone stuck on "Connecting" with no way back to it.
+    /// Keeps an address as answered. Says nothing about whether it answers: that
+    /// is checked before this is called, because an address that does not answer
+    /// turns into a phone stuck on "Connecting" with no way back to it.
     public func store(_ address: ServerAddress) {
+        self.write([address.described, ServerAddressStore.answered])
+    }
+
+    /// Puts the question back without changing what is dialled. This is what
+    /// changing servers from Settings does before signing out: the screen comes
+    /// up again with the current address in it, and until somebody types
+    /// another one the client goes on reaching the same server it always did.
+    public func askAgain() {
+        self.write([self.effective.described])
+    }
+
+    private func write(_ lines: [String]) {
         do {
-            try address.described.write(toFile: self.path, atomically: true, encoding: .utf8)
+            try lines.joined(separator: "\n").write(toFile: self.path, atomically: true, encoding: .utf8)
         } catch let error {
-            Logger.shared.log("ServerAddress", "could not keep \(address.described): \(error)")
+            Logger.shared.log("ServerAddress", "could not keep \(lines.first ?? ""): \(error)")
         }
     }
 }
