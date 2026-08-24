@@ -23,10 +23,6 @@ public func serverSettingsTitle(_ strings: PresentationStrings) -> String {
     return serverSettingsIsRussian(strings) ? "Сервер" : "Server"
 }
 
-func serverSettingsHeader(_ strings: PresentationStrings) -> String {
-    return serverSettingsIsRussian(strings) ? "АДРЕС ДЛЯ ОБМЕНА СООБЩЕНИЯМИ" : "ADDRESS FOR EXCHANGING MESSAGES"
-}
-
 func serverSettingsChange(_ strings: PresentationStrings) -> String {
     return serverSettingsIsRussian(strings) ? "Сменить сервер" : "Change server"
 }
@@ -63,14 +59,13 @@ private enum ServerSettingsSection: Int32 {
 }
 
 private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
-    case currentHeader(PresentationTheme, String)
     case current(PresentationTheme, String)
     case change(PresentationTheme, String)
     case changeInfo(PresentationTheme, String)
 
     var section: ItemListSectionId {
         switch self {
-        case .currentHeader, .current:
+        case .current:
             return ServerSettingsSection.current.rawValue
         case .change, .changeInfo:
             return ServerSettingsSection.change.rawValue
@@ -79,8 +74,6 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
 
     var stableId: Int32 {
         switch self {
-        case .currentHeader:
-            return 0
         case .current:
             return 1
         case .change:
@@ -97,10 +90,12 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
         let arguments = arguments as! ServerSettingsArguments
         switch self {
-        case let .currentHeader(_, title):
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: title, sectionId: self.section)
         case let .current(_, address):
-            return ItemListTextItem(presentationData: presentationData, text: .plain(address), sectionId: self.section)
+            // A row rather than a footnote. The address is the one thing on this
+            // screen somebody came to read, and as free text under a heading it
+            // was the smallest and greyest thing on it. No arrow and no action:
+            // it is a value, and what changes it is below.
+            return ItemListDisclosureItem(presentationData: presentationData, title: address, label: "", sectionId: self.section, style: .blocks, disclosureStyle: .none, action: nil)
         case let .change(_, title):
             return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: title, kind: .destructive, alignment: .natural, sectionId: self.section, style: .blocks, action: {
                 arguments.change()
@@ -113,7 +108,6 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
 
 private func serverSettingsEntries(presentationData: PresentationData, address: ServerAddress) -> [ServerSettingsEntry] {
     return [
-        .currentHeader(presentationData.theme, serverSettingsHeader(presentationData.strings)),
         .current(presentationData.theme, address.described),
         .change(presentationData.theme, serverSettingsChange(presentationData.strings)),
         .changeInfo(presentationData.theme, serverSettingsChangeInfo(presentationData.strings)),
