@@ -24,20 +24,36 @@ func serverChoiceTitle(_ strings: PresentationStrings) -> String {
 
 func serverChoiceNotice(_ strings: PresentationStrings) -> String {
     return serverChoiceIsRussian(strings)
-        ? "Приложение говорит с одним сервером, и вы выбираете, с каким. Наш уже вписан — оставьте его или укажите адрес своего."
-        : "This app talks to one server, and you choose which. Ours is filled in - keep it, or name your own."
+        ? "Приложение говорит с одним сервером, и вы выбираете, с каким. Наш уже вписан — оставьте его или впишите свой: IP-адрес или имя."
+        : "This app talks to one server, and you choose which. Ours is filled in - keep it, or put in your own: an IP address or a name."
 }
 
+/// An IP is as good an answer as a name, and the field has to say so: somebody
+/// who has just put a server on a machine has its address long before it has a
+/// name, and a hint that only shows a name reads as a refusal to take one.
 func serverChoicePlaceholder(_ strings: PresentationStrings) -> String {
-    return serverChoiceIsRussian(strings) ? "имя или имя:порт" : "name, or name:port"
+    return serverChoiceIsRussian(strings) ? "адрес или имя:порт" : "address or name:port"
 }
 
-func serverChoiceUseOurs(_ strings: PresentationStrings) -> String {
-    return serverChoiceIsRussian(strings) ? "Вернуть наш" : "Use ours"
+/// Where the instructions for putting one up live. On the site because that is
+/// the public place we have - the repository is private, so there is no other
+/// link to give.
+let serverChoiceInstructions = "https://ice9.app/your-server"
+
+func serverChoiceOwnServer(_ strings: PresentationStrings) -> String {
+    return serverChoiceIsRussian(strings)
+        ? "Важно! Свой сервер поднимается за 5–10 минут по инструкции. Это просто — попробуйте."
+        : "Important: your own server goes up in 5-10 minutes, and here is how. It is easy - try it."
+}
+
+func serverChoiceUseDefault(_ strings: PresentationStrings) -> String {
+    return serverChoiceIsRussian(strings) ? "Сервер по умолчанию" : "Use default"
 }
 
 func serverChoiceMalformed(_ strings: PresentationStrings) -> String {
-    return serverChoiceIsRussian(strings) ? "Это не адрес." : "That is not an address."
+    return serverChoiceIsRussian(strings)
+        ? "Это не адрес. Имя или IP, и порт через двоеточие, если он не обычный."
+        : "That is not an address. A name or an IP, and a port after a colon if it is not the usual one."
 }
 
 func serverChoiceSilent(_ strings: PresentationStrings) -> String {
@@ -72,6 +88,7 @@ final class AuthorizationSequenceServerController: ViewController {
     private let theme: PresentationTheme
     private let network: Network
     private let store: ServerAddressStore
+    private let openUrl: (String) -> Void
 
     /// Somebody named a server and it answered. The address is already kept and
     /// the client is already pointed at it.
@@ -80,22 +97,33 @@ final class AuthorizationSequenceServerController: ViewController {
     private let checkDisposable = MetaDisposable()
     private let hapticFeedback = HapticFeedback()
 
+    /// What the check was interrupting, kept for as long as the check runs so
+    /// that giving up can put it back.
+    private var checkingFrom: ServerAddress?
+
     private var inProgress: Bool = false {
         didSet {
             if self.inProgress {
                 self.navigationItem.rightBarButtonItem = UIBarButtonItem(customDisplayNode: ProgressNavigationButtonNode(color: self.theme.rootController.navigationBar.accentTextColor))
+                // Fifteen seconds is a long time to be sure you have made a
+                // mistake and be unable to say so. There is no back button on
+                // this screen, so the left side is free for the one thing
+                // somebody might want while it spins.
+                self.navigationItem.leftBarButtonItem = UIBarButtonItem(title: self.strings.Common_Cancel, style: .plain, target: self, action: #selector(self.cancelPressed))
             } else {
                 self.navigationItem.rightBarButtonItem = UIBarButtonItem(title: self.strings.Common_Next, style: .done, target: self, action: #selector(self.nextPressed))
+                self.navigationItem.leftBarButtonItem = nil
             }
             self.controllerNode.inProgress = self.inProgress
         }
     }
 
-    init(strings: PresentationStrings, theme: PresentationTheme, network: Network, store: ServerAddressStore) {
+    init(strings: PresentationStrings, theme: PresentationTheme, network: Network, store: ServerAddressStore, openUrl: @escaping (String) -> Void) {
         self.strings = strings
         self.theme = theme
         self.network = network
         self.store = store
+        self.openUrl = openUrl
 
         super.init(navigationBarPresentationData: NavigationBarPresentationData(theme: AuthorizationSequenceController.navigationBarTheme(theme), strings: NavigationBarStrings(presentationStrings: strings)))
 
@@ -128,6 +156,9 @@ final class AuthorizationSequenceServerController: ViewController {
 
         self.controllerNode.enterAddress = { [weak self] address in
             self?.submit(address)
+        }
+        self.controllerNode.openInstructions = { [weak self] in
+            self?.openUrl(serverChoiceInstructions)
         }
     }
 
@@ -173,6 +204,9 @@ final class AuthorizationSequenceServerController: ViewController {
         let moved = address != previous
         if moved {
             reseedFromAddress(network: self.network, address: address)
+            self.checkingFrom = previous
+        } else {
+            self.checkingFrom = nil
         }
 
         self.checkDisposable.set((askWhetherServerAnswers(network: self.network, timeout: serverChoiceTimeout)
@@ -181,6 +215,7 @@ final class AuthorizationSequenceServerController: ViewController {
                 return
             }
             self.inProgress = false
+            self.checkingFrom = nil
             switch answer {
             case .answered:
                 self.controllerNode.showError(nil)
@@ -192,6 +227,23 @@ final class AuthorizationSequenceServerController: ViewController {
                 self.putBack(previous, ifMoved: moved, saying: serverChoiceSilent(self.strings))
             }
         }))
+    }
+
+    /// Stops waiting. The address goes back to what it was and the screen says
+    /// nothing about it: somebody who changed their mind has not been refused,
+    /// and a complaint in front of them would read as one.
+    @objc private func cancelPressed() {
+        guard self.inProgress else {
+            return
+        }
+        self.checkDisposable.set(nil)
+        self.inProgress = false
+        if let from = self.checkingFrom {
+            reseedFromAddress(network: self.network, address: from)
+        }
+        self.checkingFrom = nil
+        self.controllerNode.showError(nil)
+        self.controllerNode.activateInput()
     }
 
     /// Puts back the address that was there, so that a phone left standing on

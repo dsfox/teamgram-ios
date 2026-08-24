@@ -402,7 +402,7 @@
 
 // Tour
 "Tour.Title1" = "ice9";
-"Tour.Text1" = "The world's **fastest** messaging app.\nIt is **free** and **secure**.";
+"Tour.Text1" = "Lightweight, simple and secure opensource messenger for teams and businesses.";
 
 "Tour.Title2" = "Fast";
 "Tour.Text2" = "**ice9** delivers messages\nfaster than any other application.";

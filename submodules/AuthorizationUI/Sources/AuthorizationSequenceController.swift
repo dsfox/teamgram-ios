@@ -171,7 +171,9 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
                 return c
             }
         }
-        let controller = AuthorizationSequenceServerController(strings: self.presentationData.strings, theme: self.presentationData.theme, network: self.account.network, store: self.serverAddressStore)
+        let controller = AuthorizationSequenceServerController(strings: self.presentationData.strings, theme: self.presentationData.theme, network: self.account.network, store: self.serverAddressStore, openUrl: { [weak self] url in
+            self?.openUrl(url)
+        })
         controller.completed = { [weak self] in
             guard let strongSelf = self else {
                 return
