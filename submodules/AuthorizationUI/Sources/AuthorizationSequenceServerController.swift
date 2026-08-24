@@ -38,7 +38,7 @@ func serverChoicePlaceholder(_ strings: PresentationStrings) -> String {
 /// Where the instructions for putting one up live. On the site because that is
 /// the public place we have - the repository is private, so there is no other
 /// link to give.
-let serverChoiceInstructions = "https://ice9.app/your-server"
+let serverChoiceInstructions = "https://ice9.app/server"
 
 func serverChoiceOwnServer(_ strings: PresentationStrings) -> String {
     return serverChoiceIsRussian(strings)
