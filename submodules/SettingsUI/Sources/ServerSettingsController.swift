@@ -24,7 +24,7 @@ public func serverSettingsTitle(_ strings: PresentationStrings) -> String {
 }
 
 func serverSettingsHeader(_ strings: PresentationStrings) -> String {
-    return serverSettingsIsRussian(strings) ? "ЭТОТ ТЕЛЕФОН ГОВОРИТ С" : "THIS PHONE TALKS TO"
+    return serverSettingsIsRussian(strings) ? "АДРЕС ДЛЯ ОБМЕНА СООБЩЕНИЯМИ" : "ADDRESS FOR EXCHANGING MESSAGES"
 }
 
 func serverSettingsChange(_ strings: PresentationStrings) -> String {
