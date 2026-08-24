@@ -158,6 +158,32 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
         return controller
     }
     
+    /// Where the answer to "which server" is kept. Beside the accounts rather
+    /// than in one of them: it is asked before an account exists, and every
+    /// account on this phone reaches the same server. See ice9 #65.
+    private var serverAddressStore: ServerAddressStore {
+        return ServerAddressStore(rootPath: self.account.rootPath)
+    }
+
+    private func serverController(countryCode: Int32, number: String) -> AuthorizationSequenceServerController {
+        for c in self.viewControllers {
+            if let c = c as? AuthorizationSequenceServerController {
+                return c
+            }
+        }
+        let controller = AuthorizationSequenceServerController(strings: self.presentationData.strings, theme: self.presentationData.theme, network: self.account.network, store: self.serverAddressStore)
+        controller.completed = { [weak self] in
+            guard let strongSelf = self else {
+                return
+            }
+            // The state has said phoneEntry all along - the screen the sequence
+            // builds for it is what changes, now that the question has an
+            // answer - so the stack is asked for again rather than pushed onto.
+            strongSelf.updateState(state: .state(.phoneEntry(countryCode: countryCode, number: number)))
+        }
+        return controller
+    }
+
     private func phoneEntryController(countryCode: Int32, number: String, splashController: AuthorizationSequenceSplashController?) -> AuthorizationSequencePhoneEntryController {
         var currentController: AuthorizationSequencePhoneEntryController?
         for c in self.viewControllers {
@@ -1297,6 +1323,16 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
                         self.setViewControllers(controllers, animated: !self.viewControllers.isEmpty)
                     }
                 case let .phoneEntry(countryCode, number):
+                    // Which server this phone talks to, before the phone number
+                    // and not beside the name: the name is asked after the code,
+                    // and the code comes from the server. Only on a first
+                    // sign-in - a second account and a phone-number change both
+                    // happen against the server already chosen. See ice9 #65.
+                    if self.otherAccountPhoneNumbers.1.isEmpty, self.serverAddressStore.chosen == nil {
+                        self.setViewControllers([self.serverController(countryCode: countryCode, number: number)], animated: !self.viewControllers.isEmpty)
+                        return
+                    }
+
                     var controllers: [ViewController] = []
                     if !self.otherAccountPhoneNumbers.1.isEmpty {
                         controllers.append(self.splashController())
