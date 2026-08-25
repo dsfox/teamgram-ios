@@ -3334,7 +3334,7 @@ public final class WebAppController: ViewController, AttachmentContainable {
                 } else {
                     scheme = "https"
                 }
-                let url = URL(string: "\(scheme)://teamgram.me/\(addressName)\(appName)?startapp&addToHomeScreen")!
+                let url = URL(string: "\(scheme)://i.ice9.app/\(addressName)\(appName)?startapp&addToHomeScreen")!
                 UIApplication.shared.open(url)
             })
         }
@@ -3978,7 +3978,7 @@ public final class WebAppController: ViewController, AttachmentContainable {
                     guard let self else {
                         return
                     }
-                    let shareController = context.sharedContext.makeShareController(context: context, params: ShareControllerParams(subject: .url("https://teamgram.me/\(addressName)?profile"), actionCompleted: { [weak self] in
+                    let shareController = context.sharedContext.makeShareController(context: context, params: ShareControllerParams(subject: .url("https://i.ice9.app/\(addressName)?profile"), actionCompleted: { [weak self] in
                         let presentationData = context.sharedContext.currentPresentationData.with { $0 }
                         self?.present(UndoOverlayController(presentationData: presentationData, content: .linkCopied(title: nil, text: presentationData.strings.Conversation_LinkCopied), elevatedLayout: false, animateInAsReplacement: false, action: { _ in return false }), in: .window(.root))
                     }))

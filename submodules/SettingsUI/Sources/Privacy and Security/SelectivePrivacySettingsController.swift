@@ -978,7 +978,7 @@ private func selectivePrivacySettingsControllerEntries(presentationData: Present
     let disableForText: String
     let enableForText: String
     
-    let phoneLink = "https://teamgram.me/+\(phoneNumber)"
+    let phoneLink = "https://i.ice9.app/+\(phoneNumber)"
     var settingInfoLink = phoneLink
     
     switch kind {

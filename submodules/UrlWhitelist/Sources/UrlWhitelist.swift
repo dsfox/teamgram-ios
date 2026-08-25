@@ -1,11 +1,12 @@
 import Foundation
 
+// A concealed link - one whose text says one thing and whose address says
+// another - is shown to the reader before it opens, unless the host is one of
+// ours. Upstream's list was upstream's properties, which meant a message that
+// read "tap here" and went to somebody else's domain opened without a word (#87).
 private let whitelistedHosts: Set<String> = Set([
-    "t.me",
-    "telegram.me",
-    "telegra.ph",
-    "telesco.pe",
-    "fragment.com"
+    "i.ice9.app",
+    "ice9.app"
 ])
 
 public func isConcealedUrlWhitelisted(_ url: URL) -> Bool {

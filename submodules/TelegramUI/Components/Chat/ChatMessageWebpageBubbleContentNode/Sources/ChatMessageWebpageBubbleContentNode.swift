@@ -419,7 +419,7 @@ public final class ChatMessageWebpageBubbleContentNode: ChatMessageBubbleContent
                 } else if let type = webpage.type {
                     switch type {
                         case "photo":
-                            if webpage.displayUrl.hasPrefix("teamgram.me/") {
+                            if webpage.displayUrl.hasPrefix("i.ice9.app/") {
                                 actionTitle = item.presentationData.strings.Conversation_ViewMessage
                             }
                         case "telegram_user":

@@ -18,10 +18,10 @@ private func shareLink(for server: ProxyServerSettings) -> String {
     switch server.connection {
     case let .mtp(secret):
         let secret = MTProxySecret.parseData(secret)?.serializeToString() ?? ""
-        link = "https://teamgram.me/proxy?server=\(server.host)&port=\(server.port)"
+        link = "https://i.ice9.app/proxy?server=\(server.host)&port=\(server.port)"
         link += "&secret=\(secret.addingPercentEncoding(withAllowedCharacters: CharacterSet.urlQueryValueAllowed) ?? "")"
     case let .socks5(username, password):
-        link = "https://teamgram.me/socks?server=\(server.host)&port=\(server.port)"
+        link = "https://i.ice9.app/socks?server=\(server.host)&port=\(server.port)"
         link += "&user=\(username?.addingPercentEncoding(withAllowedCharacters: CharacterSet.urlQueryValueAllowed) ?? "")&pass=\(password?.addingPercentEncoding(withAllowedCharacters: CharacterSet.urlQueryValueAllowed) ?? "")"
     }
     return link

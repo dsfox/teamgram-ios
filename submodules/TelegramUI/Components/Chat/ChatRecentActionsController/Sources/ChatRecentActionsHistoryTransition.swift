@@ -217,12 +217,12 @@ struct ChatRecentActionsEntry: Comparable, Identifiable {
                 var previousAttributes: [MessageAttribute] = []
                 var attributes: [MessageAttribute] = []
                 
-                let prevText = "https://teamgram.me/\(prev)"
+                let prevText = "https://i.ice9.app/\(prev)"
                 previousAttributes.append(TextEntitiesMessageAttribute(entities: [MessageTextEntity(range: 0 ..< prevText.count, type: .Url)]))
                 
                 let text: String
                 if !new.isEmpty {
-                    text = "https://teamgram.me/\(new)"
+                    text = "https://i.ice9.app/\(new)"
                     attributes.append(TextEntitiesMessageAttribute(entities: [MessageTextEntity(range: 0 ..< text.count, type: .Url)]))
                 } else {
                     text = self.presentationData.strings.Channel_AdminLog_EmptyMessageText
@@ -272,7 +272,7 @@ struct ChatRecentActionsEntry: Comparable, Identifiable {
                 
                 var prevText: String = ""
                 for username in prev {
-                    let link = "https://teamgram.me/\(username)"
+                    let link = "https://i.ice9.app/\(username)"
                     prevTextEntities.append(MessageTextEntity(range: prevText.count ..< prevText.count + link.count, type: .Url))
                     prevText.append(link)
                     prevText.append("\n")
@@ -284,7 +284,7 @@ struct ChatRecentActionsEntry: Comparable, Identifiable {
                 var text: String = ""
                 if !new.isEmpty {
                     for username in new {
-                        let link = "https://teamgram.me/\(username)"
+                        let link = "https://i.ice9.app/\(username)"
                         textEntities.append(MessageTextEntity(range: text.count ..< text.count + link.count, type: .Url))
                         text.append(link)
                         text.append("\n")

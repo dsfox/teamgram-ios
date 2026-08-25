@@ -1896,7 +1896,7 @@ private final class PremiumIntroScreenContentComponent: CombinedComponent {
                             if let _ = giftCode.usedDate {
                                 textString = strings.Premium_Gift_UsedLink_Text
                             } else {
-                                link = "https://teamgram.me/giftcode/\(giftCode.slug)"
+                                link = "https://i.ice9.app/giftcode/\(giftCode.slug)"
                                 textString = strings.Premium_Gift_Link_Text
                             }
                         } else {
@@ -2793,7 +2793,7 @@ private final class PremiumIntroScreenContentComponent: CombinedComponent {
                 layoutOptions()
             } else if case let .gift(fromPeerId, _, _, giftCode) = context.component.source {
                 if let giftCode, let accountContext = context.component.screenContext.context,  fromPeerId != accountContext.account.peerId, !context.component.justBought {
-                    let link = "https://teamgram.me/giftcode/\(giftCode.slug)"
+                    let link = "https://i.ice9.app/giftcode/\(giftCode.slug)"
                     let linkButton = linkButton.update(
                         component: Button(
                             content: AnyComponent(

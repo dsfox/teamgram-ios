@@ -230,7 +230,7 @@ private func makeInternalUrlHandler(
 }
 
 private let internetSchemes: [String] = ["http", "https"]
-private let telegramMeHosts: [String] = ["teamgram.me"]
+private let telegramMeHosts: [String] = ["i.ice9.app"]
 
 private func handleInternetUrl(
     parsedUrl: URL,
@@ -358,7 +358,7 @@ private func appendQueryItems(to base: String, items: [URLQueryItem]) -> String 
 }
 
 private func makeTelegramUrl(_ path: String, queryItems: [URLQueryItem] = []) -> String {
-    return appendQueryItems(to: "https://teamgram.me\(path)", items: queryItems)
+    return appendQueryItems(to: "https://i.ice9.app\(path)", items: queryItems)
 }
 
 func openExternalUrlImpl(context: AccountContext, urlContext: OpenURLContext, url: String, forceExternal: Bool, presentationData: PresentationData, navigationController: NavigationController?, dismissInput: @escaping () -> Void) {

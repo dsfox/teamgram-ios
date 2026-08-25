@@ -483,14 +483,14 @@ public final class QrCodeScreen: ViewControllerComponentContainer {
         var link: String {
             switch self {
             case let .peer(peer):
-                return "https://teamgram.me/\(peer.addressName ?? "")"
+                return "https://i.ice9.app/\(peer.addressName ?? "")"
             case let .invite(invite, _):
                 return invite.link ?? ""
             case let .chatFolder(slug):
                 if slug.hasPrefix("https://") {
                     return slug
                 } else {
-                    return "https://teamgram.me/addlist/\(slug)"
+                    return "https://i.ice9.app/addlist/\(slug)"
                 }
             case let .proxy(server, externalLink):
                 var link: String

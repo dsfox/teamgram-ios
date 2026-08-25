@@ -1214,7 +1214,7 @@
 "DialogList.SearchSectionGlobal" = "Global Search";
 "DialogList.SearchSectionMessages" = "Messages";
 
-"Username.LinkHint" = "This link opens a chat with you in ice9:[\nhttps://teamgram.me/%@]";
+"Username.LinkHint" = "This link opens a chat with you in ice9:[\nhttps://i.ice9.app/%@]";
 "Username.LinkCopied" = "Copied link to clipboard";
 
 "SharedMedia.DeleteItemsConfirmation_1" = "Delete media file?";
@@ -1601,7 +1601,7 @@
 
 "Channel.Username.Title" = "Link";
 "Channel.Username.Help" = "You can choose a channel name on **ice9**. If you do, other people will be able to find your channel by this name.\n\nYou can use **a-z**, **0-9** and underscores. Minimum length is **5** characters.";
-"Channel.Username.LinkHint" = "This link opens your channel in ice9:[\nhttps://teamgram.me/%@]";
+"Channel.Username.LinkHint" = "This link opens your channel in ice9:[\nhttps://i.ice9.app/%@]";
 "Channel.Username.InvalidTooShort" = "Channel names must have at least 5 characters.";
 "Channel.Username.InvalidStartsWithNumber" = "Channel names can't start with a number.";
 "Channel.Username.InvalidCharacters" = "Sorry, this name is invalid.";
@@ -4061,7 +4061,7 @@ Unused sets are archived when you add more.";
 "EmptyGroupInfo.Subtitle" = "Groups can have:";
 "EmptyGroupInfo.Line1" = "Up to %@ members";
 "EmptyGroupInfo.Line2" = "Persistent chat history";
-"EmptyGroupInfo.Line3" = "Public links such as teamgram.me/title";
+"EmptyGroupInfo.Line3" = "Public links such as i.ice9.app/title";
 "EmptyGroupInfo.Line4" = "Admins with different rights";
 
 "WallpaperPreview.Title" = "Background Preview";
@@ -7452,7 +7452,7 @@ Sorry for the inconvenience.";
 "Attachment.DeselectedItems_1" = "%@ item deselected";
 "Attachment.DeselectedItems_any" = "%@ items deselected";
 
-"PrivacyPhoneNumberSettings.CustomPublicLink" = "Users who have your number saved in their contacts will also see it on ice9.\n\nThis public link opens a chat with you:\n[https://teamgram.me/%@]()";
+"PrivacyPhoneNumberSettings.CustomPublicLink" = "Users who have your number saved in their contacts will also see it on ice9.\n\nThis public link opens a chat with you:\n[https://i.ice9.app/%@]()";
 
 "DownloadList.DownloadingHeader" = "Downloading";
 "DownloadList.DownloadedHeader" = "Recently Downloaded";
@@ -7819,7 +7819,7 @@ Sorry for the inconvenience.";
 
 "Premium.Limits.GroupsAndChannelsInfo" = "Join up to 1000 channels and large groups";
 "Premium.Limits.PinnedChatsInfo" = "Pin up to 10 chats in your main chat list";
-"Premium.Limits.PublicLinksInfo" = "Reserve up to 20 [teamgram.me/name]() links";
+"Premium.Limits.PublicLinksInfo" = "Reserve up to 20 [i.ice9.app/name]() links";
 "Premium.Limits.SavedGifsInfo" = "Save up to 400 GIFs in your Favorite GIFs";
 "Premium.Limits.FavedStickersInfo" = "Save up to 10 stickers in your Favorite stickers";
 "Premium.Limits.BioInfo" = "Add more symbols and use links in your bio";
@@ -11900,9 +11900,9 @@ Sorry for the inconvenience.";
 "Business.Links.CreateAction" = "Create a Link to Chat";
 "Business.Links.LinksSectionHeader" = "LINKS TO CHAT";
 
-"Business.Links.SimpleLinkInfoUsernamePhone" = "You can also use a simple link for a chat with you — [teamgram.me/%1$@](username) or [teamgram.me/\\u{2060}+\\u{2060}%2$@](phone).";
-"Business.Links.SimpleLinkInfoUsername" = "You can also use a simple link for a chat with you — [teamgram.me/%@](username).";
-"Business.Links.SimpleLinkInfoPhone" = "You can also use a simple link for a chat with you — [teamgram.me/\\u{2060}+\\u{2060}%@](phone).";
+"Business.Links.SimpleLinkInfoUsernamePhone" = "You can also use a simple link for a chat with you — [i.ice9.app/%1$@](username) or [i.ice9.app/\\u{2060}+\\u{2060}%2$@](phone).";
+"Business.Links.SimpleLinkInfoUsername" = "You can also use a simple link for a chat with you — [i.ice9.app/%@](username).";
+"Business.Links.SimpleLinkInfoPhone" = "You can also use a simple link for a chat with you — [i.ice9.app/\\u{2060}+\\u{2060}%@](phone).";
 
 "Business.Links.LinkNameTitle" = "Link Name";
 "Business.Links.LinkNameText" = "Add a name for this link that only you will see.";

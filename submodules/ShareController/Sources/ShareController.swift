@@ -613,7 +613,7 @@ public final class ShareController: ViewController {
         var messageCount: Int = 1
         if case let .messages(messages) = self.subject, let message = messages.first, let peer = message.peers[message.id.peerId] as? TelegramChannel, case .broadcast = peer.info {
             fromPublicChannel = true
-        } else if case let .url(link) = self.subject, link.contains("teamgram.me/nft/") {
+        } else if case let .url(link) = self.subject, link.contains("i.ice9.app/nft/") {
             fromPublicChannel = true
         }
         
@@ -1006,7 +1006,7 @@ public final class ShareController: ViewController {
                             }
                             if let chatPeer = message.peers[message.id.peerId] as? TelegramChannel {
                                 if message.id.namespace == Namespaces.Message.Cloud, let addressName = chatPeer.addressName, !addressName.isEmpty {
-                                    url = "https://teamgram.me/\(addressName)/\(message.id.id)"
+                                    url = "https://i.ice9.app/\(addressName)/\(message.id.id)"
                                     if messageUrl == nil {
                                         messageUrl = url
                                     }

@@ -357,7 +357,7 @@ private func usernameSetupControllerEntries(presentationData: PresentationData, 
             entries.append(.publicLinkInfo(presentationData.theme, infoText))
         } else {
             // Only the explanation. The line under it offered the name as a link
-            // on teamgram.me - a domain that is not ours, does not open this app,
+            // on i.ice9.app - a domain that is not ours, does not open this app,
             // and cannot be made to (#87). Android's username screen shows no
             // domain either.
             entries.append(.publicLinkInfo(presentationData.theme, presentationData.strings.Username_Help))
@@ -485,7 +485,7 @@ public func usernameSetupController(context: AccountContext, mode: UsernameSetup
                 }
                 if !currentAddressName.isEmpty {
                     dismissInputImpl?()
-                    let shareController = context.sharedContext.makeShareController(context: context, params: ShareControllerParams(subject: .url("https://teamgram.me/\(currentAddressName)"), actionCompleted: {
+                    let shareController = context.sharedContext.makeShareController(context: context, params: ShareControllerParams(subject: .url("https://i.ice9.app/\(currentAddressName)"), actionCompleted: {
                         let presentationData = context.sharedContext.currentPresentationData.with { $0 }
                         presentControllerImpl?(UndoOverlayController(presentationData: presentationData, content: .linkCopied(title: nil, text: presentationData.strings.Conversation_LinkCopied), elevatedLayout: false, animateInAsReplacement: false, action: { _ in return false }), nil)
                     }))

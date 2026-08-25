@@ -1087,18 +1087,18 @@ private final class StickerPackContainer: ASDisplayNode {
                     links += "\n"
                 }
                 if info.id.namespace == Namespaces.ItemCollection.CloudEmojiPacks {
-                    links += "https://teamgram.me/addemoji/\(info.shortName)"
+                    links += "https://i.ice9.app/addemoji/\(info.shortName)"
                 } else {
-                    links += "https://teamgram.me/addstickers/\(info.shortName)"
+                    links += "https://i.ice9.app/addstickers/\(info.shortName)"
                 }
             }
             text = links
             shareSubject = .text(text)
         } else if let (info, _, _) = self.currentStickerPack {
             if info.id.namespace == Namespaces.ItemCollection.CloudEmojiPacks {
-                text = "https://teamgram.me/addemoji/\(info.shortName)"
+                text = "https://i.ice9.app/addemoji/\(info.shortName)"
             } else {
-                text = "https://teamgram.me/addstickers/\(info.shortName)"
+                text = "https://i.ice9.app/addstickers/\(info.shortName)"
             }
             shareSubject = .url(text)
         } else {

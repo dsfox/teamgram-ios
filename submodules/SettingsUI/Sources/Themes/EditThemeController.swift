@@ -181,7 +181,7 @@ private enum EditThemeControllerEntry: ItemListNodeEntry {
                     
                 })
             case let .slug(_, _, title, text, enabled):
-                return ItemListSingleLineInputItem(presentationData: presentationData, systemStyle: .glass, title: NSAttributedString(string: "teamgram.me/addtheme/", textColor: presentationData.theme.list.itemPrimaryTextColor), text: text, placeholder: title, type: .username, clearType: .onFocus, enabled: enabled, tag: EditThemeEntryTag.slug, sectionId: self.section, textUpdated: { value in
+                return ItemListSingleLineInputItem(presentationData: presentationData, systemStyle: .glass, title: NSAttributedString(string: "i.ice9.app/addtheme/", textColor: presentationData.theme.list.itemPrimaryTextColor), text: text, placeholder: title, type: .username, clearType: .onFocus, enabled: enabled, tag: EditThemeEntryTag.slug, sectionId: self.section, textUpdated: { value in
                     arguments.updateState { current in
                         var state = current
                         state.slug = value

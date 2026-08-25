@@ -1044,7 +1044,7 @@ final class UniversalVideoGalleryItemNode: ZoomableContentGalleryItemNode {
             if playerStatusValue.duration >= 60.0 * 10.0 {
                 var publicLinkPrefix: ShareControllerSubject.PublicLinkPrefix?
                 if case let .message(message, _) = self.item?.contentInfo, message.id.namespace == Namespaces.Message.Cloud, let peer = message.peers[message.id.peerId] as? TelegramChannel, let username = peer.username ?? peer.usernames.first?.username {
-                    let visibleString = "teamgram.me/\(username)/\(message.id.id)"
+                    let visibleString = "i.ice9.app/\(username)/\(message.id.id)"
                     publicLinkPrefix = ShareControllerSubject.PublicLinkPrefix(
                         visibleString: visibleString,
                         actualString: "https://\(visibleString)"

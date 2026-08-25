@@ -2926,7 +2926,7 @@ public class CameraScreenImpl: ViewController, CameraScreen {
                     }
                     let filteredCodes = codes.filter {
                         let message = $0.message.replacingOccurrences(of: "https://", with: "")
-                        if message.hasPrefix("teamgram.me/c/") || message.hasPrefix("teamgram.me/+") || message.hasPrefix("teamgram.me/contact/") || message.hasPrefix("teamgram.me/") {
+                        if message.hasPrefix("i.ice9.app/c/") || message.hasPrefix("i.ice9.app/+") || message.hasPrefix("i.ice9.app/contact/") || message.hasPrefix("i.ice9.app/") {
                             return true
                         } else {
                             return false

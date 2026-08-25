@@ -473,9 +473,9 @@ final class BusinessLinksSetupScreenComponent: Component {
                             
                             let linkValue: String
                             if url == "phone", let phoneNumber = component.initialData.accountPeer?.phone {
-                                linkValue = "teamgram.me/+\(phoneNumber)"
+                                linkValue = "i.ice9.app/+\(phoneNumber)"
                             } else if url == "username", let addressName = component.initialData.accountPeer?.addressName {
-                                linkValue = "teamgram.me/\(addressName)"
+                                linkValue = "i.ice9.app/\(addressName)"
                             } else {
                                 return
                             }

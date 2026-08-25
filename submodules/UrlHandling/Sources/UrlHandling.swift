@@ -8,13 +8,13 @@ import TelegramUIPreferences
 import TelegramNotices
 import AccountContext
 
-private let baseTelegramMePaths = ["teamgram.me"]
+private let baseTelegramMePaths = ["i.ice9.app"]
 // Upstream recognises its own web client's short links (a.t.me and the like).
 // We have no web client, so nothing is a short link here - the list stays
 // rather than the function, because callers ask it.
 private let telegramWebShortLinkHosts: [String] = []
 private let baseTelegraPhPaths = [
-    "teamgram.me/iv?",
+    "i.ice9.app/iv?",
     "teamgram.net/blog/",
     "teamgram.net/tour/"
 ]
@@ -244,7 +244,7 @@ public func parseInternalUrl(sharedContext: SharedAccountContext, context: Accou
                             }
                         }
                         if let _ = url {
-                            return .internalInstantView(url: "https://teamgram.me/\(query)")
+                            return .internalInstantView(url: "https://i.ice9.app/\(query)")
                         }
                     } else if peerName == "contact" {
                         var code: String?

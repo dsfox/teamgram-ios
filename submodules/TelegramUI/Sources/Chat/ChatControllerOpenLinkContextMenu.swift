@@ -78,7 +78,10 @@ private func chatLinkContextMenuOpenMode(context: AccountContext, url: String) -
     if host.isEmpty {
         return .single(nil)
     }
-    if host == "t.me" || host == "telegram.me" || host == "telegram.dog" {
+    // Our own links are opened by the app rather than offered to a browser, so
+    // they get no "open in" menu. Upstream named its own three hosts here; ours
+    // is one, and somebody else's link is a link like any other (#87).
+    if host == "i.ice9.app" {
         return .single(nil)
     }
     if host.hasSuffix(".ton") || scheme.hasPrefix("tonsite") {

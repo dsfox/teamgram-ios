@@ -169,7 +169,7 @@ final class GameControllerNode: ViewControllerTracingNode {
     
     func shareWithoutScore() {
         if let (botPeer, gameName) = self.shareData(), let addressName = botPeer.addressName, !addressName.isEmpty, !gameName.isEmpty {
-            let url = "https://teamgram.me/\(addressName)?game=\(gameName)"
+            let url = "https://i.ice9.app/\(addressName)?game=\(gameName)"
             
             let context = self.context
             let shareController = context.sharedContext.makeShareController(context: context, params: ShareControllerParams(subject: .url(url), showInChat: nil, externalShare: true, actionCompleted: { [weak self] in

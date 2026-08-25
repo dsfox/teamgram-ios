@@ -5,7 +5,7 @@ import Emoji
 
 private let whitelistedHosts: Set<String> = Set([
     "teamgram.net",
-    "teamgram.me"
+    "i.ice9.app"
 ])
 
 private let dataDetector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType([.link]).rawValue)

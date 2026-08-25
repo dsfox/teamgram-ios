@@ -67,7 +67,7 @@ extension ChatControllerImpl {
                         }
                     }
                     timestampSuffix = "?t=\(startAtTimestampString)"
-                    let inputCopyText = "https://teamgram.me/\(addressName)/\(message.id.id)\(timestampSuffix)"
+                    let inputCopyText = "https://i.ice9.app/\(addressName)/\(message.id.id)\(timestampSuffix)"
                     UIPasteboard.general.string = inputCopyText
                 } else {
                     UIPasteboard.general.string = timecode

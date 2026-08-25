@@ -2496,7 +2496,7 @@ final class PeerInfoScreenNode: ViewControllerTracingNode, PeerInfoScreenNodePro
                 }
             }
             if !found {
-                self.openUrl(url: "https://teamgram.me/nft/\(slug)", concealed: false, external: false)
+                self.openUrl(url: "https://i.ice9.app/nft/\(slug)", concealed: false, external: false)
             }
         }
         

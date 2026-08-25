@@ -1181,7 +1181,7 @@ public final class PeerInfoGiftsPaneNode: ASDisplayNode, PeerInfoPaneNode, UIScr
         }
         
         if case let .unique(gift) = gift.gift {
-            let link = "https://teamgram.me/nft/\(gift.slug)"
+            let link = "https://i.ice9.app/nft/\(gift.slug)"
             
             items.append(.action(ContextMenuActionItem(text: strings.PeerInfo_Gifts_Context_CopyLink, icon: { theme in generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Link"), color: theme.contextMenu.primaryColor) }, action: { [weak self] c, f in
                 c?.dismiss(completion: { [weak self] in

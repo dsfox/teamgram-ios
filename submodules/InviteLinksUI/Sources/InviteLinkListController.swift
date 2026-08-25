@@ -284,7 +284,7 @@ private func inviteLinkListControllerEntries(presentationData: PresentationData,
     let mainInvite: ExportedInvitation?
     var isPublic = false
     if let peer = peer, let address = peer.addressName, !address.isEmpty && admin == nil {
-        mainInvite = .link(link: "teamgram.me/\(address)", title: nil, isPermanent: true, requestApproval: false, isRevoked: false, adminId: EnginePeer.Id(0), date: 0, startDate: nil, expireDate: nil, usageLimit: nil, count: nil, requestedCount: nil, pricing: nil)
+        mainInvite = .link(link: "i.ice9.app/\(address)", title: nil, isPermanent: true, requestApproval: false, isRevoked: false, adminId: EnginePeer.Id(0), date: 0, startDate: nil, expireDate: nil, usageLimit: nil, count: nil, requestedCount: nil, pricing: nil)
         isPublic = true
     } else if let invites = invites, let invite = invites.first(where: { $0.isPermanent && !$0.isRevoked }) {
         mainInvite = invite

@@ -525,13 +525,25 @@ icloud_fragment = "" if not telegram_enable_icloud else """
     telegram_icloud_environment="Production" if telegram_aps_environment == "production" else "Development"
 )
 
-associated_domains_fragment = "" if telegram_bundle_id not in official_bundle_ids else """
+# Ours (#87). This used to hang off official_bundle_ids, which our own bundle id
+# is not in - so the entitlement was empty and a link to a person opened Safari
+# rather than the app, on every build we have ever shipped. It has a condition of
+# its own now, because official_bundle_ids also turns on app groups, CarPlay,
+# unrestricted VoIP and communication notifications; adding ourselves to that list
+# would ask for entitlements our provisioning profile does not carry, and the
+# build would stop at signing.
+#
+# One name, no wildcard: i.ice9.app has no subdomains and never will. No
+# webcredentials either - nothing on that host asks for a password, and passkeys
+# take their relying party from the server rather than from here.
+#
+# The other half of this lives on the host: applinks does nothing until
+# /.well-known/apple-app-site-association names this exact app, which
+# web/functions/_links.js does.
+associated_domains_fragment = """
 <key>com.apple.developer.associated-domains</key>
 <array>
-    <string>applinks:teamgram.me</string>
-    <string>applinks:*.teamgram.me</string>
-    <string>webcredentials:teamgram.me</string>
-    <string>webcredentials:teamgram.net</string>
+    <string>applinks:i.ice9.app</string>
 </array>
 """
 

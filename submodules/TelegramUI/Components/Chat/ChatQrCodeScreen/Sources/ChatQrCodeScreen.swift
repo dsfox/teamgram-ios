@@ -1799,11 +1799,11 @@ private class QrContentNode: ASDisplayNode, ContentNode {
         
         var codeLink: String
         if let addressName = peer.addressName, !addressName.isEmpty {
-            codeLink = "https://teamgram.me/\(peer.addressName ?? "")"
+            codeLink = "https://i.ice9.app/\(peer.addressName ?? "")"
         } else if case let .user(peer) = peer {
-            codeLink = "https://teamgram.me/+\(peer.phone ?? "")"
+            codeLink = "https://i.ice9.app/+\(peer.phone ?? "")"
         } else if case .channel = peer {
-            codeLink = "https://teamgram.me/c/\(peer.id.id._internalGetInt64Value())"
+            codeLink = "https://i.ice9.app/c/\(peer.id.id._internalGetInt64Value())"
         } else {
             codeLink = ""
         }
@@ -1839,7 +1839,7 @@ private class QrContentNode: ASDisplayNode, ContentNode {
             
             self.codeImageNode.alpha = 0.0
             
-            self.codeMarkersNode.setSignal(qrCode(string: "https://teamgram.me/contact/000000:abcdef", color: .black, backgroundColor: nil, icon: .cutout, ecl: "Q", onlyMarkers: true) |> map { $0.1 }, attemptSynchronously: true)
+            self.codeMarkersNode.setSignal(qrCode(string: "https://i.ice9.app/contact/000000:abcdef", color: .black, backgroundColor: nil, icon: .cutout, ecl: "Q", onlyMarkers: true) |> map { $0.1 }, attemptSynchronously: true)
         }
     }
     
@@ -2534,7 +2534,7 @@ private class MessageContentNode: ASDisplayNode, ContentNode {
         
         let link: String
         if let message = self.messages.first, let chatPeer = message.peers[message.id.peerId] as? TelegramChannel, message.id.namespace == Namespaces.Message.Cloud, let addressName = chatPeer.addressName, !addressName.isEmpty {
-            link = "teamgram.me/\(addressName)/\(message.id.id)"
+            link = "i.ice9.app/\(addressName)/\(message.id.id)"
         } else {
             link = ""
         }

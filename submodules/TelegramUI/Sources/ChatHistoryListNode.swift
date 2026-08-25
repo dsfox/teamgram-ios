@@ -844,7 +844,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                             var attributes: [MessageAttribute] = []
                             
                             let mappedMessageType: AdMessageAttribute.MessageType = .sponsored
-                            attributes.append(AdMessageAttribute(opaqueId: "fake_ad_\(i)".data(using: .utf8)!, messageType: mappedMessageType, url: "teamgram.me/telegram", buttonText: "VIEW", sponsorInfo: nil, additionalInfo: nil, canReport: false, hasContentMedia: false, minDisplayDuration: nil, maxDisplayDuration: nil))
+                            attributes.append(AdMessageAttribute(opaqueId: "fake_ad_\(i)".data(using: .utf8)!, messageType: mappedMessageType, url: "i.ice9.app/telegram", buttonText: "VIEW", sponsorInfo: nil, additionalInfo: nil, canReport: false, hasContentMedia: false, minDisplayDuration: nil, maxDisplayDuration: nil))
                             
                             var messagePeers = SimpleDictionary<PeerId, Peer>()
                             
