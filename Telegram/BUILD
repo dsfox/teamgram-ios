@@ -1762,9 +1762,23 @@ plist_fragment(
     )
 )
 
+# Which profile signs this depends on which notification environment the build
+# asks for, because the two are not interchangeable: a debug build on a device
+# wants aps-environment "development" and a distribution profile says
+# "production", and plisttool refuses the mismatch outright.
+#
+# The rule finds a profile by name and, among those that match, keeps the newest
+# by creation date - it has no idea what environment a profile is for. So the two
+# profiles must not share a name. They did (clients/asc.py made them so on
+# purpose), the App Store one was five seconds newer, and it won every time:
+# release builds signed and no device build could be made at all. See ice9 #103.
 local_provisioning_profile(
     name = "Telegram_local_profile",
-    profile_name = "iOS Team Provisioning Profile: {}".format(telegram_bundle_id),
+    profile_name = (
+        "ice9 App Store: {}".format(telegram_bundle_id)
+        if telegram_aps_environment == "production"
+        else "iOS Team Provisioning Profile: {}".format(telegram_bundle_id)
+    ),
     team_id = telegram_team_id,
 )
 
