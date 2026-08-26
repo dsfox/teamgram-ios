@@ -765,8 +765,9 @@ private func privacyAndSecurityControllerEntries(
         entries.append(.savedMusicPrivacy(presentationData.theme, presentationData.strings.Privacy_SavedMusic, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.savedMusic)))
         entries.append(.forwardPrivacy(presentationData.theme, presentationData.strings.Privacy_Forwards, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.forwards)))
         // Who may call you is not a choice worth offering while nobody can
-        // call anybody (#14). Android drops the same row.
-        if Offered.videoChats {
+        // call anybody (#14). Android drops the same row. The switch used to
+        // be videoChats, which is #28 and a different thing.
+        if Offered.calls {
         entries.append(.voiceCallPrivacy(presentationData.theme, presentationData.strings.Privacy_Calls, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.voiceCalls)))
         }
         if !isPremiumDisabled || isPremium {
@@ -800,7 +801,7 @@ private func privacyAndSecurityControllerEntries(
         entries.append(.birthdayPrivacy(presentationData.theme, presentationData.strings.Privacy_Birthday, presentationData.strings.Channel_NotificationLoading))
         entries.append(.savedMusicPrivacy(presentationData.theme, presentationData.strings.Privacy_SavedMusic, presentationData.strings.Channel_NotificationLoading))
         entries.append(.forwardPrivacy(presentationData.theme, presentationData.strings.Privacy_Forwards, presentationData.strings.Channel_NotificationLoading))
-        if Offered.videoChats {
+        if Offered.calls {
         entries.append(.voiceCallPrivacy(presentationData.theme, presentationData.strings.Privacy_Calls, presentationData.strings.Channel_NotificationLoading))
         }
         if !isPremiumDisabled || isPremium {

@@ -46,6 +46,11 @@ public enum Offered {
     /// Video chats. Nothing behind them. Issue #28.
     public static let videoChats = false
 
+    /// Voice and video calls between people. Nothing places or receives one.
+    /// Issue #14 - which is not #28 above, though the rows for both were once
+    /// hidden by the same switch.
+    public static let calls = false
+
     /// Stories. Nothing behind them, and a private messenger for a few people
     /// is not where they belong first.
     public static let stories = false
@@ -81,6 +86,15 @@ public enum Offered {
     /// Gifts. The catalogue is answered with an empty list and nothing can be
     /// bought or sent, so a setting for who may send you one governs nothing.
     public static let gifts = false
+
+    /// Bots and the mini apps that run inside them.
+    ///
+    /// Not a stub but an absence: the server has no bots service, and not one
+    /// bots.* handler exists, so no account can be a bot and there is nothing
+    /// for a search over apps to find. The client already knew - its .apps
+    /// search returns an empty list without sending a request - and the tab
+    /// stayed anyway. Issue #105.
+    public static let bots = false
 
     // A round video in a conversation that encrypts used to be switched off
     // here: the one message uploaded while it was still being recorded, which

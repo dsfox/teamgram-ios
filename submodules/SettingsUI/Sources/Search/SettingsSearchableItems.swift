@@ -31,6 +31,114 @@ import AvatarEditorScreen
 import PeerSelectionScreen
 import DeviceModel
 
+/// Settings search is a second copy of the whole settings tree, and #91 kept
+/// finding nothing because it was walking the first one.
+///
+/// The sweeps took the switched-off rows out of the screens that draw them.
+/// This file is not those screens: it is a flat list of every destination in
+/// settings, built by a dozen functions of its own, and it went on offering
+/// every row that had been removed. Typing "calls" found seven settings for
+/// calls nobody can place; "channels", "stories", "gifts" and the cloud
+/// password were all one search away from screens that no longer show them.
+///
+/// Held here as one table of ids rather than an `if` at sixty build sites: an
+/// id is stable across upstream carries where the surrounding code is not, and
+/// a list that can be read in one screen is a list somebody will keep. Whole
+/// groups that are gone - premium, calls, folders - are dropped where they are
+/// appended instead, further down.
+///
+/// Each id says what is missing, in the same words as Offered.
+private let notOfferedSearchItems: [String: String] = [
+    // Calls: nothing places or receives one. #14.
+    "privacy/calls": "#14", "privacy/calls/never": "#14",
+    "privacy/calls/always": "#14", "privacy/calls/p2p": "#14",
+    "privacy/calls/p2p/never": "#14", "privacy/calls/p2p/always": "#14",
+    "privacy/calls/ios-integration": "#14",
+    "data/less-data-calls": "#14", "data/proxy/use-for-calls": "#14",
+
+    // Channels: none of it is built, here or on the server. #16.
+    "edit/channel": "#16",
+    "notifications/channels": "#16", "notifications/channels/edit": "#16",
+    "notifications/channels/show": "#16", "notifications/channels/preview": "#16",
+    "notifications/channels/sound": "#16",
+    "notifications/channels/add-exception": "#16",
+    "notifications/channels/delete-exceptions": "#16",
+    "notifications/include-channels": "#16",
+    "data/save-to-photos/channels": "#16",
+    "data/save-to-photos/channels/max-video-size": "#16",
+    "data/save-to-photos/channels/add-exception": "#16",
+    "data/save-to-photos/channels/delete-all": "#16",
+
+    // Stories: nothing behind them. #17.
+    "my-profile/posts": "#17", "my-profile/posts/all-stories": "#17",
+    "my-profile/posts/add-album": "#17", "my-profile/archived-posts": "#17",
+    "notifications/stories": "#17", "notifications/stories/new": "#17",
+    "notifications/stories/important": "#17",
+    "notifications/stories/show-sender": "#17",
+    "notifications/stories/sound": "#17",
+    "notifications/stories/add-exception": "#17",
+    "notifications/stories/delete-exceptions": "#17",
+    "data/auto-download/mobile/stories": "#17",
+    "data/auto-download/wifi/stories": "#17",
+
+    // Reactions: the server keeps none, so one is gone by the next sync. #18.
+    "notifications/reactions": "#18", "notifications/reactions/messages": "#18",
+    "notifications/reactions/stories": "#18",
+    "notifications/reactions/show-sender": "#18",
+    "notifications/reactions/sound": "#18",
+    "appearance/stickers-and-emoji/emoji/quick-reaction": "#18",
+    "appearance/stickers-and-emoji/emoji/quick-reaction/choose": "#18",
+
+    // Sticker packs: every list of them opens empty. #20.
+    "appearance/stickers-and-emoji/trending": "#20",
+    "appearance/stickers-and-emoji/archived": "#20",
+    "appearance/stickers-and-emoji/archived/edit": "#20",
+    "appearance/stickers-and-emoji/emoji/archived": "#20",
+    "appearance/stickers-and-emoji/emoji/archived/edit": "#20",
+
+    // The archive: moving a chat there has no handler. #25.
+    "privacy/archive-and-mute": "#25",
+
+    // Translation: no implementation anywhere. #27.
+    "language/show-button": "#27", "language/translate-chats": "#27",
+    "language/do-not-translate": "#27",
+
+    // Name colours: the picker would open empty. #24.
+    "edit/your-color": "#24", "profile-color": "#24",
+    "profile-color/profile": "#24", "profile-color/profile/add-icons": "#24",
+    "profile-color/profile/use-gift": "#24", "profile-color/name": "#24",
+    "profile-color/name/add-icons": "#24", "profile-color/name/use-gift": "#24",
+
+    // Gifts: the catalogue is empty and nothing can be bought or sent.
+    "my-profile/gifts": "gifts", "privacy/gifts": "gifts",
+    "privacy/gifts/show-icon": "gifts", "privacy/gifts/never": "gifts",
+    "privacy/gifts/always": "gifts", "privacy/gifts/accepted-types": "gifts",
+
+    // A cloud password the server never stores: account.getPassword always
+    // answers "no password" and nothing handles setting one.
+    "privacy/2sv": "cloud password", "privacy/2sv/change": "cloud password",
+    "privacy/2sv/disable": "cloud password",
+    "privacy/2sv/change-email": "cloud password",
+
+    // Passkeys: all six handlers on the server are blocked.
+    "privacy/passkey": "passkeys", "privacy/passkey/create": "passkeys",
+
+    // An address to receive login codes at: account.sendVerifyEmailCode is not
+    // implemented, so it would be taken and never confirmed.
+    "privacy/login-email": "login email",
+
+    // Bots and the websites they log you into: there is no bots service on the
+    // server, not one bots.* handler, and no payments service either. #105.
+    "privacy/active-websites": "#105",
+    "privacy/active-websites/edit": "#105",
+    "privacy/active-websites/disconnect-all": "#105",
+    "privacy/data-settings/bot-settings": "#105",
+    "privacy/data-settings/clear-payment-info": "#105",
+
+    // Asking a question reaches help.getSupport, which is refused outright.
+    "ask-question": "no support account",
+]
+
 enum SettingsSearchableItemIcon {
     case profile
     case proxy
@@ -4479,9 +4587,14 @@ func settingsSearchableItems(
         let languageItems = languageSearchableItems(context: context, localizations: localizations)
         allItems.append(contentsOf: languageItems)
         
-        let premiumItems = premiumSearchableItems(context: context)
-        allItems.append(contentsOf: premiumItems)
-        
+        // Premium, and everything sold through it - business, stars, TON,
+        // sending a gift. Four of the five handlers behind it on the server are
+        // blocked and nothing can be bought, so all nineteen entries opened a
+        // shop with no counter. Android suppresses the same list by asking
+        // whether premium is available at all.
+        // let premiumItems = premiumSearchableItems(context: context)
+        // allItems.append(contentsOf: premiumItems)
+
         let storiesItems = myProfileSearchableItems(context: context)
         allItems.append(contentsOf: storiesItems)
         
@@ -4517,8 +4630,23 @@ func settingsSearchableItems(
             }
         )
         allItems.append(deleteAccount)
-    
-        return allItems
+
+        // The table above, applied once. An id that is no longer anywhere in
+        // the list means upstream renamed it and the door it names is open
+        // again with nothing complaining - so a debug build says so loudly
+        // rather than letting the next carry quietly undo this.
+        #if DEBUG
+        let existingIds = Set(allItems.compactMap { $0.id.base as? String })
+        for id in notOfferedSearchItems.keys where !existingIds.contains(id) {
+            assertionFailure("settings search: \"\(id)\" is hidden but no longer exists - upstream renamed it, and whatever replaced it is now findable again (#91)")
+        }
+        #endif
+        return allItems.filter { item in
+            guard let id = item.id.base as? String else {
+                return true
+            }
+            return notOfferedSearchItems[id] == nil
+        }
     }
 }
 

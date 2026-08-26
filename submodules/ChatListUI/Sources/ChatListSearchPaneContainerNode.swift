@@ -106,13 +106,26 @@ func defaultAvailableSearchPanes(isForum: Bool, hasDownloads: Bool, hasPublicPos
     } else {
         result.append(.chats)
     }
-    if hasPublicPosts {
-        result.append(.publicPosts)
+    // Four tabs across the top of search that can only ever come back empty, and
+    // they arrived with the 12.9 carry rather than being missed before (#91).
+    //
+    // Posts - both kinds - search messages in public channels, which is
+    // channels.searchPosts on the server, and that is answered with
+    // ErrEnterpriseIsBlocked. Channels is #16. Apps searches for mini apps, and
+    // the server has no bots service at all - not one bots.* handler - so the
+    // client here does not even ask: the .apps branch of the search returns an
+    // empty list without a request. See Offered.
+    if Offered.channels {
+        if hasPublicPosts {
+            result.append(.publicPosts)
+        }
+        result.append(.channels)
+        if !isForum {
+            result.append(.globalPosts)
+        }
     }
-    result.append(.channels)
-    result.append(.apps)
-    if !isForum {
-        result.append(.globalPosts)
+    if Offered.bots {
+        result.append(.apps)
     }
     result.append(contentsOf: [.media, .downloads, .links, .files, .music, .voice])
         

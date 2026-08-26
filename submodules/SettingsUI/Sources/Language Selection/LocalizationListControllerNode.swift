@@ -438,7 +438,12 @@ final class LocalizationListControllerNode: ViewControllerTracingNode {
         let translationConfiguration = TranslationConfiguration.with(appConfiguration: context.currentAppConfiguration.with { $0 })
         var translateButtonAvailable = false
         var chatTranslationAvailable = false
-        
+
+        // Two switches for a button that can never appear: translation has no
+        // implementation on the server and none of ours (#27), and on iOS 18 a
+        // "system" configuration turns both on regardless of what the server
+        // says. Android drops the same section. See Offered.
+        if Offered.translation {
         switch translationConfiguration.manual {
         case .enabled, .alternative:
             translateButtonAvailable = true
@@ -459,6 +464,7 @@ final class LocalizationListControllerNode: ViewControllerTracingNode {
             }
         default:
             break
+        }
         }
         
         let previousState = Atomic<LocalizationListState?>(value: nil)

@@ -318,9 +318,15 @@ private func dataPrivacyControllerEntries(presentationData: PresentationData, st
     
     entries.append(.chatsHeader(presentationData.theme, presentationData.strings.Privacy_ChatsTitle))
     entries.append(.deleteCloudDrafts(presentationData.theme, presentationData.strings.Privacy_DeleteDrafts, !state.deletingCloudDrafts))
-    entries.append(.paymentHeader(presentationData.theme, presentationData.strings.Privacy_PaymentsTitle))
-    entries.append(.clearPaymentInfo(presentationData.theme, presentationData.strings.Privacy_PaymentsClearInfo, !state.clearingPaymentInfo))
-    entries.append(.paymentInfo(presentationData.theme, presentationData.strings.Privacy_PaymentsClearInfoHelp))
+    // A section for clearing payment and shipping details that cannot exist:
+    // there is no payments service on the server, so payments.clearSavedInfo is
+    // refused and the row clears nothing. Android drops the same one, where it
+    // sat under a heading reading "Bots and websites". See Offered.
+    if Offered.bots {
+        entries.append(.paymentHeader(presentationData.theme, presentationData.strings.Privacy_PaymentsTitle))
+        entries.append(.clearPaymentInfo(presentationData.theme, presentationData.strings.Privacy_PaymentsClearInfo, !state.clearingPaymentInfo))
+        entries.append(.paymentInfo(presentationData.theme, presentationData.strings.Privacy_PaymentsClearInfoHelp))
+    }
     
     entries.append(.secretChatLinkPreviewsHeader(presentationData.theme, presentationData.strings.Privacy_SecretChatsTitle))
     entries.append(.secretChatLinkPreviews(presentationData.theme, presentationData.strings.Privacy_SecretChatsLinkPreviews, secretChatLinkPreviews ?? true))
