@@ -325,7 +325,7 @@ private enum WebBrowserSettingsControllerEntry: ItemListNodeEntry {
 private func webBrowserSettingsControllerEntries(context: AccountContext, presentationData: PresentationData, localSettings: WebBrowserSettings, accountSettings: AccountWebBrowserSettings) -> [WebBrowserSettingsControllerEntry] {
     var entries: [WebBrowserSettingsControllerEntry] = []
     
-    let options = availableOpenInOptions(context: context, item: .url(url: "http://teamgram.net"))
+    let options = availableOpenInOptions(context: context, item: .url(url: "http://ice9.app"))
     let defaultExternalBrowser = localSettings.defaultWebBrowser ?? "default"
     
     entries.append(.browserHeader(presentationData.theme, presentationData.strings.WebBrowser_OpenLinksIn_Title))

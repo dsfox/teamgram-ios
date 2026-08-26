@@ -62,7 +62,7 @@ final class LanguageLinkPreviewContentNode: ASDisplayNode, ShareContentContainer
                 if localizationInfo.platformUrl.isEmpty {
                     url = localizationInfo.platformUrl
                 } else {
-                    url = "https://teamgram.net/translations/\(localizationInfo.languageCode)/"
+                    url = "https://ice9.app\(localizationInfo.languageCode)/"
                 }
                 openTranslationUrl(url)
             }

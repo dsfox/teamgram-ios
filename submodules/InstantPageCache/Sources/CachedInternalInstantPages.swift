@@ -27,7 +27,7 @@ private let refreshTimeout: Int32 = 60 * 60 * 12
 public func cachedFaqInstantPage(context: AccountContext) -> Signal<ResolvedUrl, NoError> {
     var faqUrl = context.sharedContext.currentPresentationData.with { $0 }.strings.Settings_FAQ_URL
     if faqUrl == "Settings.FAQ_URL" || faqUrl.isEmpty {
-        faqUrl = "https://teamgram.net/faq#general-questions"
+        faqUrl = "https://ice9.app/how-it-works#general-questions"
     }
     return cachedInternalInstantPage(context: context, url: faqUrl)
 }
@@ -35,7 +35,7 @@ public func cachedFaqInstantPage(context: AccountContext) -> Signal<ResolvedUrl,
 public func cachedTermsPage(context: AccountContext) -> Signal<ResolvedUrl, NoError> {
     var termsUrl = context.sharedContext.currentPresentationData.with { $0 }.strings.Settings_Terms_URL
     if termsUrl == "Settings.Terms_URL" || termsUrl.isEmpty {
-        termsUrl = "https://teamgram.net/tos"
+        termsUrl = "https://ice9.app/terms"
     }
     return cachedInternalInstantPage(context: context, url: termsUrl)
 }
@@ -43,7 +43,7 @@ public func cachedTermsPage(context: AccountContext) -> Signal<ResolvedUrl, NoEr
 public func cachedPrivacyPage(context: AccountContext) -> Signal<ResolvedUrl, NoError> {
     var privacyUrl = context.sharedContext.currentPresentationData.with { $0 }.strings.Settings_PrivacyPolicy_URL
     if privacyUrl == "Settings.PrivacyPolicy_URL" || privacyUrl.isEmpty {
-        privacyUrl = "https://teamgram.net/privacy"
+        privacyUrl = "https://ice9.app/privacy"
     }
     return cachedInternalInstantPage(context: context, url: privacyUrl)
 }
@@ -51,7 +51,7 @@ public func cachedPrivacyPage(context: AccountContext) -> Signal<ResolvedUrl, No
 public func cachedWebAppTermsPage(context: AccountContext) -> Signal<ResolvedUrl, NoError> {
     var privacyUrl = context.sharedContext.currentPresentationData.with { $0 }.strings.WebApp_TermsOfUse_URL
     if privacyUrl == "WebApp.TermsOfUse_URL" || privacyUrl.isEmpty {
-        privacyUrl = "https://teamgram.net/tos/mini-apps"
+        privacyUrl = "https://ice9.app/terms"
     }
     return cachedInternalInstantPage(context: context, url: privacyUrl)
 }

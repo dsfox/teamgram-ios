@@ -215,7 +215,7 @@ public final class PermissionController: ViewController {
         }
         self.controllerNode.openPrivacyPolicy = { [weak self] in
             if let strongSelf = self {
-                strongSelf.context.sharedContext.openExternalUrl(context: strongSelf.context, urlContext: .generic, url: "https://teamgram.net/privacy", forceExternal: true, presentationData: strongSelf.context.sharedContext.currentPresentationData.with { $0 }, navigationController: nil, dismissInput: {})
+                strongSelf.context.sharedContext.openExternalUrl(context: strongSelf.context, urlContext: .generic, url: "https://ice9.app/privacy", forceExternal: true, presentationData: strongSelf.context.sharedContext.currentPresentationData.with { $0 }, navigationController: nil, dismissInput: {})
             }
         }
     }

@@ -4,7 +4,7 @@ import TelegramCore
 import Emoji
 
 private let whitelistedHosts: Set<String> = Set([
-    "teamgram.net",
+    "ice9.app",
     "i.ice9.app"
 ])
 

@@ -147,7 +147,7 @@ public func ChangePhoneNumberController(context: AccountContext) -> ViewControll
                     
                     if MFMailComposeViewController.canSendMail() {
                         let composeController = MFMailComposeViewController()
-                        composeController.setToRecipients(["recover@teamgram.net"])
+                        composeController.setToRecipients(["support@ice9.app"])
                         composeController.setSubject(presentationData.strings.Login_PhoneBannedEmailSubject(formattedNumber).string)
                         composeController.setMessageBody(presentationData.strings.Login_PhoneBannedEmailBody(formattedNumber, appVersion, systemVersion, locale, mnc).string, isHTML: false)
                         composeController.mailComposeDelegate = controller

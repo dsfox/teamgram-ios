@@ -126,9 +126,9 @@ final class SecretChatKeyControllerNode: ViewControllerTracingNode {
             infoText.addAttributes([.font: Font.semibold(14.0)], range: range.range)
         }
         
-        let linkRange = (infoString.string as NSString).range(of: "teamgram.net")
+        let linkRange = (infoString.string as NSString).range(of: "ice9.app")
         if linkRange.location != NSNotFound {
-            infoText.addAttributes([.foregroundColor: self.presentationData.theme.list.itemAccentColor, NSAttributedString.Key(rawValue: TelegramTextAttributes.URL): "https://teamgram.net/faq#secret-chats"], range: linkRange)
+            infoText.addAttributes([.foregroundColor: self.presentationData.theme.list.itemAccentColor, NSAttributedString.Key(rawValue: TelegramTextAttributes.URL): "https://ice9.app/how-it-works#secret-chats"], range: linkRange)
         }
         
         let (infoLayout, infoApply) = makeInfoLayout(TextNodeLayoutArguments(attributedString: infoText, backgroundColor: nil, maximumNumberOfLines: 0, truncationType: .end, constrainedSize: CGSize(width: layout.size.width - sideInset * 2.0, height: CGFloat.greatestFiniteMagnitude), alignment: .center, lineSpacing: 0.0, cutout: nil, insets: UIEdgeInsets()))

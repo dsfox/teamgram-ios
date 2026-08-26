@@ -19,18 +19,10 @@ public func isConcealedUrlWhitelisted(_ url: URL) -> Bool {
             return true
         }
     }
-    if let host = url.host?.lowercased(), host == "teamgram.net" {
-        let whitelistedNativePrefixes: Set<String> = Set([
-            "/blog/",
-            "/tour/"
-        ])
-
-        for nativePrefix in whitelistedNativePrefixes {
-            if url.path.starts(with: nativePrefix) {
-                return true
-            }
-        }
-    }
+    // A second block stood here, letting through two paths - /blog/ and /tour/ -
+    // on the host above. It was upstream's, for pages upstream has; ours has
+    // neither, and the host is now whitelisted whole a few lines up, so it could
+    // never have been reached anyway (#102).
     return false
 }
 

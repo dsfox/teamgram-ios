@@ -15,8 +15,8 @@ private let baseTelegramMePaths = ["i.ice9.app"]
 private let telegramWebShortLinkHosts: [String] = []
 private let baseTelegraPhPaths = [
     "i.ice9.app/iv?",
-    "teamgram.net/blog/",
-    "teamgram.net/tour/"
+    "ice9.app/blog/",
+    "ice9.app/tour/"
 ]
 
 public func isTelegramWebShortLink(_ url: String) -> Bool {

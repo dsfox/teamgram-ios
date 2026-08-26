@@ -199,7 +199,7 @@ public func logoutOptionsController(context: AccountContext, navigationControlle
         
         var faqUrl = presentationData.strings.Settings_FAQ_URL
         if faqUrl == "Settings.FAQ_URL" || faqUrl.isEmpty {
-            faqUrl = "https://teamgram.net/faq#general"
+            faqUrl = "https://ice9.app/how-it-works#general"
         }
         let resolvedUrl = resolveInstantViewUrl(account: context.account, url: faqUrl)
         |> mapToSignal { result -> Signal<ResolvedUrl, NoError> in
