@@ -16598,3 +16598,11 @@ Error: %8$@";
 "TextProcessing.ActionGenerate" = "Generate";
 "TextProcessing.StyleList.Prompt" = "Prompt";
 "TextProcessing.PromptPlaceholder" = "Generate text, formulas, or tables...";
+
+/* The only string of ours in this file so far. A message that arrived
+   encrypted and cannot be read on this device - it was written into a
+   conversation this device was never let into, or its welcome has not arrived
+   yet. What is stored for it is a lock and nothing else, so the words are put
+   on here, where the app's own strings are (#104). The Android client says the
+   same sentence under the key Ice9MessageFromAnotherDevice. */
+"Ice9.MessageFromAnotherDevice" = "🔒 Message from another device";

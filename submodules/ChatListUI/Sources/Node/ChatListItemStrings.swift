@@ -109,6 +109,22 @@ public func chatListItemStrings(strings: PresentationStrings, nameDisplayOrder: 
                 messageText = preview.string
                 richTextPreview = preview
                 messageEntities = []
+            } else if message.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) {
+                // A message this device cannot read yet. What is stored for it
+                // is a lock and nothing else, so this row read as a padlock
+                // with no explanation (#104).
+                //
+                // Here rather than only in messageContentKind, which was where
+                // this was expected to live: the chat list row does not go
+                // through it. It reads message.text on the line below, so the
+                // fix put there rendered the row unchanged and looked as
+                // though it had been made - the same lock, from the same
+                // build, is what said otherwise.
+                //
+                // Keyed on the attribute, because a person may send a lock.
+                messageText = strings.Ice9_MessageFromAnotherDevice
+                richTextPreview = nil
+                messageEntities = []
             } else if !message.text.isEmpty {
                 messageText = message.text
                 richTextPreview = nil

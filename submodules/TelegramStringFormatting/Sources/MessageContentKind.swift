@@ -299,6 +299,20 @@ public func messageTextWithAttributes(message: EngineMessage) -> NSAttributedStr
 }
 
 public func messageContentKind(contentSettings: ContentSettings, message: EngineMessage, strings: PresentationStrings, nameDisplayOrder: PresentationPersonNameOrder, dateTimeFormat: PresentationDateTimeFormat, accountPeerId: EnginePeer.Id) -> MessageContentKind {
+    // A message this device cannot read yet. What is stored for it is a lock
+    // and nothing else, because the storage layer has no business holding a
+    // sentence in one language while the app is in another - the comment on
+    // MlsCiphertextMessageAttribute.placeholder says a phrase belongs in the
+    // render layer if one is ever wanted, and #104 is where one was.
+    //
+    // Read off the attribute rather than off the text: a person can send a
+    // lock themselves, and their message would then be answered with a
+    // sentence they never wrote.
+    for attribute in message.attributes {
+        if attribute is MlsCiphertextMessageAttribute {
+            return .text(NSAttributedString(string: strings.Ice9_MessageFromAnotherDevice))
+        }
+    }
     for attribute in message.attributes {
         if let attribute = attribute as? RestrictedContentMessageAttribute {
             if let text = attribute.platformText(platform: "ios", contentSettings: contentSettings) {

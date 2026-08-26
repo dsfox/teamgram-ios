@@ -388,6 +388,18 @@ public class ChatMessageTextBubbleContentNode: ChatMessageBubbleContentNode {
                 } else if isUnsupportedMedia {
                     rawText = item.presentationData.strings.Conversation_UnsupportedMediaPlaceholder
                     messageEntities = [MessageTextEntity(range: 0..<rawText.count, type: .Italic)]
+                } else if item.message.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) {
+                    // The bubble's half of #104. What is stored for a message
+                    // this device cannot read is a lock and nothing else, so
+                    // without this the bubble held a single padlock and no
+                    // explanation. Italic for the same reason the unsupported
+                    // placeholder above is italic: these are the app's words,
+                    // not the sender's.
+                    //
+                    // The attribute is the signal, not the text - somebody may
+                    // send a lock on purpose.
+                    rawText = item.presentationData.strings.Ice9_MessageFromAnotherDevice
+                    messageEntities = [MessageTextEntity(range: 0..<rawText.count, type: .Italic)]
                 } else {
                     if let updatingMedia = item.attributes.updatingMedia {
                         rawText = updatingMedia.text

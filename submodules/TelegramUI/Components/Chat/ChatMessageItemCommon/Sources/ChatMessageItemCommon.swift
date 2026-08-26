@@ -240,6 +240,17 @@ public extension ChatReplyThreadMessage {
 }
 
 public func messageIsEligibleForLargeEmoji(_ message: EngineMessage) -> Bool {
+    // What is stored for a message this device cannot read is a single lock,
+    // and a message of one emoji is drawn as a huge emoji on its own, with no
+    // bubble and nowhere to put a word. That is what #104 looked like on the
+    // screen: a padlock the size of a thumb and no explanation.
+    //
+    // The bubble's own placeholder cannot help while the message never reaches
+    // it, so the eligibility is refused here first. Keyed on the attribute,
+    // because a person may send a lock and theirs should still be large.
+    if message.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) {
+        return false
+    }
     if !message.text.isEmpty && message.text.containsOnlyEmoji {
         if !(message.textEntitiesAttribute?.entities.isEmpty ?? true) {
             return false
