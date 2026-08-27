@@ -52,7 +52,14 @@ func _internal_addGroupMember(account: Account, peerId: PeerId, memberId: PeerId
     return account.postbox.transaction { transaction -> Signal<Void, AddGroupMemberError> in
         if let peer = transaction.getPeer(peerId), let memberPeer = transaction.getPeer(memberId), let inputUser = apiInputUser(memberPeer) {
             if let group = peer as? TelegramGroup {
-                return account.network.request(Api.functions.messages.addChatUser(chatId: group.id.id._internalGetInt64Value(), userId: inputUser, fwdLimit: 100))
+                // fwdLimit 0, not 100: the last hundred messages cannot be
+                // shown to somebody joining now (#40). They are encrypted to an
+                // epoch that person was never in and MLS gives no history by
+                // design, so the hundred would arrive and be hidden as
+                // unreadable. Asking for them costs a hundred rows and delivers
+                // nothing. Giving somebody history is #43, a backup keyed by
+                // the recovery phrase, and a different thing entirely.
+                return account.network.request(Api.functions.messages.addChatUser(chatId: group.id.id._internalGetInt64Value(), userId: inputUser, fwdLimit: 0))
                 |> `catch` { error -> Signal<Api.messages.InvitedUsers, AddGroupMemberError> in
                     switch error.errorDescription {
                     case "USERS_TOO_MUCH":
