@@ -648,6 +648,110 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
     }
 }
 
+/// Applies the membership changes waiting for this device, and says which
+/// conversations moved.
+///
+/// The twin of joinPendingWelcomes, for the other box. A commit is what takes a
+/// group from one epoch to the next - somebody added, somebody removed - and a
+/// device that has not applied one can read nothing said afterwards. It is
+/// ordinary to be behind: the commit and the message travel by different routes
+/// and the message often wins.
+///
+/// Order is the whole discipline here. Commits arrive oldest first because a
+/// commit applies only to the epoch it was made from, so out of order every one
+/// but the first fails. Anything already behind this device's own epoch has
+/// been applied before and is dropped on sight - the same commit arrives twice
+/// on ordinary routes, through a confirmation that was lost or a device that
+/// stopped before saving.
+func applyPendingCommits(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<[Data], NoError> {
+    return Signal<[Data], NoError> { subscriber in
+        let identity: MlsIdentity
+        do {
+            identity = try mlsIdentity(postbox: postbox, accountPeerId: accountPeerId)
+        } catch {
+            subscriber.putNext([])
+            subscriber.putCompletion()
+            return EmptyDisposable
+        }
+
+        let disposable = (network.request(Api.functions.mls.getCommits())
+        |> map(Optional.init)
+        |> `catch` { _ -> Signal<Api.mls.Commits?, NoError> in
+            return .single(nil)
+        }
+        |> mapToSignal { result -> Signal<[Data], NoError> in
+            guard let result = result, !result.commits.isEmpty else {
+                return .single([])
+            }
+
+            var applied: [Int64] = []
+            var moved: [Data] = []
+            for waiting in result.commits {
+                let groupId = waiting.groupId.makeData()
+                guard let group = try? MlsGroup.load(identity: identity, id: groupId), let group else {
+                    // A conversation this device is not in yet. Ordinary while
+                    // the welcome is still travelling, and it must not be
+                    // confirmed - that would throw away the only copy.
+                    continue
+                }
+                let epoch = Int64(group.epoch)
+                if waiting.epoch < epoch {
+                    applied.append(waiting.id)
+                    continue
+                }
+                if waiting.epoch > epoch {
+                    // Not this one's turn: an earlier commit for this
+                    // conversation has still to arrive.
+                    continue
+                }
+                do {
+                    let somebodyElses = try group.applyCommit(
+                        identity: identity, commit: waiting.commit.makeData())
+                    applied.append(waiting.id)
+                    if somebodyElses {
+                        moved.append(groupId)
+                        Logger.shared.log("Mls", "\(mlsShortId(groupId)) moved to epoch \(waiting.epoch + 1), changed by \(waiting.fromId)")
+                    } else {
+                        Logger.shared.log("Mls", "our own change to \(mlsShortId(groupId)) was taken after all")
+                    }
+                } catch {
+                    // Left unconfirmed on purpose: it may become applicable
+                    // once an earlier one arrives.
+                    Logger.shared.log("Mls", "cannot apply a commit to \(mlsShortId(groupId)): \(error)")
+                }
+            }
+
+            guard !applied.isEmpty, let state = try? identity.export() else {
+                return .single([])
+            }
+
+            // Saved before it is confirmed, and in that order. A commit
+            // confirmed and then lost leaves this device an epoch behind, where
+            // nothing new opens - which surfaces much later as a conversation
+            // that went quiet for one person, and looks like anything but a
+            // lost commit.
+            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
+
+            return network.request(Api.functions.mls.confirmCommits(ids: applied))
+            |> map { _ -> [Data] in moved }
+            |> `catch` { _ -> Signal<[Data], NoError> in
+                // Unconfirmed means they arrive again, which is harmless: one
+                // already applied is behind this device's epoch and is dropped
+                // on sight.
+                return .single(moved)
+            }
+        }).start(next: { moved in
+            subscriber.putNext(moved)
+        }, completed: {
+            subscriber.putCompletion()
+        })
+
+        return ActionDisposable {
+            disposable.dispose()
+        }
+    }
+}
+
 /// Joins the conversations other people have started with this device, over and
 /// over, and reads back the messages that beat their welcome here.
 func managedMlsWelcomes(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
