@@ -85,6 +85,60 @@ public extension Api.functions {
             })
         }
 
+        /// mls.sendCommit group_id:bytes epoch:long members:Vector<long> commit:bytes = mls.CommitResult;
+        ///
+        /// A membership change, offered to the delivery service. It is the one
+        /// place the server has an opinion about a conversation: MLS validates
+        /// a commit against the epoch it was made from, so of two made from the
+        /// same epoch exactly one can be taken, and RFC 9420 gives that
+        /// ordering to the delivery service. The answer says which.
+        public static func sendCommit(groupId: Buffer, epoch: Int64, members: [Int64], commit: Buffer) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.CommitResult>) {
+            let buffer = Buffer()
+            buffer.appendInt32(-945155929)
+            serializeBytes(groupId, buffer: buffer, boxed: false)
+            serializeInt64(epoch, buffer: buffer, boxed: false)
+            buffer.appendInt32(481674261)
+            buffer.appendInt32(Int32(members.count))
+            for item in members {
+                serializeInt64(item, buffer: buffer, boxed: false)
+            }
+            serializeBytes(commit, buffer: buffer, boxed: false)
+            return (FunctionDescription(name: "mls.sendCommit", parameters: [("epoch", ConstructorParameterDescription(epoch))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.CommitResult? in
+                let reader = BufferReader(buffer)
+                return Api.mls.CommitResult.parse(reader)
+            })
+        }
+
+        /// mls.getCommits = mls.Commits;
+        public static func getCommits() -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Commits>) {
+            let buffer = Buffer()
+            buffer.appendInt32(1356576713)
+            return (FunctionDescription(name: "mls.getCommits", parameters: []), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Commits? in
+                let reader = BufferReader(buffer)
+                return Api.mls.Commits.parse(reader)
+            })
+        }
+
+        /// mls.confirmCommits ids:Vector<long> = mls.Ok;
+        ///
+        /// Applied, not received. A device that took a commit and stopped
+        /// before saving the state it produced has to be given it again, or it
+        /// sits an epoch behind and the conversation goes quiet for that person
+        /// alone.
+        public static func confirmCommits(ids: [Int64]) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Ok>) {
+            let buffer = Buffer()
+            buffer.appendInt32(96655983)
+            buffer.appendInt32(481674261)
+            buffer.appendInt32(Int32(ids.count))
+            for item in ids {
+                serializeInt64(item, buffer: buffer, boxed: false)
+            }
+            return (FunctionDescription(name: "mls.confirmCommits", parameters: [("ids", ConstructorParameterDescription(ids))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Ok? in
+                let reader = BufferReader(buffer)
+                return Api.mls.Ok.parse(reader)
+            })
+        }
+
         /// mls.claimKeyPackages user_id:long = mls.KeyPackages;
         public static func claimKeyPackages(userId: Int64) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.KeyPackages>) {
             let buffer = Buffer()
@@ -177,6 +231,79 @@ public extension Api {
                     welcomes.append(item)
                 }
                 return Welcomes(welcomes: welcomes)
+            }
+        }
+
+        /// mls.commitResult accepted:Bool epoch:long = mls.CommitResult;
+        public struct CommitResult {
+            public let accepted: Swift.Bool
+            /// Where the conversation really is. Present on refusal too, which
+            /// is the whole point: it tells the loser of a race how far behind
+            /// it is without another round trip.
+            public let epoch: Int64
+
+            public static func parse(_ reader: BufferReader) -> CommitResult? {
+                guard let signature = reader.readInt32(), signature == 191372459 else {
+                    return nil
+                }
+                guard let accepted = reader.readInt32(),
+                      let epoch = reader.readInt64() else {
+                    return nil
+                }
+                return CommitResult(accepted: accepted == -1720552011, epoch: epoch)
+            }
+        }
+
+        /// mls.commit id:long from_id:long group_id:bytes epoch:long commit:bytes = mls.Commit;
+        public struct Commit {
+            public let id: Int64
+            public let fromId: Int64
+            public let groupId: Buffer
+            /// The epoch this commit was made from. A device applies them in
+            /// this order and can tell at a glance whether one is behind it.
+            public let epoch: Int64
+            public let commit: Buffer
+
+            static func parse(_ reader: BufferReader) -> Commit? {
+                guard let signature = reader.readInt32(), signature == -130530128 else {
+                    return nil
+                }
+                guard let id = reader.readInt64(),
+                      let fromId = reader.readInt64(),
+                      let groupId = parseBytes(reader),
+                      let epoch = reader.readInt64(),
+                      let commit = parseBytes(reader) else {
+                    return nil
+                }
+                return Commit(id: id, fromId: fromId, groupId: groupId, epoch: epoch, commit: commit)
+            }
+        }
+
+        /// mls.commits commits:Vector<mls.Commit> = mls.Commits;
+        public struct Commits {
+            /// Oldest first, and that is not a nicety: a commit applies only to
+            /// the epoch it was made from, so out of order every one but the
+            /// first fails.
+            public let commits: [Commit]
+
+            public static func parse(_ reader: BufferReader) -> Commits? {
+                guard let signature = reader.readInt32(), signature == -902742102 else {
+                    return nil
+                }
+                guard let vector = reader.readInt32(), vector == 481674261 else {
+                    return nil
+                }
+                guard let count = reader.readInt32() else {
+                    return nil
+                }
+                var commits: [Commit] = []
+                for _ in 0 ..< count {
+                    guard let item = Commit.parse(reader) else {
+                        return nil
+                    }
+                    commits.append(item)
+                }
+                return Commits(commits: commits)
             }
         }
 

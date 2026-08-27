@@ -219,6 +219,116 @@ public final class MlsGroup {
         return (commit: commit, welcome: welcome)
     }
 
+    /// Removes every device whose name begins with one of these prefixes, and
+    /// gives back the commit the rest have to apply.
+    ///
+    /// By prefix because removal is asked about a *person* and answered about
+    /// devices: a device is named `<user>/<device>`, so the prefix is the
+    /// person. Taking one phone and leaving another is worse than not removing
+    /// at all - they go on reading from the one that stayed while the interface
+    /// says they are gone.
+    ///
+    /// Nil when nobody matched, which is not a failure: two people removing the
+    /// same person at once is ordinary, and the second is looking at a group
+    /// that already looks the way they wanted.
+    public func removeMembers(identity: MlsIdentity, namePrefixes: [Data]) throws -> Data? {
+        var joined = Data()
+        for name in namePrefixes {
+            var length = UInt32(name.count).bigEndian
+            withUnsafeBytes(of: &length) { joined.append(contentsOf: $0) }
+            joined.append(name)
+        }
+
+        let buffer = joined.withUnsafeBytes { raw -> MlsBuffer in
+            mls_group_remove_members(
+                self.handle,
+                identity.handle,
+                raw.bindMemory(to: UInt8.self).baseAddress,
+                UInt(joined.count)
+            )
+        }
+        // Nothing back means nothing to do, and the other client reads it the
+        // same way. It could also mean the call failed, and the two are not
+        // told apart here on purpose: the answer either way is that this device
+        // has no commit to offer, and the comparison that asked will ask again.
+        guard buffer.ptr != nil else {
+            return nil
+        }
+        return try take(buffer, "the members were not removed")
+    }
+
+    /// Who is in the conversation, by the name each device goes under.
+    ///
+    /// The count cannot answer what this is asked for: two people leaving and
+    /// two joining leaves the count exactly where it was.
+    public func memberNames() -> [Data] {
+        let buffer = mls_group_member_names(self.handle)
+        guard let packed = try? take(buffer, "") else {
+            return []
+        }
+        var names: [Data] = []
+        var at = 0
+        while at + 4 <= packed.count {
+            let length = Int(
+                UInt32(packed[at]) << 24 | UInt32(packed[at + 1]) << 16
+                    | UInt32(packed[at + 2]) << 8 | UInt32(packed[at + 3])
+            )
+            at += 4
+            if length < 0 || at + length > packed.count {
+                break
+            }
+            names.append(packed.subdata(in: at ..< (at + length)))
+            at += length
+        }
+        return names
+    }
+
+    /// Makes this device's own commit real, once the delivery service has said
+    /// it is the one that took its epoch.
+    ///
+    /// Adding and removing leave the commit pending on purpose. Of two commits
+    /// made from one epoch the protocol takes only one, and a device that moved
+    /// on without being told it won ends up in a group of its own that nobody
+    /// else can read - which shows up much later as a conversation that went
+    /// quiet, for no visible reason.
+    public func acceptCommit(identity: MlsIdentity) throws {
+        if !mls_group_accept_commit(self.handle, identity.handle) {
+            throw MlsError.last("the commit was not applied")
+        }
+    }
+
+    /// Lets go of a commit the delivery service refused, so the winner can be
+    /// applied and the change made again on top of it.
+    public func abandonCommit(identity: MlsIdentity) throws {
+        if !mls_group_abandon_commit(self.handle, identity.handle) {
+            throw MlsError.last("the commit was not let go of")
+        }
+    }
+
+    /// Applies a commit that arrived through the commit box.
+    ///
+    /// True when the group moved because somebody else changed it. False when
+    /// the commit is one this device made and is being handed back - which is
+    /// how the delivery service says it won, and the answer is to apply what is
+    /// already staged here. That second half is what makes a lost answer
+    /// survivable: a device that sent a commit and never heard back has no
+    /// other way to find out, and would sit for ever at an epoch everybody else
+    /// has left.
+    public func applyCommit(identity: MlsIdentity, commit: Data) throws -> Bool {
+        let applied = commit.withUnsafeBytes { raw -> Int32 in
+            mls_group_apply_commit(
+                self.handle,
+                identity.handle,
+                raw.bindMemory(to: UInt8.self).baseAddress,
+                UInt(commit.count)
+            )
+        }
+        if applied < 0 {
+            throw MlsError.last("the commit was not applied")
+        }
+        return applied == 1
+    }
+
     public func encrypt(identity: MlsIdentity, plaintext: Data) throws -> Data {
         let buffer = plaintext.withUnsafeBytes { raw -> MlsBuffer in
             mls_group_encrypt(
