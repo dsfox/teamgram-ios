@@ -762,6 +762,22 @@ public final class MlsRuntime {
     /// the app was restarted, because a restart is what reads the note back.
     /// Nothing about a message that will not open should depend on a signal
     /// chain finishing.
+    /// Which chats these conversations belong to.
+    ///
+    /// A commit names a group and nothing else, because that is all the server
+    /// knows. This is the only place both facts are held at once - and it can
+    /// answer now that a conversation is filed under the whole peer rather than
+    /// a bare id (#111).
+    public func peers(ofConversations groupIds: [Data]) -> [PeerId] {
+        self.queue.lock()
+        defer { self.queue.unlock() }
+        var found: [PeerId] = []
+        for (key, known) in self.conversationIds where groupIds.contains(known) {
+            found.append(PeerId.fromMlsKey(key))
+        }
+        return found
+    }
+
     public func adopt(peerId: PeerId, groupId: Data) {
         self.queue.lock()
         self.conversationIds[peerId.mlsKey] = groupId

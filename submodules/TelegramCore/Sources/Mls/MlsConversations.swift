@@ -798,3 +798,37 @@ func managedMlsWelcomes(postbox: Postbox, network: Network, accountPeerId: PeerI
     return (poll |> then(Signal<Void, NoError>.complete() |> suspendAwareDelay(30.0, queue: Queue.concurrentDefaultQueue())))
     |> restart
 }
+
+/// Applies the membership changes waiting for this device, over and over, and
+/// reads back the messages that were written in an epoch it had not reached.
+///
+/// The twin of managedMlsWelcomes, on the same rhythm and for the same reason:
+/// what opens a message travels by a different route from the message, and
+/// nothing reliably says when it has arrived. Asking every half minute is what
+/// the welcome box already does, and this is the other box.
+///
+/// A commit says which conversation moved and cannot say which chat that is -
+/// the server does not know, and must not. So the chats are found by looking up
+/// each group among the ones this device holds; anything that cannot be placed
+/// is still applied, and only the reading back is skipped.
+func managedMlsCommits(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
+    let poll = applyPendingCommits(postbox: postbox, network: network, accountPeerId: accountPeerId)
+    |> mapToSignal { moved -> Signal<Void, NoError> in
+        guard !moved.isEmpty else {
+            return .complete()
+        }
+        let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+        return runtime.reload()
+        |> mapToSignal { _ -> Signal<Void, NoError> in
+            let peers = runtime.peers(ofConversations: moved)
+            guard !peers.isEmpty else {
+                return .complete()
+            }
+            return combineLatest(peers.map { repairUnreadableMessages(postbox: postbox, runtime: runtime, peerId: $0) })
+            |> map { _ -> Void in }
+        }
+    }
+
+    return (poll |> then(Signal<Void, NoError>.complete() |> suspendAwareDelay(30.0, queue: Queue.concurrentDefaultQueue())))
+    |> restart
+}
