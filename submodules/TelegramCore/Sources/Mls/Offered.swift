@@ -59,6 +59,14 @@ public enum Offered {
     /// conversations between people; broadcasting is a different thing.
     public static let channels = false
 
+    /// An avatar built out of an emoji on a coloured background.
+    ///
+    /// There are no emoji to build it from: account.getDefaultProfilePhotoEmojis
+    /// is an empty stub and no emoji pack can be installed (#20), so the picker
+    /// opens empty with a search box that finds nothing. Comes back with the
+    /// packs.
+    public static let emojiAvatar = false
+
     /// Reactions. The server keeps none, so one appears for a moment on the
     /// phone that tapped it and is gone by the next sync.
     public static let reactions = false
