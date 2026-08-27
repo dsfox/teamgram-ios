@@ -95,6 +95,36 @@ public struct MlsConversationIds: Codable, Equatable {
     }
 }
 
+public extension PeerId {
+    /// How a conversation is filed: the whole peer id, namespace and all.
+    ///
+    /// It used to be the bare id, which is the same number for a person and for
+    /// a group - invisible while every encrypted chat was between two people,
+    /// and wrong the moment groups arrived: they would overwrite each other,
+    /// and a commit naming only a group id could not say which chat to read
+    /// back (#111).
+    var mlsKey: Int64 {
+        return self.toInt64()
+    }
+
+    /// The peer a filed conversation belongs to.
+    ///
+    /// Keys written before the namespace was kept are bare user ids, and for
+    /// every id below 2^32 that is bit for bit what toInt64 produces for a
+    /// CloudUser - so they read back correctly here without a migration. Above
+    /// that they would not, which is why what is written from now on carries
+    /// the namespace rather than being assumed to.
+    ///
+    /// A function rather than an initialiser, and that is not taste: an
+    /// `init(mlsKey:)` makes the bare `PeerId.init` ambiguous everywhere it is
+    /// passed as a function - `flatMap(PeerId.init)` and its like - and this
+    /// codebase does that in dozens of places. Eighty-nine errors, none of them
+    /// anywhere near here.
+    static func fromMlsKey(_ key: Int64) -> PeerId {
+        return PeerId(key)
+    }
+}
+
 public extension MlsConversationIds {
     static func load(transaction: Transaction) -> MlsConversationIds {
         return transaction.getPreferencesEntry(key: PreferencesKeys.mlsConversations)?
@@ -104,8 +134,8 @@ public extension MlsConversationIds {
     static func remember(transaction: Transaction, peerId: PeerId, groupId: Data) {
         transaction.updatePreferencesEntry(key: PreferencesKeys.mlsConversations, { entry in
             var ids = entry?.get(MlsConversationIds.self) ?? MlsConversationIds()
-            ids.groupIdByPeer[peerId.id._internalGetInt64Value()] = groupId
-            ids.rebuiltAtByPeer[peerId.id._internalGetInt64Value()] = Int32(Date().timeIntervalSince1970)
+            ids.groupIdByPeer[peerId.mlsKey] = groupId
+            ids.rebuiltAtByPeer[peerId.mlsKey] = Int32(Date().timeIntervalSince1970)
             return PreferencesEntry(ids)
         })
     }
@@ -115,7 +145,7 @@ public enum MlsConversations {
     /// The conversation with this person, or nothing if there is not one yet.
     public static func existing(identity: MlsIdentity, transaction: Transaction, peerId: PeerId) -> MlsGroup? {
         let ids = MlsConversationIds.load(transaction: transaction)
-        guard let groupId = ids.groupIdByPeer[peerId.id._internalGetInt64Value()] else {
+        guard let groupId = ids.groupIdByPeer[peerId.mlsKey] else {
             return nil
         }
         return try? MlsGroup.load(identity: identity, id: groupId)
@@ -688,7 +718,7 @@ func applyPendingCommits(postbox: Postbox, network: Network, accountPeerId: Peer
             var moved: [Data] = []
             for waiting in result.commits {
                 let groupId = waiting.groupId.makeData()
-                guard let group = try? MlsGroup.load(identity: identity, id: groupId), let group else {
+                guard let group = try? MlsGroup.load(identity: identity, id: groupId) else {
                     // A conversation this device is not in yet. Ordinary while
                     // the welcome is still travelling, and it must not be
                     // confirmed - that would throw away the only copy.

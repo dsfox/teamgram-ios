@@ -60,9 +60,7 @@ public final class MlsRuntime {
                 return .complete()
             }
             self.queue.lock()
-            let peers = self.conversationIds.keys.map {
-                PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value($0))
-            }
+            let peers = self.conversationIds.keys.map { PeerId.fromMlsKey($0) }
             self.queue.unlock()
             let repair: Signal<Void, NoError>
             if peers.isEmpty {
@@ -179,7 +177,7 @@ public final class MlsRuntime {
             return .single(Void())
         }
 
-        let key = peerId.id._internalGetInt64Value()
+        let key = peerId.mlsKey
         return MlsConversations.start(postbox: self.postbox, accountPeerId: self.accountPeerId, network: network, identity: identity, peerId: peerId)
         |> mapToSignal { [weak self] groupId -> Signal<Void, NoError> in
             guard let self = self else {
@@ -187,7 +185,7 @@ public final class MlsRuntime {
             }
             self.queue.lock()
             if let groupId = groupId {
-                self.remember(peerId: key, groupId: groupId)
+                self.remember(key: key, groupId: groupId)
                 self.markRebuilt(key)
             } else {
                 self.withoutDevices[key] = CFAbsoluteTimeGetCurrent()
@@ -200,9 +198,12 @@ public final class MlsRuntime {
 
     /// Remembers a conversation that has just been started or joined, so the
     /// next message finds it without going back to disk.
-    private func remember(peerId: Int64, groupId: Data) {
-        self.conversationIds[peerId] = groupId
-        MlsRuntime.publishEncrypted([peerId])
+    /// Takes the filing key rather than the peer, because every caller has
+    /// already worked it out - and calling it peerId, as this did, made it look
+    /// like one and got `.mlsKey` applied to it twice.
+    private func remember(key: Int64, groupId: Data) {
+        self.conversationIds[key] = groupId
+        MlsRuntime.publishEncrypted([key])
         // The group itself is not dropped here: it is held by its own id, and a
         // conversation this device is in stays readable whoever it is now
         // sending to.
@@ -236,7 +237,7 @@ public final class MlsRuntime {
     /// account attached, because this is called from inside a transaction and
     /// opening another would stop the app on the path every message takes.
     private func group(for peerId: PeerId) -> (MlsIdentity, MlsGroup)? {
-        guard let groupId = self.conversationIds[peerId.id._internalGetInt64Value()] else {
+        guard let groupId = self.conversationIds[peerId.mlsKey] else {
             return nil
         }
         return self.group(named: groupId)
@@ -285,7 +286,7 @@ public final class MlsRuntime {
         }
         // Somebody with no device published - not updated yet, or a bot. Asked
         // about again after a while rather than before every message.
-        if let asked = self.withoutDevices[peerId.id._internalGetInt64Value()],
+        if let asked = self.withoutDevices[peerId.mlsKey],
            CFAbsoluteTimeGetCurrent() - asked < 600.0 {
             return false
         }
@@ -319,7 +320,7 @@ public final class MlsRuntime {
             }
             return nil
         }
-        if let groupId = self.conversationIds[peerId.id._internalGetInt64Value()] {
+        if let groupId = self.conversationIds[peerId.mlsKey] {
             Logger.shared.log("Mls", "sending to \(peerId.id._internalGetInt64Value()) in conversation \(mlsShortId(groupId))")
         }
         return MlsConversations.encrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text, entities: entities, forwarded: forwarded, media: media)
@@ -355,7 +356,7 @@ public final class MlsRuntime {
             return .single(Void())
         }
 
-        let key = peerId.id._internalGetInt64Value()
+        let key = peerId.mlsKey
         let postbox = self.postbox
         return MlsConversations.start(postbox: postbox, accountPeerId: self.accountPeerId, network: network, identity: identity, peerId: peerId)
         |> mapToSignal { [weak self] groupId -> Signal<Void, NoError> in
@@ -364,7 +365,7 @@ public final class MlsRuntime {
             }
             self.queue.lock()
             if let groupId = groupId {
-                self.remember(peerId: key, groupId: groupId)
+                self.remember(key: key, groupId: groupId)
                 // Counted as a rebuild wherever it happened, so that a message
                 // which will not open a moment later does not start another one.
                 self.markRebuilt(key)
@@ -384,7 +385,7 @@ public final class MlsRuntime {
     /// Starts a conversation with somebody, once. Called from a send, so it
     /// must return at once and leave the work behind it.
     private func startConversation(with peerId: PeerId) {
-        let key = peerId.id._internalGetInt64Value()
+        let key = peerId.mlsKey
         guard !self.starting.contains(key), let network = self.network, let identity = self.identity else {
             return
         }
@@ -399,7 +400,7 @@ public final class MlsRuntime {
             self.queue.lock()
             self.starting.remove(key)
             if let groupId = groupId {
-                self.remember(peerId: key, groupId: groupId)
+                self.remember(key: key, groupId: groupId)
                 self.markRebuilt(key)
             } else {
                 self.withoutDevices[key] = CFAbsoluteTimeGetCurrent()
@@ -496,7 +497,7 @@ public final class MlsRuntime {
                 // one that opens says which chat it belongs to - and this is
                 // the only place both facts are known at once (#40).
                 self.queue.lock()
-                let known = self.conversationIds[peerId.id._internalGetInt64Value()]
+                let known = self.conversationIds[peerId.mlsKey]
                 self.queue.unlock()
                 if known != groupId {
                     self.adopt(peerId: peerId, groupId: groupId)
@@ -554,7 +555,7 @@ public final class MlsRuntime {
     public static func isEncrypted(peerId: PeerId) -> Bool {
         encryptedPeersLock.lock()
         defer { encryptedPeersLock.unlock() }
-        return encryptedPeers.contains(peerId.id._internalGetInt64Value())
+        return encryptedPeers.contains(peerId.mlsKey)
     }
 
     /// Everybody talked to in private, for the search that has to look at all of
@@ -563,7 +564,7 @@ public final class MlsRuntime {
         encryptedPeersLock.lock()
         let peers = encryptedPeers
         encryptedPeersLock.unlock()
-        return peers.map { PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value($0)) }
+        return peers.map { PeerId.fromMlsKey($0) }
     }
 
     /// Everybody any account on this device holds a conversation with.
@@ -665,7 +666,7 @@ public final class MlsRuntime {
 
     private func recover(peerId: PeerId) {
         self.queue.lock()
-        let key = peerId.id._internalGetInt64Value()
+        let key = peerId.mlsKey
         guard !self.recovering.contains(key), let network = self.network else {
             self.queue.unlock()
             return
@@ -734,7 +735,7 @@ public final class MlsRuntime {
                         return .single(0)
                     }
                     self.queue.lock()
-                    self.remember(peerId: peerId.id._internalGetInt64Value(), groupId: groupId)
+                    self.remember(key: peerId.mlsKey, groupId: groupId)
                     self.markRebuilt(key)
                     self.queue.unlock()
                     return .single(0)
@@ -763,9 +764,9 @@ public final class MlsRuntime {
     /// chain finishing.
     public func adopt(peerId: PeerId, groupId: Data) {
         self.queue.lock()
-        self.conversationIds[peerId.id._internalGetInt64Value()] = groupId
-        self.markRebuilt(peerId.id._internalGetInt64Value())
-        MlsRuntime.publishEncrypted([peerId.id._internalGetInt64Value()])
+        self.conversationIds[peerId.mlsKey] = groupId
+        self.markRebuilt(peerId.mlsKey)
+        MlsRuntime.publishEncrypted([peerId.mlsKey])
         self.queue.unlock()
 
         // Written down here as well, on its own, rather than by whatever chain

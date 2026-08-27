@@ -69,7 +69,10 @@ func ensureMlsSearchIndex(transaction: Transaction, peerIds: [PeerId]) {
     var indexed = 0
     var chats = 0
     for peerId in peerIds {
-        let key = peerId.id._internalGetInt64Value()
+        // Filed the same way conversations are, namespace and all: this set
+        // is a list of peers, and a person and a group can share a bare id
+        // (#111).
+        let key = peerId.mlsKey
         if state.indexedPeers.contains(key) {
             continue
         }
