@@ -479,13 +479,27 @@ func settingsEditingItems(data: PeerInfoScreenData?, state: PeerInfoState, conte
             colors.append(profileColor)
         }
         let colorImage = generateSettingsMenuPeerColorsLabelIcon(colors: colors)
-        
+
+        // The colour picker opens on nothing: help.getPeerColors answers "not
+        // modified" with no palette behind it (#24). Android has hidden this
+        // row since the sweep; this client went on drawing it, which is the
+        // one thing Offered exists to prevent - the two must hide the same
+        // things or a person moving between their own phones finds a different
+        // messenger on each. See Offered.
+        if Offered.nameColours {
         items[.info]!.append(PeerInfoScreenDisclosureItem(id: ItemPeerColor, label: .image(colorImage, colorImage.size), text: presentationData.strings.Settings_YourColor, icon: PresentationResourcesSettings.yourColor, action: {
             interaction.editingOpenNameColorSetup()
         }))
+        }
         
+        // A channel to put on your profile, in a messenger with no channels
+        // (#16). Latent rather than visible - it needs a channel to exist
+        // before it draws - but a row that appears the moment the server grows
+        // one is a row nobody will remember to hide. See Offered.
         var displayPersonalChannel = false
-        if data.personalChannel != nil {
+        if !Offered.channels {
+            displayPersonalChannel = false
+        } else if data.personalChannel != nil {
             displayPersonalChannel = true
         } else if let personalChannels = state.personalChannels, !personalChannels.isEmpty {
             displayPersonalChannel = true
@@ -509,10 +523,15 @@ func settingsEditingItems(data: PeerInfoScreenData?, state: PeerInfoState, conte
     } else {
         automationBotTitle = presentationData.strings.Settings_ChatAutomationOff
     }
+    // "Add a bot to reply to messages on your behalf", in a messenger where no
+    // account can be a bot: the server has no bots service and not one bots.*
+    // handler (#105). Android dropped this row; this one kept it. See Offered.
+    if Offered.bots {
     items[.info]!.append(PeerInfoScreenDisclosureItem(id: ItemPeerChatAutomation, label: .text(automationBotTitle), additionalBadgeLabel: nil, text: presentationData.strings.Settings_ChatAutomation, icon: PresentationResourcesSettings.aiTools, action: {
         interaction.editingOpenBusinessChatBots()
     }))
     items[.info]!.append(PeerInfoScreenCommentItem(id: ItemPeerChatAutomationHelp, text: presentationData.strings.Settings_ChatAutomationInfo))
+    }
     
     items[.account]!.append(PeerInfoScreenActionItem(id: ItemAddAccount, text: presentationData.strings.Settings_AddAnotherAccount, alignment: .center, action: {
         interaction.openSettings(.addAccount)
