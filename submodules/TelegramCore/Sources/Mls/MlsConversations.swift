@@ -127,18 +127,57 @@ public enum MlsConversations {
     /// Returns nothing when the other person has published no device. That is
     /// ordinary rather than broken - they may not have opened the app since
     /// this existed - and the caller sends in the clear.
-    public static func start(postbox: Postbox, accountPeerId: PeerId, network: Network, identity: MlsIdentity, peerId: PeerId) -> Signal<Data?, NoError> {
-        return network.request(Api.functions.mls.claimKeyPackages(userId: peerId.id._internalGetInt64Value()))
-        |> map(Optional.init)
-        |> `catch` { _ -> Signal<Api.mls.KeyPackages?, NoError> in
-            return .single(nil)
+    /// Everybody who has to be able to read what is written here.
+    ///
+    /// One person for a conversation between two; every member but this account
+    /// for a group. Empty when the membership is not known here yet - the caller
+    /// then sends in the clear rather than encrypting to a list it is guessing
+    /// at, which would leave somebody out of their own conversation (#40).
+    private static func members(postbox: Postbox, accountPeerId: PeerId, peerId: PeerId) -> Signal<[PeerId], NoError> {
+        if peerId.namespace == Namespaces.Peer.CloudUser {
+            return .single([peerId])
         }
-        |> mapToSignal { claimed -> Signal<Data?, NoError> in
-            guard let claimed = claimed, !claimed.packages.isEmpty else {
-                Logger.shared.log("Mls", "no key packages for \(peerId), so this goes in the clear")
+        return postbox.transaction { transaction -> [PeerId] in
+            guard let cached = transaction.getPeerCachedData(peerId: peerId) as? CachedGroupData,
+                  let participants = cached.participants else {
+                return []
+            }
+            return participants.participants.map { $0.peerId }.filter { $0 != accountPeerId }
+        }
+    }
+
+    public static func start(postbox: Postbox, accountPeerId: PeerId, network: Network, identity: MlsIdentity, peerId: PeerId) -> Signal<Data?, NoError> {
+        return members(postbox: postbox, accountPeerId: accountPeerId, peerId: peerId)
+        |> mapToSignal { members -> Signal<Data?, NoError> in
+            guard !members.isEmpty else {
+                Logger.shared.log("Mls", "no membership for \(peerId), so this goes in the clear")
                 return .single(nil)
             }
+            // Every member's packages before anything is created. All of them
+            // or none: a member whose devices we cannot reach would sit in a
+            // chat where every message is unreadable, and unreadable messages
+            // are hidden - a silent empty chat rather than an honest
+            // unencrypted one.
+            return combineLatest(members.map { member in
+                network.request(Api.functions.mls.claimKeyPackages(userId: member.id._internalGetInt64Value()))
+                |> map(Optional.init)
+                |> `catch` { _ -> Signal<Api.mls.KeyPackages?, NoError> in .single(nil) }
+            })
+            |> mapToSignal { answers -> Signal<Data?, NoError> in
+                var packages: [Data] = []
+                for (index, answer) in answers.enumerated() {
+                    guard let answer = answer, !answer.packages.isEmpty else {
+                        Logger.shared.log("Mls", "no key packages for \(members[index]), so this goes in the clear")
+                        return .single(nil)
+                    }
+                    packages.append(contentsOf: answer.packages.map { $0.makeData() })
+                }
+                return build(postbox: postbox, accountPeerId: accountPeerId, network: network, identity: identity, peerId: peerId, members: members, packages: packages)
+            }
+        }
+    }
 
+    private static func build(postbox: Postbox, accountPeerId: PeerId, network: Network, identity: MlsIdentity, peerId: PeerId, members: [PeerId], packages: [Data]) -> Signal<Data?, NoError> {
             do {
                 let group = try MlsGroup.create(identity: identity)
                 // Every device of theirs at once, because there is one welcome
@@ -150,7 +189,7 @@ public enum MlsConversations {
                 // conversation the other was not in.
                 let welcome = try group.addMembers(
                     identity: identity,
-                    keyPackages: claimed.packages.map { $0.makeData() }).welcome
+                    keyPackages: packages).welcome
 
                 let groupId = try group.id
                 let state = try identity.export()
@@ -167,24 +206,30 @@ public enum MlsConversations {
                     MlsConversationIds.remember(transaction: transaction, peerId: peerId, groupId: groupId)
                 }
                 |> mapToSignal { _ -> Signal<Data?, NoError> in
-                    return network.request(Api.functions.mls.sendWelcome(userId: peerId.id._internalGetInt64Value(), welcome: Buffer(data: welcome)))
+                    // One welcome, handed to each member separately: the
+                    // mailbox is addressed to a person, and add_members made a
+                    // single welcome that serves all of them.
+                    return combineLatest(members.map { member in
+                        network.request(Api.functions.mls.sendWelcome(userId: member.id._internalGetInt64Value(), welcome: Buffer(data: welcome)))
+                        |> map(Optional.init)
+                        |> `catch` { _ -> Signal<Api.mls.Ok?, NoError> in
+                            // The group exists here and somebody was never
+                            // invited. Sending in the clear from here on is
+                            // right: a message they cannot read is worse than
+                            // one the server can.
+                            Logger.shared.log("Mls", "the welcome for \(member) was not delivered")
+                            return .single(nil)
+                        }
+                    })
                     |> map { _ -> Data? in
-                        Logger.shared.log("Mls", "started conversation \(mlsShortId(groupId)) with \(peerId.id._internalGetInt64Value())")
+                        Logger.shared.log("Mls", "started conversation \(mlsShortId(groupId)) with \(members.count) member(s) of \(peerId.id._internalGetInt64Value())")
                         return groupId
-                    }
-                    |> `catch` { _ -> Signal<Data?, NoError> in
-                        // The group exists here but they were never invited.
-                        // Sending in the clear is right: a message they cannot
-                        // read is worse than one the server can.
-                        Logger.shared.log("Mls", "the welcome for \(peerId) was not delivered")
-                        return .single(nil)
                     }
                 })
             } catch {
                 Logger.shared.log("Mls", "cannot start a conversation with \(peerId): \(error)")
                 return .single(nil)
             }
-        }
     }
 
     /// Turns a message into what travels, or nothing if this conversation

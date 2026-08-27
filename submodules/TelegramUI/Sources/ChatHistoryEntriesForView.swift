@@ -153,6 +153,21 @@ func chatHistoryEntriesForView(
         if pendingRemovedMessages.contains(message.id) {
             continue
         }
+
+        // A message this device cannot open is not drawn at all (#40).
+        //
+        // A padlock is the right answer for the one that overtook its welcome
+        // and opens a second later. It is the wrong answer for somebody added
+        // to a group that has been talking for a month: MLS gives no history by
+        // design, so everything before they joined is unreadable for ever, and
+        // a screen of a hundred padlocks is not an explanation - it is noise
+        // with the conversation hidden behind it.
+        //
+        // Hidden, not deleted. The ciphertext is kept in the attribute, so if
+        // the welcome does arrive the message opens and appears.
+        if message.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) {
+            continue
+        }
         
         if case let .replyThread(replyThreadMessage) = location, replyThreadMessage.isForumPost {
             for media in message.media {

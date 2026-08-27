@@ -267,16 +267,20 @@ public final class MlsRuntime {
 
     /// Whether it makes any sense to encrypt to this peer at all.
     ///
-    /// Only conversations between two people. A channel or a group has no
-    /// device to encrypt to, so every attempt would cost a round trip and end
-    /// in the clear anyway - once per message, for ever, because nothing is
-    /// ever remembered.
+    /// A conversation between two people, or a group - which is an MLS group
+    /// of n, and what MLS was built for. The protocol does not care whether a
+    /// leaf belongs to a second person or to a second phone of the first (#40).
+    ///
+    /// A channel is not one: broadcasting is a different thing and none of it
+    /// is built (#16).
     ///
     /// Saved Messages is excluded for a harder reason: a conversation with
     /// oneself would be one where every message is written by the only person
     /// who cannot read it back, and the notes would go in unreadable.
     private func worthEncrypting(to peerId: PeerId) -> Bool {
-        guard peerId.namespace == Namespaces.Peer.CloudUser, peerId != self.accountPeerId else {
+        let isPerson = peerId.namespace == Namespaces.Peer.CloudUser && peerId != self.accountPeerId
+        let isGroup = peerId.namespace == Namespaces.Peer.CloudGroup
+        guard isPerson || isGroup else {
             return false
         }
         // Somebody with no device published - not updated yet, or a bot. Asked
@@ -480,6 +484,23 @@ public final class MlsRuntime {
             // out - only that something opened, from whom, and where.
             if let groupId = try? group.id {
                 Logger.shared.log("Mls", "opened a message from \(peerId.id._internalGetInt64Value()) in conversation \(mlsShortId(groupId))")
+                // Which conversation this group belongs to, learnt from a
+                // message rather than from the welcome.
+                //
+                // A welcome says who sent it and nothing else. That is enough
+                // for a conversation between two and wrong for a group: the
+                // joiner would record the group against the person who invited
+                // them, and their own first message into the chat would find no
+                // conversation and start a second group for the same chat.
+                // Every message carries its group id in the clear, so the first
+                // one that opens says which chat it belongs to - and this is
+                // the only place both facts are known at once (#40).
+                self.queue.lock()
+                let known = self.conversationIds[peerId.id._internalGetInt64Value()]
+                self.queue.unlock()
+                if known != groupId {
+                    self.adopt(peerId: peerId, groupId: groupId)
+                }
             }
         }
         return reading
