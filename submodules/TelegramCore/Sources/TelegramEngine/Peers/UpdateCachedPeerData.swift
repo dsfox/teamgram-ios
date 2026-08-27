@@ -1032,6 +1032,25 @@ func _internal_fetchAndUpdateCachedPeerData(accountPeerId: PeerId, peerId rawPee
             }
         }
     }
+    |> mapToSignal { updated -> Signal<Bool, NoError> in
+        // The participant list has just come from the server, which makes this
+        // the one moment a conversation may be made to match its chat in both
+        // directions: anybody missing let in, anybody no longer there taken out
+        // (#40). A list remembered here would do for the first and not for the
+        // second - it can be missing people who joined while this device was
+        // away, and cutting them out is not recoverable by being sorry.
+        guard rawPeerId.namespace == Namespaces.Peer.CloudGroup else {
+            return .single(updated)
+        }
+        let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+        guard let identity = runtime.currentIdentity else {
+            return .single(updated)
+        }
+        return reconcileMembership(
+            postbox: postbox, accountPeerId: accountPeerId, network: network,
+            identity: identity, peerId: rawPeerId, listIsFromTheServer: true)
+        |> map { _ -> Bool in updated }
+    }
 }
 
 extension CachedPeerAutoremoveTimeout.Value {

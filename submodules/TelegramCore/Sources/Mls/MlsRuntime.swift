@@ -323,7 +323,48 @@ public final class MlsRuntime {
         if let groupId = self.conversationIds[peerId.mlsKey] {
             Logger.shared.log("Mls", "sending to \(peerId.id._internalGetInt64Value()) in conversation \(mlsShortId(groupId))")
         }
+        // Before a message goes out is the moment worth checking that the
+        // conversation still holds the people the chat does: it is the one
+        // moment where being wrong is about to matter. Additions only, because
+        // the list this reads is whatever was remembered here and a remembered
+        // list can be missing somebody who joined while this device was away -
+        // taking them out on that evidence is not recoverable by being sorry.
+        //
+        // Behind the send rather than in front of it: this runs on the thread
+        // that is building the request, and a message that waits for a
+        // handshake is a messenger that pauses for reasons a person cannot see.
+        self.compareMembershipSoon(with: peerId)
         return MlsConversations.encrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text, entities: entities, forwarded: forwarded, media: media)
+    }
+
+    /// When each conversation was last compared with its chat.
+    private var comparedAt: [Int64: Double] = [:]
+
+    /// How long to leave between two comparisons of one conversation. Short,
+    /// because a change that waits is a change that has not happened; long
+    /// enough that a burst of messages does not open the group each time.
+    private static let compareNotBefore: Double = 5.0
+
+    /// Compares the conversation with the chat, additively, out of the way of
+    /// whatever asked. Called with the lock held.
+    private func compareMembershipSoon(with peerId: PeerId) {
+        guard peerId.namespace == Namespaces.Peer.CloudGroup,
+              let network = self.network, let identity = self.identity else {
+            return
+        }
+        let key = peerId.mlsKey
+        let now = CFAbsoluteTimeGetCurrent()
+        if let last = self.comparedAt[key], now - last < MlsRuntime.compareNotBefore {
+            return
+        }
+        self.comparedAt[key] = now
+
+        let postbox = self.postbox
+        let accountPeerId = self.accountPeerId
+        let _ = (reconcileMembership(
+            postbox: postbox, accountPeerId: accountPeerId, network: network,
+            identity: identity, peerId: peerId, listIsFromTheServer: false)
+        |> deliverOn(Queue.concurrentDefaultQueue())).start()
     }
 
     /// Makes sure there is a conversation with this person before a message is
@@ -768,6 +809,15 @@ public final class MlsRuntime {
     /// knows. This is the only place both facts are held at once - and it can
     /// answer now that a conversation is filed under the whole peer rather than
     /// a bare id (#111).
+    /// This device's identity, for the callers that have to do their own work
+    /// with it. Nil before the state has been read off disk, which is a plain
+    /// answer rather than a failure: nothing encrypted can happen yet.
+    public var currentIdentity: MlsIdentity? {
+        self.queue.lock()
+        defer { self.queue.unlock() }
+        return self.identity
+    }
+
     public func peers(ofConversations groupIds: [Data]) -> [PeerId] {
         self.queue.lock()
         defer { self.queue.unlock() }
