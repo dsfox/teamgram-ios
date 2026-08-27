@@ -220,6 +220,15 @@ public enum MlsConversations {
                 let welcome = try group.addMembers(
                     identity: identity,
                     keyPackages: packages).welcome
+                // Taken here and not asked about, which is the one place that
+                // is right: this group did not exist a moment ago, so there is
+                // nobody to have raced with and nothing for the delivery
+                // service to order. Every later change waits for its answer.
+                //
+                // Without this the creator stays at the epoch before its own
+                // commit while everybody it invited lands at the epoch after,
+                // and not one message opens. It compiles perfectly.
+                try group.acceptCommit(identity: identity)
 
                 let groupId = try group.id
                 let state = try identity.export()

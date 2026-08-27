@@ -384,6 +384,8 @@ public func mlsSelfCheck() -> String {
 
         let group = try MlsGroup.create(identity: alice)
         let invitation = try group.addMember(identity: alice, keyPackage: try bob.keyPackage())
+        // Nobody to race with here, so the answer is known at once.
+        try group.acceptCommit(identity: alice)
         let bobGroup = try MlsGroup.join(identity: bob, welcome: invitation.welcome)
 
         let secret = Data("the server is not supposed to read this".utf8)
