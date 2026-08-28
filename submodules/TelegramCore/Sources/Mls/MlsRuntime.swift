@@ -349,7 +349,7 @@ public final class MlsRuntime {
     /// whatever asked. Called with the lock held.
     private func compareMembershipSoon(with peerId: PeerId) {
         guard peerId.namespace == Namespaces.Peer.CloudGroup,
-              let network = self.network, let identity = self.identity else {
+              let network = self.network else {
             return
         }
         let key = peerId.mlsKey
@@ -361,9 +361,22 @@ public final class MlsRuntime {
 
         let postbox = self.postbox
         let accountPeerId = self.accountPeerId
-        let _ = (reconcileMembership(
-            postbox: postbox, accountPeerId: accountPeerId, network: network,
-            identity: identity, peerId: peerId, listIsFromTheServer: false)
+        // A copy read from storage rather than the one held here. Two threads
+        // moving one ratchet is a conversation neither can read, and this runs
+        // off the thread that called it (#112).
+        let _ = (Signal<MlsIdentity?, NoError> { subscriber in
+            subscriber.putNext(try? mlsIdentity(postbox: postbox, accountPeerId: accountPeerId))
+            subscriber.putCompletion()
+            return EmptyDisposable
+        }
+        |> mapToSignal { own -> Signal<Void, NoError> in
+            guard let own = own else {
+                return .complete()
+            }
+            return reconcileMembership(
+                postbox: postbox, accountPeerId: accountPeerId, network: network,
+                identity: own, peerId: peerId, listIsFromTheServer: false)
+        }
         |> deliverOn(Queue.concurrentDefaultQueue())).start()
     }
 
@@ -809,15 +822,6 @@ public final class MlsRuntime {
     /// knows. This is the only place both facts are held at once - and it can
     /// answer now that a conversation is filed under the whole peer rather than
     /// a bare id (#111).
-    /// This device's identity, for the callers that have to do their own work
-    /// with it. Nil before the state has been read off disk, which is a plain
-    /// answer rather than a failure: nothing encrypted can happen yet.
-    public var currentIdentity: MlsIdentity? {
-        self.queue.lock()
-        defer { self.queue.unlock() }
-        return self.identity
-    }
-
     public func peers(ofConversations groupIds: [Data]) -> [PeerId] {
         self.queue.lock()
         defer { self.queue.unlock() }

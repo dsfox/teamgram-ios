@@ -1042,8 +1042,11 @@ func _internal_fetchAndUpdateCachedPeerData(accountPeerId: PeerId, peerId rawPee
         guard rawPeerId.namespace == Namespaces.Peer.CloudGroup else {
             return .single(updated)
         }
-        let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-        guard let identity = runtime.currentIdentity else {
+        // A copy read from storage, the way the two collectors do it, rather
+        // than the object the runtime holds. Sharing that one would mean two
+        // threads moving one ratchet, and a ratchet moved from two places is a
+        // conversation neither of them can read (#112).
+        guard let identity = try? mlsIdentity(postbox: postbox, accountPeerId: accountPeerId) else {
             return .single(updated)
         }
         return reconcileMembership(
