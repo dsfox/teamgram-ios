@@ -87,7 +87,6 @@ private func offer(
     postbox: Postbox,
     accountPeerId: PeerId,
     network: Network,
-    identity: MlsIdentity,
     peerId: PeerId,
     groupId: Data,
     audience: [PeerId],
@@ -100,39 +99,39 @@ private func offer(
         return .complete()
     }
 
-    let built: (commit: Data, welcome: Data?, epoch: Int64)?
-    do {
+    let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+    // Built with the one copy of the state, and written down before it is
+    // offered: the commit is staged rather than applied, the answer may never
+    // arrive, and the way back is the commit box - which can only help a device
+    // that still holds what it staged. withState does the writing.
+    let built: (commit: Data, welcome: Data?, epoch: Int64)?? = runtime.withState { identity in
         guard let group = try MlsGroup.load(identity: identity, id: groupId) else {
-            return .complete()
+            return nil
         }
         let epoch = Int64(group.epoch)
         switch change {
         case let .letIn(_, keyPackages):
             let invitation = try group.addMembers(identity: identity, keyPackages: keyPackages)
-            built = (commit: invitation.commit, welcome: invitation.welcome, epoch: epoch)
+            return (commit: invitation.commit, welcome: invitation.welcome, epoch: epoch)
         case let .putOut(leaving):
             let prefixes = leaving.map { Data("\($0.id._internalGetInt64Value())/".utf8) }
             guard let commit = try group.removeMembers(identity: identity, namePrefixes: prefixes) else {
                 // Nobody matched, which is not a failure: two people removing
                 // the same person at once is ordinary, and the second is
                 // looking at a group that already looks the way they wanted.
-                return .complete()
+                return nil
             }
-            built = (commit: commit, welcome: nil, epoch: epoch)
+            return (commit: commit, welcome: nil, epoch: epoch)
         }
-        // Written down before it is offered. The commit is staged rather than
-        // applied, and the answer may never arrive - so the way back is the
-        // commit box, and the box can only help a device that still holds what
-        // it staged.
-        MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: try identity.export())
-    } catch {
+    }
+
+    guard let built = built else {
         // Usually a commit staged by an earlier attempt that never heard back.
         // Catching up resolves it - the server left us a copy of our own commit
         // for exactly this - and then the change is made again.
-        Logger.shared.log("Mls", "cannot build \(change.described) \(peerId): \(error)")
+        Logger.shared.log("Mls", "cannot build \(change.described) \(peerId)")
         return catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId)
     }
-
     guard let offered = built else {
         return .complete()
     }
@@ -162,18 +161,21 @@ private func offer(
             return .complete()
         }
 
-        do {
+        // The state again, and read afresh: between offering and hearing back
+        // there was a round trip, and anything may have moved it.
+        let settled: Bool? = runtime.withState { identity in
             guard let group = try MlsGroup.load(identity: identity, id: groupId) else {
-                return .complete()
+                return false
             }
             if result.accepted {
                 try group.acceptCommit(identity: identity)
             } else {
                 try group.abandonCommit(identity: identity)
             }
-            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: try identity.export())
-        } catch {
-            Logger.shared.log("Mls", "cannot settle \(change.described) \(peerId): \(error)")
+            return true
+        }
+        guard settled == true else {
+            Logger.shared.log("Mls", "cannot settle \(change.described) \(peerId)")
             return .complete()
         }
 
@@ -187,7 +189,7 @@ private func offer(
                 // has still not caught up would forget who the message named.
                 return reconcileMembership(
                     postbox: postbox, accountPeerId: accountPeerId, network: network,
-                    identity: identity, peerId: peerId,
+                    peerId: peerId,
                     listIsFromTheServer: true, named: named, attempt: attempt + 1)
             }
         }
@@ -226,7 +228,6 @@ public func reconcileMembership(
     postbox: Postbox,
     accountPeerId: PeerId,
     network: Network,
-    identity: MlsIdentity,
     peerId: PeerId,
     listIsFromTheServer: Bool,
     named: NamedInTheMessage = NamedInTheMessage(),
@@ -256,7 +257,14 @@ public func reconcileMembership(
         guard let (groupId, listed) = found else {
             return .complete()
         }
-        guard let group = try? MlsGroup.load(identity: identity, id: groupId) else {
+        // Who is in the conversation, read through the one copy of the state.
+        let names: [Data]? = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).withState { identity in
+            guard let group = try MlsGroup.load(identity: identity, id: groupId) else {
+                return [Data]()
+            }
+            return group.memberNames()
+        }
+        guard let memberNames = names, !memberNames.isEmpty else {
             return .complete()
         }
 
@@ -274,7 +282,7 @@ public func reconcileMembership(
         // the slash, and one person with two phones is two leaves answering to
         // the same id.
         var inside: Set<Int64> = []
-        for name in group.memberNames() {
+        for name in memberNames {
             let text = String(decoding: name, as: UTF8.self)
             if let slash = text.firstIndex(of: "/"), let id = Int64(text[text.startIndex ..< slash]) {
                 inside.insert(id)
@@ -298,7 +306,7 @@ public func reconcileMembership(
             Logger.shared.log("Mls", "\(namedOut) were named as gone from \(peerId)")
             return offer(
                 postbox: postbox, accountPeerId: accountPeerId, network: network,
-                identity: identity, peerId: peerId, groupId: groupId,
+                peerId: peerId, groupId: groupId,
                 audience: members, change: .putOut(leaving: namedOut),
                 named: named, attempt: attempt)
         }
@@ -310,7 +318,7 @@ public func reconcileMembership(
             Logger.shared.log("Mls", "\(leaving) are in \(mlsShortId(groupId)) and no longer in \(peerId)")
             return offer(
                 postbox: postbox, accountPeerId: accountPeerId, network: network,
-                identity: identity, peerId: peerId, groupId: groupId,
+                peerId: peerId, groupId: groupId,
                 audience: members.filter({ !extra.contains($0.id._internalGetInt64Value()) }),
                 change: .putOut(leaving: leaving), named: named, attempt: attempt)
         }
@@ -344,7 +352,7 @@ public func reconcileMembership(
             Logger.shared.log("Mls", "\(reachable.count) of \(peerId) are not in \(mlsShortId(groupId)) yet")
             return offer(
                 postbox: postbox, accountPeerId: accountPeerId, network: network,
-                identity: identity, peerId: peerId, groupId: groupId,
+                peerId: peerId, groupId: groupId,
                 audience: members, change: .letIn(newcomers: reachable, keyPackages: packages),
                 named: named, attempt: attempt)
         }

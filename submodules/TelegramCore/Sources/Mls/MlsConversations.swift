@@ -598,14 +598,11 @@ func mlsRestoringSentText(_ message: StoreMessage?, text: String, entities: Text
 /// loss would surface much later, as messages that will not open.
 func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<[PeerId], NoError> {
     return Signal<[PeerId], NoError> { subscriber in
-        let identity: MlsIdentity
-        do {
-            identity = try mlsIdentity(postbox: postbox, accountPeerId: accountPeerId)
-        } catch {
-            subscriber.putNext([])
-            subscriber.putCompletion()
-            return EmptyDisposable
-        }
+        // The state is borrowed below, once the answer is here, and not before.
+        // Reading a copy of it now and using it afterwards meant holding it
+        // across a round trip - seconds in which anything else that moved the
+        // ratchet was about to be overwritten by this (#112).
+        let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
 
         let disposable = (network.request(Api.functions.mls.getWelcomes())
         |> map(Optional.init)
@@ -620,29 +617,31 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
             var opened: [Int64] = []
             var spent: [Int64] = []
             var peers: [Int64: Data] = [:]
-            for welcome in result.welcomes {
-                do {
-                    let group = try MlsGroup.join(identity: identity, welcome: welcome.welcome.makeData())
-                    let joinedId = try group.id
-                    peers[welcome.fromId] = joinedId
-                    opened.append(welcome.id)
-                    // With the epoch, because without it there is no telling a
-                    // welcome that was taken from one that was declined in
-                    // favour of a group this device already had: both say
-                    // "joined", and only one of them can read what comes next.
-                    Logger.shared.log("Mls", "joined conversation \(mlsShortId(joinedId)) at epoch \(group.epoch) started by \(welcome.fromId)")
-                } catch {
-                    Logger.shared.log("Mls", "cannot join the conversation from \(welcome.fromId): \(error)")
-                    // A welcome whose key package has already been spent can
-                    // never be opened - it was opened once, which is what spent
-                    // it. Left waiting it is offered again every thirty seconds
-                    // for ever, and every attempt fails the same way.
-                    //
-                    // Anything else is left alone: it may be this device that is
-                    // not ready, and a welcome dropped in that state is a
-                    // conversation that exists on one side only.
-                    if "\(error)".contains("NoMatchingKeyPackage") {
-                        spent.append(welcome.id)
+            _ = runtime.withState { identity in
+                for welcome in result.welcomes {
+                    do {
+                        let group = try MlsGroup.join(identity: identity, welcome: welcome.welcome.makeData())
+                        let joinedId = try group.id
+                        peers[welcome.fromId] = joinedId
+                        opened.append(welcome.id)
+                        // With the epoch, because without it there is no telling a
+                        // welcome that was taken from one that was declined in
+                        // favour of a group this device already had: both say
+                        // "joined", and only one of them can read what comes next.
+                        Logger.shared.log("Mls", "joined conversation \(mlsShortId(joinedId)) at epoch \(group.epoch) started by \(welcome.fromId)")
+                    } catch {
+                        Logger.shared.log("Mls", "cannot join the conversation from \(welcome.fromId): \(error)")
+                        // A welcome whose key package has already been spent can
+                        // never be opened - it was opened once, which is what spent
+                        // it. Left waiting it is offered again every thirty seconds
+                        // for ever, and every attempt fails the same way.
+                        //
+                        // Anything else is left alone: it may be this device that is
+                        // not ready, and a welcome dropped in that state is a
+                        // conversation that exists on one side only.
+                        if "\(error)".contains("NoMatchingKeyPackage") {
+                            spent.append(welcome.id)
+                        }
                     }
                 }
             }
@@ -655,19 +654,16 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
                 }).start()
             }
 
-            guard !opened.isEmpty, let state = try? identity.export() else {
+            guard !opened.isEmpty else {
                 return .single([])
             }
 
             let joined = peers.keys.map { PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value($0)) }
 
-            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
-
             // Taken here rather than written down by what follows. Everything
             // after this point is asynchronous and does not always run to the
             // end; a conversation that exists only until the next restart is
             // one the device rebuilds, and then the two sides have one each.
-            let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
             for (fromId, groupId) in peers {
                 runtime.adopt(
                     peerId: PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value(fromId)),
@@ -714,14 +710,10 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
 /// which does both.
 private func applyPendingCommits(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<[Data], NoError> {
     return Signal<[Data], NoError> { subscriber in
-        let identity: MlsIdentity
-        do {
-            identity = try mlsIdentity(postbox: postbox, accountPeerId: accountPeerId)
-        } catch {
-            subscriber.putNext([])
-            subscriber.putCompletion()
-            return EmptyDisposable
-        }
+        // Borrowed below, once the answer is here. A copy read now and used
+        // afterwards is a copy held across a round trip, and whatever else
+        // moved the ratchet in those seconds would be overwritten by it (#112).
+        let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
 
         let disposable = (network.request(Api.functions.mls.getCommits())
         |> map(Optional.init)
@@ -735,51 +727,51 @@ private func applyPendingCommits(postbox: Postbox, network: Network, accountPeer
 
             var applied: [Int64] = []
             var moved: [Data] = []
-            for waiting in result.commits {
-                let groupId = waiting.groupId.makeData()
-                guard let group = try? MlsGroup.load(identity: identity, id: groupId) else {
-                    // A conversation this device is not in yet. Ordinary while
-                    // the welcome is still travelling, and it must not be
-                    // confirmed - that would throw away the only copy.
-                    continue
-                }
-                let epoch = Int64(group.epoch)
-                if waiting.epoch < epoch {
-                    applied.append(waiting.id)
-                    continue
-                }
-                if waiting.epoch > epoch {
-                    // Not this one's turn: an earlier commit for this
-                    // conversation has still to arrive.
-                    continue
-                }
-                do {
-                    let somebodyElses = try group.applyCommit(
-                        identity: identity, commit: waiting.commit.makeData())
-                    applied.append(waiting.id)
-                    if somebodyElses {
-                        moved.append(groupId)
-                        Logger.shared.log("Mls", "\(mlsShortId(groupId)) moved to epoch \(waiting.epoch + 1), changed by \(waiting.fromId)")
-                    } else {
-                        Logger.shared.log("Mls", "our own change to \(mlsShortId(groupId)) was taken after all")
+            _ = runtime.withState { identity in
+                for waiting in result.commits {
+                    let groupId = waiting.groupId.makeData()
+                    guard let group = try? MlsGroup.load(identity: identity, id: groupId) else {
+                        // A conversation this device is not in yet. Ordinary while
+                        // the welcome is still travelling, and it must not be
+                        // confirmed - that would throw away the only copy.
+                        continue
                     }
-                } catch {
-                    // Left unconfirmed on purpose: it may become applicable
-                    // once an earlier one arrives.
-                    Logger.shared.log("Mls", "cannot apply a commit to \(mlsShortId(groupId)): \(error)")
+                    let epoch = Int64(group.epoch)
+                    if waiting.epoch < epoch {
+                        applied.append(waiting.id)
+                        continue
+                    }
+                    if waiting.epoch > epoch {
+                        // Not this one's turn: an earlier commit for this
+                        // conversation has still to arrive.
+                        continue
+                    }
+                    do {
+                        let somebodyElses = try group.applyCommit(
+                            identity: identity, commit: waiting.commit.makeData())
+                        applied.append(waiting.id)
+                        if somebodyElses {
+                            moved.append(groupId)
+                            Logger.shared.log("Mls", "\(mlsShortId(groupId)) moved to epoch \(waiting.epoch + 1), changed by \(waiting.fromId)")
+                        } else {
+                            Logger.shared.log("Mls", "our own change to \(mlsShortId(groupId)) was taken after all")
+                        }
+                    } catch {
+                        // Left unconfirmed on purpose: it may become applicable
+                        // once an earlier one arrives.
+                        Logger.shared.log("Mls", "cannot apply a commit to \(mlsShortId(groupId)): \(error)")
+                    }
                 }
             }
 
-            guard !applied.isEmpty, let state = try? identity.export() else {
-                return .single([])
-            }
-
-            // Saved before it is confirmed, and in that order. A commit
+            // Saved before anything is confirmed, and in that order. A commit
             // confirmed and then lost leaves this device an epoch behind, where
             // nothing new opens - which surfaces much later as a conversation
             // that went quiet for one person, and looks like anything but a
-            // lost commit.
-            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
+            // lost commit. The saving is done by withState, on the way out.
+            guard !applied.isEmpty else {
+                return .single([])
+            }
 
             return network.request(Api.functions.mls.confirmCommits(ids: applied))
             |> map { _ -> [Data] in moved }

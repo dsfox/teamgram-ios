@@ -1042,16 +1042,9 @@ func _internal_fetchAndUpdateCachedPeerData(accountPeerId: PeerId, peerId rawPee
         guard rawPeerId.namespace == Namespaces.Peer.CloudGroup else {
             return .single(updated)
         }
-        // A copy read from storage, the way the two collectors do it, rather
-        // than the object the runtime holds. Sharing that one would mean two
-        // threads moving one ratchet, and a ratchet moved from two places is a
-        // conversation neither of them can read (#112).
-        guard let identity = try? mlsIdentity(postbox: postbox, accountPeerId: accountPeerId) else {
-            return .single(updated)
-        }
         return reconcileMembership(
             postbox: postbox, accountPeerId: accountPeerId, network: network,
-            identity: identity, peerId: rawPeerId, listIsFromTheServer: true)
+            peerId: rawPeerId, listIsFromTheServer: true)
         |> map { _ -> Bool in updated }
     }
 }

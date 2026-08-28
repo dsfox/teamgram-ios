@@ -405,6 +405,48 @@ public final class MlsRuntime {
         self.changeMembership(of: peerId, over: self.networkOutsideTheLock(), named: NamedInTheMessage(gone: leaving))
     }
 
+    /// Runs something that moves this device's encryption state, one at a time,
+    /// and writes down what it did.
+    ///
+    /// The state is one blob: every operation reads all of it, changes a little
+    /// and writes all of it back. Two of those at once and the later writer
+    /// erases what the earlier one moved - which arrives as `SecretReuseError`
+    /// and, on a screen, as a message that never opens (#112).
+    ///
+    /// The answer is one copy and one way to it. Everything that used to read
+    /// its own copy out of storage now borrows this one, so there is nothing
+    /// left to disagree with. Android settled on the same shape: one lock,
+    /// owned by whoever owns the state.
+    ///
+    /// Never held across a network call. Every caller does its cryptography,
+    /// returns, and only then goes to the server - a lock held for a round trip
+    /// stops every other conversation for the length of it.
+    ///
+    /// Returns nothing when this device has no state yet, which is a client
+    /// that has not finished starting rather than an error: the collectors run
+    /// on a rhythm and the next round finds it.
+    public func withState<T>(_ body: (MlsIdentity) throws -> T) -> T? {
+        self.queue.lock()
+        defer { self.queue.unlock() }
+        guard let identity = self.identity else {
+            return nil
+        }
+        let result: T
+        do {
+            result = try body(identity)
+        } catch {
+            Logger.shared.log("Mls", "a change to the state did not happen: \(error)")
+            return nil
+        }
+        // Written back here rather than by the caller, because a caller that
+        // forgets is a ratchet that moved in memory and not on disk - and what
+        // is lost then is the ability to read.
+        if let state = try? identity.export() {
+            MlsStateWriter.instance(accountPeerId: self.accountPeerId).write(postbox: self.postbox, state: state)
+        }
+        return result
+    }
+
     /// How long to leave between asking again for invitations, and how many
     /// times.
     ///
@@ -464,22 +506,14 @@ public final class MlsRuntime {
         }
         let postbox = self.postbox
         let accountPeerId = self.accountPeerId
-        // Two threads moving one ratchet is a conversation neither can read, and
-        // this runs off the thread that called it (#112).
-        let _ = (Signal<MlsIdentity?, NoError> { subscriber in
-            subscriber.putNext(try? mlsIdentity(postbox: postbox, accountPeerId: accountPeerId))
-            subscriber.putCompletion()
-            return EmptyDisposable
-        }
-        |> mapToSignal { own -> Signal<Void, NoError> in
-            guard let own = own else {
-                return .complete()
-            }
-            return reconcileMembership(
+        // Off this thread on purpose, and explicitly: this is called from
+        // encrypt(), which holds the lock, and everything below takes it again.
+        // A signal that starts on the caller's thread would take it there.
+        Queue.concurrentDefaultQueue().async {
+            let _ = reconcileMembership(
                 postbox: postbox, accountPeerId: accountPeerId, network: network,
-                identity: own, peerId: peerId, listIsFromTheServer: false, named: named)
+                peerId: peerId, listIsFromTheServer: false, named: named).start()
         }
-        |> deliverOn(Queue.concurrentDefaultQueue())).start()
     }
 
     /// Makes sure there is a conversation with this person before a message is

@@ -25,14 +25,11 @@ private let betweenChecks: Double = 15 * 60
 
 func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
     let refill = Signal<Void, NoError> { subscriber in
-        let identity: MlsIdentity
-        do {
-            identity = try mlsIdentity(postbox: postbox, accountPeerId: accountPeerId)
-        } catch {
-            Logger.shared.log("Mls", "no device identity, so nothing can be published: \(error)")
-            subscriber.putCompletion()
-            return EmptyDisposable
-        }
+        // The one copy of the state, borrowed for as long as it takes to make
+        // the keys and no longer. Reading a copy of its own here and keeping it
+        // across the two requests below was a quarter of an hour in which
+        // anything else that moved the ratchet could be undone by it (#112).
+        let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
 
         /// What this device has left, asked for rather than assumed.
         ///
@@ -63,29 +60,24 @@ func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: Pe
                 return .single(asked)
             }
 
-            var packages: [Buffer] = []
-            var lastResort = Buffer()
-            do {
+            // Made and saved before publishing, not after. A package published
+            // but not saved is one this device cannot answer for - somebody
+            // would encrypt to a key that no longer exists here, and the
+            // conversation would fail to start with no explanation on either
+            // side. withState writes it on the way out, in order.
+            let made: (packages: [Buffer], lastResort: Buffer)? = runtime.withState { identity in
+                var packages: [Buffer] = []
                 for _ in 0 ..< packagesPerRefill {
                     packages.append(Buffer(data: try identity.keyPackage()))
                 }
                 // One that is handed out repeatedly once the others run out, so
                 // a conversation can still start with a device that has been
                 // quiet.
-                lastResort = Buffer(data: try identity.keyPackage())
-            } catch {
-                Logger.shared.log("Mls", "cannot make key packages: \(error)")
-                return .single(nil)
+                return (packages, Buffer(data: try identity.keyPackage()))
             }
-
-            // Saved before publishing, not after. A package published but not
-            // saved is one this device cannot answer for - somebody would
-            // encrypt to a key that no longer exists here, and the conversation
-            // would fail to start with no explanation on either side.
-            //
-            // Through the one writer, so it cannot land after something older.
-            if let state = try? identity.export() {
-                MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
+            guard let (packages, lastResort) = made else {
+                Logger.shared.log("Mls", "cannot make key packages")
+                return .single(nil)
             }
 
             return network.request(Api.functions.mls.publishKeyPackages(keyPackages: packages, lastResort: lastResort))
