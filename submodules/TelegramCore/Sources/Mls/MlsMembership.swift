@@ -136,11 +136,44 @@ private func offer(
         return .complete()
     }
 
+    // Who the commit has to reach: everybody the conversation holds, read from
+    // the conversation itself rather than from this device's copy of the chat's
+    // participant list.
+    //
+    // The list was the obvious source and is wrong: it is fetched on its own
+    // schedule, so a device that has just been let in is missing from it, and a
+    // commit built here never reaches them. They stay an epoch behind for ever -
+    // what would catch them up was never addressed to them, and nothing after it
+    // applies without it. It took a group apart on the stand (#116).
+    //
+    // The leaves are the definition of who must apply a commit. Anybody being
+    // let in is added on top, because they are not a leaf until this is applied.
+    var members = runtime.withState({ identity -> [Int64] in
+        guard let group = try MlsGroup.load(identity: identity, id: groupId) else {
+            return []
+        }
+        var holders: Set<Int64> = []
+        for name in group.memberNames() {
+            let text = String(decoding: name, as: UTF8.self)
+            if let slash = text.firstIndex(of: "/"), let who = Int64(text[text.startIndex ..< slash]) {
+                holders.insert(who)
+            }
+        }
+        return Array(holders)
+    }) ?? audience.map { $0.id._internalGetInt64Value() }
+    if case let .letIn(newcomers, _) = change {
+        for newcomer in newcomers {
+            let id = newcomer.id._internalGetInt64Value()
+            if !members.contains(id) {
+                members.append(id)
+            }
+        }
+    }
     // And this account, which is not vanity: the other phones of the person
     // making the change are separate leaves and need the commit as much as
     // anybody, and this phone needs its own copy back to learn the outcome if
     // the answer below never arrives.
-    var members = audience.map { $0.id._internalGetInt64Value() }
+    members.removeAll(where: { $0 == accountPeerId.id._internalGetInt64Value() })
     members.append(accountPeerId.id._internalGetInt64Value())
 
     return network.request(Api.functions.mls.sendCommit(
@@ -181,8 +214,17 @@ private func offer(
 
         guard result.accepted else {
             Logger.shared.log("Mls", "\(change.described) \(peerId) lost epoch \(offered.epoch); the group is at \(result.epoch), catching up")
-            return catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId)
+            // Losing is ordinary and the way back is the commit box. Losing and
+            // finding the box empty is not: the change that moved the group was
+            // never addressed to this device, and nothing after it can be
+            // applied without the one that is missing. The device is out of the
+            // conversation and will not find its own way back (#116).
+            let sawSomething = Atomic<Bool>(value: false)
+            return catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId, applied: sawSomething)
             |> mapToSignal { _ -> Signal<Void, NoError> in
+                if !sawSomething.with({ $0 }) {
+                    Logger.shared.log("Mls", "fallen out of \(mlsShortId(groupId)) - staked epoch \(offered.epoch), the group is at \(result.epoch), and nothing is waiting to catch up with. This device has to be taken out of the chat and let back in (#116)")
+                }
                 // Worked out afresh rather than replayed: the change was built
                 // against a group that has since moved.
                 // Carried through: a change worked out afresh from a list that

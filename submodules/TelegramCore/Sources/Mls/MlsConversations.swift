@@ -874,9 +874,14 @@ func managedMlsCommits(postbox: Postbox, network: Network, accountPeerId: PeerId
 /// stand: written at 10:47:44.267, openable from 10:47:44.901, never opened.
 ///
 /// So every path that applies a commit reads back through this one.
-func catchUpWithTheGroup(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
+func catchUpWithTheGroup(postbox: Postbox, network: Network, accountPeerId: PeerId, applied: Atomic<Bool>? = nil) -> Signal<Void, NoError> {
     return applyPendingCommits(postbox: postbox, network: network, accountPeerId: accountPeerId)
     |> mapToSignal { moved -> Signal<Void, NoError> in
+        // Whether there was anything at all, which is what tells a device that
+        // lost an epoch apart from one that has fallen out of the group (#116).
+        if let applied = applied, !moved.isEmpty {
+            let _ = applied.swap(true)
+        }
         guard !moved.isEmpty else {
             return .complete()
         }
