@@ -203,7 +203,9 @@ private func offer(
         // joins a conversation that does not exist yet.
         return combineLatest(newcomers.map { newcomer in
             network.request(Api.functions.mls.sendWelcome(
-                userId: newcomer.id._internalGetInt64Value(), welcome: Buffer(data: welcome)))
+                userId: newcomer.id._internalGetInt64Value(),
+                peerId: peerId.dialogId,
+                welcome: Buffer(data: welcome)))
             |> map(Optional.init)
             |> `catch` { _ -> Signal<Api.mls.Ok?, NoError> in
                 Logger.shared.log("Mls", "the welcome for \(newcomer) was not delivered")

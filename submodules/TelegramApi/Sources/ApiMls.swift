@@ -31,11 +31,17 @@ public extension Api.functions {
             })
         }
 
-        /// mls.sendWelcome user_id:long welcome:bytes = mls.Ok;
-        public static func sendWelcome(userId: Int64, welcome: Buffer) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Ok>) {
+        /// mls.sendWelcome user_id:long peer_id:long welcome:bytes = mls.Ok;
+        ///
+        /// peerId is which chat the invitation is for, as a dialog id. Without
+        /// it a welcome says only who sent it, and the device joining files the
+        /// conversation under that person - so a group is recorded as the
+        /// conversation with whoever invited them (#115).
+        public static func sendWelcome(userId: Int64, peerId: Int64, welcome: Buffer) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Ok>) {
             let buffer = Buffer()
-            buffer.appendInt32(-773834602)
+            buffer.appendInt32(2042714623)
             serializeInt64(userId, buffer: buffer, boxed: false)
+            serializeInt64(peerId, buffer: buffer, boxed: false)
             serializeBytes(welcome, buffer: buffer, boxed: false)
             return (FunctionDescription(name: "mls.sendWelcome", parameters: [("userId", ConstructorParameterDescription(userId))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Ok? in
                 let reader = BufferReader(buffer)
@@ -199,22 +205,26 @@ public extension Api {
             }
         }
 
-        /// mls.welcome id:long from_id:long welcome:bytes = mls.Welcome;
+        /// mls.welcome id:long from_id:long peer_id:long welcome:bytes = mls.Welcome;
         public struct Welcome {
             public let id: Int64
             public let fromId: Int64
+            /// The chat this invitation is for; zero for one written before
+            /// invitations carried it, and then the sender is all there is.
+            public let peerId: Int64
             public let welcome: Buffer
 
             static func parse(_ reader: BufferReader) -> Welcome? {
-                guard let signature = reader.readInt32(), signature == -180214709 else {
+                guard let signature = reader.readInt32(), signature == 215890102 else {
                     return nil
                 }
                 guard let id = reader.readInt64(),
                       let fromId = reader.readInt64(),
+                      let peerId = reader.readInt64(),
                       let welcome = parseBytes(reader) else {
                     return nil
                 }
-                return Welcome(id: id, fromId: fromId, welcome: welcome)
+                return Welcome(id: id, fromId: fromId, peerId: peerId, welcome: welcome)
             }
         }
 

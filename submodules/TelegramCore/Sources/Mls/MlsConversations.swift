@@ -123,6 +123,27 @@ public extension PeerId {
     static func fromMlsKey(_ key: Int64) -> PeerId {
         return PeerId(key)
     }
+
+    /// How a chat is named on the wire between the two clients: the dialog id,
+    /// negative for a group and positive for a person.
+    ///
+    /// Not `mlsKey`, which is this client's packed form and means nothing to the
+    /// other one. Sending the packed form and reading it back as a dialog id
+    /// crashed on arrival - `PeerId.Id` refuses a negative number, and it does
+    /// so with an assertion, on the path every invitation takes.
+    var dialogId: Int64 {
+        let bare = self.id._internalGetInt64Value()
+        return self.namespace == Namespaces.Peer.CloudGroup ? -bare : bare
+    }
+
+    static func fromDialogId(_ dialogId: Int64) -> PeerId {
+        if dialogId < 0 {
+            return PeerId(namespace: Namespaces.Peer.CloudGroup,
+                          id: PeerId.Id._internalFromInt64Value(-dialogId))
+        }
+        return PeerId(namespace: Namespaces.Peer.CloudUser,
+                      id: PeerId.Id._internalFromInt64Value(dialogId))
+    }
 }
 
 public extension MlsConversationIds {
@@ -249,7 +270,10 @@ public enum MlsConversations {
                     // mailbox is addressed to a person, and add_members made a
                     // single welcome that serves all of them.
                     return combineLatest(members.map { member in
-                        network.request(Api.functions.mls.sendWelcome(userId: member.id._internalGetInt64Value(), welcome: Buffer(data: welcome)))
+                        network.request(Api.functions.mls.sendWelcome(
+                            userId: member.id._internalGetInt64Value(),
+                            peerId: peerId.dialogId,
+                            welcome: Buffer(data: welcome)))
                         |> map(Optional.init)
                         |> `catch` { _ -> Signal<Api.mls.Ok?, NoError> in
                             // The group exists here and somebody was never
@@ -616,19 +640,31 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
 
             var opened: [Int64] = []
             var spent: [Int64] = []
-            var peers: [Int64: Data] = [:]
+            // Keyed by the chat the invitation names, not by whoever sent it.
+            var peers: [PeerId: Data] = [:]
             _ = runtime.withState { identity in
                 for welcome in result.welcomes {
                     do {
                         let group = try MlsGroup.join(identity: identity, welcome: welcome.welcome.makeData())
                         let joinedId = try group.id
-                        peers[welcome.fromId] = joinedId
+                        // Where the invitation says, and only otherwise under
+                        // the person who sent it. That guess is right for a
+                        // chat between two and wrong for a group: it recorded
+                        // the group as the conversation with whoever invited
+                        // them, so a private message to that person went into
+                        // the group, and a commit meant for the whole group
+                        // went to one member (#115).
+                        let belongsTo = welcome.peerId != 0
+                            ? PeerId.fromDialogId(welcome.peerId)
+                            : PeerId(namespace: Namespaces.Peer.CloudUser,
+                                     id: PeerId.Id._internalFromInt64Value(welcome.fromId))
+                        peers[belongsTo] = joinedId
                         opened.append(welcome.id)
                         // With the epoch, because without it there is no telling a
                         // welcome that was taken from one that was declined in
                         // favour of a group this device already had: both say
                         // "joined", and only one of them can read what comes next.
-                        Logger.shared.log("Mls", "joined conversation \(mlsShortId(joinedId)) at epoch \(group.epoch) started by \(welcome.fromId)")
+                        Logger.shared.log("Mls", "joined conversation \(mlsShortId(joinedId)) for \(belongsTo) at epoch \(group.epoch), invited by \(welcome.fromId)")
                     } catch {
                         Logger.shared.log("Mls", "cannot join the conversation from \(welcome.fromId): \(error)")
                         // A welcome whose key package has already been spent can
@@ -658,16 +694,14 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
                 return .single([])
             }
 
-            let joined = peers.keys.map { PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value($0)) }
+            let joined = Array(peers.keys)
 
             // Taken here rather than written down by what follows. Everything
             // after this point is asynchronous and does not always run to the
             // end; a conversation that exists only until the next restart is
             // one the device rebuilds, and then the two sides have one each.
-            for (fromId, groupId) in peers {
-                runtime.adopt(
-                    peerId: PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value(fromId)),
-                    groupId: groupId)
+            for (peer, groupId) in peers {
+                runtime.adopt(peerId: peer, groupId: groupId)
             }
 
             return network.request(Api.functions.mls.confirmWelcomes(ids: opened))
