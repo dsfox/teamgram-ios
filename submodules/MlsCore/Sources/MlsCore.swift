@@ -153,6 +153,22 @@ public final class MlsGroup {
         return try take(buffer, "the message names no conversation")
     }
 
+    /// Which device a key package belongs to.
+    ///
+    /// A phone letting the other phones of its own account into a conversation
+    /// is handed one package per device, its own included - the server cannot
+    /// tell which caller is which leaf - and adding that one back would give
+    /// this device a second leaf it holds no keys for.
+    public static func name(ofKeyPackage keyPackage: Data) throws -> Data {
+        let buffer = keyPackage.withUnsafeBytes { raw -> MlsBuffer in
+            mls_key_package_name(
+                raw.bindMemory(to: UInt8.self).baseAddress,
+                UInt(keyPackage.count)
+            )
+        }
+        return try take(buffer, "that key package names no device")
+    }
+
     /// Joins a conversation this device was invited into.
     public static func join(identity: MlsIdentity, welcome: Data) throws -> MlsGroup {
         guard let handle = welcome.withUnsafeBytes({ raw -> OpaquePointer? in

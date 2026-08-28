@@ -447,6 +447,53 @@ public final class MlsRuntime {
         return result
     }
 
+    /// How many devices of this account have published anything, as the server
+    /// last said.
+    ///
+    /// The one thing that tells this phone another phone of the same person has
+    /// signed in. Comparing a conversation with its chat is about people - a
+    /// leaf is named `<user>/<device>` and everything reads the part before the
+    /// slash - so a second device of somebody already in it is invisible there.
+    /// It is what left a phone signed in beside another one reading nothing but
+    /// padlocks (#41).
+    ///
+    /// Zero means nobody has asked the server yet, and nothing is concluded.
+    private var deviceCount: Int32 = 0
+
+    public func noteDevices(_ count: Int32) {
+        self.queue.lock()
+        let known = self.deviceCount
+        self.deviceCount = count
+        let conversations = self.conversationIds.keys.map { PeerId.fromMlsKey($0) }
+        let network = self.network
+        self.queue.unlock()
+        guard count > known, let network = network else {
+            return
+        }
+        Logger.shared.log("Mls", "this account now has \(count) device(s)")
+        // At once, rather than at whatever happens next. The count going up is a
+        // phone that has just signed in, and the person holding the old one is
+        // watching the new one show padlocks.
+        //
+        // Every conversation, not only groups: a chat between two is an MLS
+        // group of two and the new phone is as absent from it.
+        let postbox = self.postbox
+        let accountPeerId = self.accountPeerId
+        Queue.concurrentDefaultQueue().async {
+            for peerId in conversations {
+                let _ = reconcileMembership(
+                    postbox: postbox, accountPeerId: accountPeerId, network: network,
+                    peerId: peerId, listIsFromTheServer: false).start()
+            }
+        }
+    }
+
+    public func devices() -> Int32 {
+        self.queue.lock()
+        defer { self.queue.unlock() }
+        return self.deviceCount
+    }
+
     /// How long to leave between asking again for invitations, and how many
     /// times.
     ///

@@ -154,24 +154,33 @@ public extension Api.functions {
 
 public extension Api {
     enum mls {
-        /// mls.publishResult added:int available:int should_refill:Bool = mls.PublishResult;
+        /// mls.publishResult added:int available:int should_refill:Bool devices:int = mls.PublishResult;
         public struct PublishResult {
             public let added: Int32
             public let available: Int32
             /// Whether this device should make more. The server counts; the
             /// device is the only one that can make them.
             public let shouldRefill: Swift.Bool
+            /// How many devices of this account have published anything.
+            ///
+            /// The one thing that tells this phone another phone of the same
+            /// person has signed in: comparing a conversation with its chat is
+            /// about people, so a second device of somebody already in it is
+            /// invisible there (#41).
+            public let devices: Int32
 
             public static func parse(_ reader: BufferReader) -> PublishResult? {
-                guard let signature = reader.readInt32(), signature == -1429473241 else {
+                guard let signature = reader.readInt32(), signature == -472421573 else {
                     return nil
                 }
                 guard let added = reader.readInt32(),
                       let available = reader.readInt32(),
-                      let refill = reader.readInt32() else {
+                      let refill = reader.readInt32(),
+                      let devices = reader.readInt32() else {
                     return nil
                 }
-                return PublishResult(added: added, available: available, shouldRefill: refill == -1720552011)
+                return PublishResult(added: added, available: available,
+                                     shouldRefill: refill == -1720552011, devices: devices)
             }
         }
 

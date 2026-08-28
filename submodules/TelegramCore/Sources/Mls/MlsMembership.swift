@@ -233,6 +233,135 @@ public func reconcileMembership(
     named: NamedInTheMessage = NamedInTheMessage(),
     attempt: Int = 1
 ) -> Signal<Void, NoError> {
+    // The list half is about groups - a chat between two never changes who is in
+    // it - and the half below is about this account's own phones, which a chat
+    // of two has as much of a problem with.
+    return compareWithTheList(
+        postbox: postbox, accountPeerId: accountPeerId, network: network,
+        peerId: peerId, listIsFromTheServer: listIsFromTheServer,
+        named: named, attempt: attempt)
+    // And then this account's own other phones, which the comparison above
+    // cannot see: it is about people, and they are the same person.
+    |> then(letInMyOtherDevices(
+        postbox: postbox, accountPeerId: accountPeerId, network: network,
+        peerId: peerId, attempt: attempt))
+}
+
+/// Lets the other phones of this account into a conversation this one is in.
+///
+/// A leaf is named `<user>/<device>` and every comparison reads the part before
+/// the slash, so a second phone of somebody already in the group is invisible to
+/// it. That is right for everybody else - their devices were all added at once
+/// when they were - and wrong for this account, whose new phone nobody else is
+/// going to notice.
+///
+/// A phone that signs in publishes key packages, and the server says how many
+/// devices this account has published from. More of those than leaves of this
+/// account here means a phone that signed in after the conversation started.
+///
+/// Deliberately without asking anybody. The case this is for is a person adding
+/// their own second device while holding the first, and a confirmation there is
+/// ceremony: an account somebody else has taken over already reads the messages
+/// arriving in it (#41).
+private func letInMyOtherDevices(
+    postbox: Postbox,
+    accountPeerId: PeerId,
+    network: Network,
+    peerId: PeerId,
+    attempt: Int
+) -> Signal<Void, NoError> {
+    guard attempt <= commitAttempts else {
+        return .complete()
+    }
+    let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+    let devices = runtime.devices()
+    guard devices > 1 else {
+        // One device, or nobody has asked the server yet. Either way there is
+        // nothing here to conclude.
+        return .complete()
+    }
+    let self64 = accountPeerId.id._internalGetInt64Value()
+
+    return postbox.transaction { transaction -> (Data, [PeerId])? in
+        let ids = MlsConversationIds.load(transaction: transaction)
+        guard let groupId = ids.groupIdByPeer[peerId.mlsKey] else {
+            return nil
+        }
+        // The others, because the commit has to reach them: a leaf added here
+        // moves the epoch for the whole conversation, and anybody who does not
+        // get it stops being able to read.
+        guard peerId.namespace == Namespaces.Peer.CloudGroup else {
+            // A chat between two: the other person is the whole audience, and
+            // there is no participant list to look it up in.
+            return (groupId, [peerId])
+        }
+        guard let cached = transaction.getPeerCachedData(peerId: peerId) as? CachedGroupData,
+              let participants = cached.participants else {
+            return nil
+        }
+        return (groupId, participants.participants.map({ $0.peerId }).filter({ $0 != accountPeerId }))
+    }
+    |> mapToSignal { found -> Signal<Void, NoError> in
+        guard let (groupId, others) = found else {
+            return .complete()
+        }
+        let prefix = "\(self64)/"
+        let mine: [Data]? = runtime.withState { identity in
+            guard let group = try MlsGroup.load(identity: identity, id: groupId) else {
+                return [Data]()
+            }
+            return group.memberNames().filter {
+                String(decoding: $0, as: UTF8.self).hasPrefix(prefix)
+            }
+        }
+        guard let here = mine, here.count < Int(devices) else {
+            return .complete()
+        }
+        Logger.shared.log("Mls", "this account has \(devices) device(s) and \(here.count) of them are in \(mlsShortId(groupId))")
+
+        return network.request(Api.functions.mls.claimKeyPackages(userId: self64))
+        |> map(Optional.init)
+        |> `catch` { _ -> Signal<Api.mls.KeyPackages?, NoError> in .single(nil) }
+        |> mapToSignal { answer -> Signal<Void, NoError> in
+            guard let answer = answer else {
+                Logger.shared.log("Mls", "cannot reach this account's own devices")
+                return .complete()
+            }
+            // One package per device, this one's among them - the server cannot
+            // tell which caller is which leaf. Added back, it would give this
+            // device a second leaf it holds no keys for, and every message
+            // written to that leaf would go nowhere.
+            let wanted = answer.packages.map({ $0.makeData() }).filter { keyPackage in
+                guard let name = try? MlsGroup.name(ofKeyPackage: keyPackage) else {
+                    return false
+                }
+                return !here.contains(name)
+            }
+            guard !wanted.isEmpty else {
+                return .complete()
+            }
+            Logger.shared.log("Mls", "letting \(wanted.count) more device(s) of this account into \(mlsShortId(groupId))")
+            // The welcome goes to this account, which is every device of it -
+            // the new one among them. The copy that comes back here cannot be
+            // opened and says so, which is ordinary and already handled.
+            return offer(
+                postbox: postbox, accountPeerId: accountPeerId, network: network,
+                peerId: peerId, groupId: groupId, audience: others,
+                change: .letIn(newcomers: [accountPeerId], keyPackages: wanted),
+                named: NamedInTheMessage(), attempt: attempt)
+        }
+    }
+}
+
+private func compareWithTheList(
+    postbox: Postbox,
+    accountPeerId: PeerId,
+    network: Network,
+    peerId: PeerId,
+    listIsFromTheServer: Bool,
+    named: NamedInTheMessage,
+    attempt: Int
+) -> Signal<Void, NoError> {
     guard peerId.namespace == Namespaces.Peer.CloudGroup else {
         // A chat between two never changes who is in it, and a channel is
         // broadcasting rather than a conversation (#16).

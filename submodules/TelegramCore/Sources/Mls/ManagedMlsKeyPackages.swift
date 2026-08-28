@@ -87,6 +87,7 @@ func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: Pe
             }
         }).start(next: { result in
             if let result = result {
+                runtime.noteDevices(result.devices)
                 Logger.shared.log("Mls", "published \(result.added), \(result.available) available")
             } else {
                 Logger.shared.log("Mls", "the server did not take the key packages")
