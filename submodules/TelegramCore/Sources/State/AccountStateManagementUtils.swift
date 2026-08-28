@@ -4328,6 +4328,39 @@ func replayFinalState(
                                         for (space, _) in holesAtHistoryStart {
                                             transaction.removeHole(peerId: chatPeerId, threadId: nil, namespace: Namespaces.Message.Cloud, space: MessageHistoryHoleOperationSpace(space), range: 1 ... id.id)
                                         }
+                                    // Who is in the chat decides who can read it, and this
+                                    // message is the one thing every member gets. Comparing
+                                    // against the remembered participant list instead waits
+                                    // for that list to be fetched again, which nothing
+                                    // guarantees: a person who followed a link sat in a
+                                    // group where nothing appeared, and a person removed
+                                    // went on reading it (#40, 4.3).
+                                    //
+                                    // Every member tries, and that is deliberate: one commit
+                                    // takes the epoch and the rest find it already done.
+                                    case let .addedMembers(peerIds):
+                                        if message.id.peerId.namespace == Namespaces.Peer.CloudGroup {
+                                            let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+                                            if peerIds.contains(accountPeerId) {
+                                                runtime.invited()
+                                            }
+                                            runtime.memberAdded(peerId: message.id.peerId, userIds: peerIds)
+                                        }
+                                    case .joinedByLink, .joinedByRequest:
+                                        // Followed alone, so the person who joined is
+                                        // whoever the message is from.
+                                        if message.id.peerId.namespace == Namespaces.Peer.CloudGroup, let author = message.authorId {
+                                            let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+                                            if author == accountPeerId {
+                                                runtime.invited()
+                                            }
+                                            runtime.memberAdded(peerId: message.id.peerId, userIds: [author])
+                                        }
+                                    case let .removedMembers(peerIds):
+                                        if message.id.peerId.namespace == Namespaces.Peer.CloudGroup {
+                                            MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+                                                .memberRemoved(peerId: message.id.peerId, userIds: peerIds)
+                                        }
                                     case let .setChatWallpaper(wallpaper, _):
                                         if message.authorId == accountPeerId {
                                             transaction.updatePeerCachedData(peerIds: [message.id.peerId], update: { peerId, current in

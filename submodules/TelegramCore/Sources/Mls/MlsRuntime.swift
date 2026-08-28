@@ -321,7 +321,7 @@ public final class MlsRuntime {
             return nil
         }
         if let groupId = self.conversationIds[peerId.mlsKey] {
-            Logger.shared.log("Mls", "sending to \(peerId.id._internalGetInt64Value()) in conversation \(mlsShortId(groupId))")
+            Logger.shared.log("Mls", "sending to \(peerId.id._internalGetInt64Value()) in conversation \(mlsShortId(groupId)) at epoch \(group.epoch)")
         }
         // Before a message goes out is the moment worth checking that the
         // conversation still holds the people the chat does: it is the one
@@ -348,22 +348,124 @@ public final class MlsRuntime {
     /// Compares the conversation with the chat, additively, out of the way of
     /// whatever asked. Called with the lock held.
     private func compareMembershipSoon(with peerId: PeerId) {
-        guard peerId.namespace == Namespaces.Peer.CloudGroup,
-              let network = self.network else {
-            return
-        }
         let key = peerId.mlsKey
         let now = CFAbsoluteTimeGetCurrent()
         if let last = self.comparedAt[key], now - last < MlsRuntime.compareNotBefore {
             return
         }
         self.comparedAt[key] = now
+        // Read straight off: this one is called with the lock already held.
+        self.changeMembership(of: peerId, over: self.network, named: NamedInTheMessage())
+    }
 
+    /// The network, for the entry points that are called without the lock. Taken
+    /// and let go at once, because the lock is not one that can be taken twice
+    /// and everything below it runs on another thread anyway.
+    private func networkOutsideTheLock() -> Network? {
+        self.queue.lock()
+        defer { self.queue.unlock() }
+        return self.network
+    }
+
+    /// Somebody has just been named as joining a chat, by the message every
+    /// member of it gets.
+    ///
+    /// Named rather than worked out by comparison, and that is the whole point:
+    /// this arrives before the participant list here catches up, so a comparison
+    /// made now finds nobody missing and the newcomer waits for a sweep. It is
+    /// what left the first person who followed a link into an encrypted group
+    /// sitting in silence (#40, 4.3).
+    ///
+    /// Every member tries. Whoever wins the epoch makes the change; the rest
+    /// find the person already in and stop.
+    public func memberAdded(peerId: PeerId, userIds: [PeerId]) {
+        let newcomers = userIds.filter { $0 != self.accountPeerId }
+        guard !newcomers.isEmpty else {
+            // Somebody let us in. We cannot add ourselves to an MLS group; the
+            // welcome is on its way from whoever did.
+            return
+        }
+        self.changeMembership(of: peerId, over: self.networkOutsideTheLock(), named: NamedInTheMessage(joined: newcomers))
+    }
+
+    /// Somebody has just been named as leaving or being removed.
+    ///
+    /// The dangerous direction, and the reason this is not left to a comparison:
+    /// a removal that waits is a removal that has not happened, and what it
+    /// leaves behind is a device reading a conversation it is not in, for as
+    /// long as anybody keeps talking, with nothing on any screen to say so.
+    public func memberRemoved(peerId: PeerId, userIds: [PeerId]) {
+        let leaving = userIds.filter { $0 != self.accountPeerId }
+        guard !leaving.isEmpty else {
+            // Ourselves. There is nothing to commit: the group is left behind
+            // with the chat, and a device that removed itself would hold a
+            // conversation it could no longer read or repair.
+            return
+        }
+        self.changeMembership(of: peerId, over: self.networkOutsideTheLock(), named: NamedInTheMessage(gone: leaving))
+    }
+
+    /// How long to leave between asking again for invitations, and how many
+    /// times.
+    ///
+    /// The invitation is not there when the service message arrives. Joining a
+    /// chat and joining its conversation are two different things done by two
+    /// different machines: whoever added you has still to claim your key
+    /// packages, build the commit, hear from the delivery service that it was
+    /// taken, and only then post the welcome. Asking once, as the message lands,
+    /// is asking before it exists.
+    ///
+    /// Without this the box is only read on its own half-minute rhythm, which is
+    /// a person joining a group and watching nothing appear for as long as that
+    /// takes. The cost is a handful of small requests per membership change.
+    private static let askAgainAfter: [Double] = [3.0, 8.0, 20.0, 45.0]
+
+    /// Somebody joined a chat, and if it was this account there is an invitation
+    /// waiting on the server this second.
+    public func invited() {
+        self.askForInvitations(attempt: 1)
+    }
+
+    private func askForInvitations(attempt: Int) {
+        guard let network = self.networkOutsideTheLock() else {
+            return
+        }
         let postbox = self.postbox
         let accountPeerId = self.accountPeerId
-        // A copy read from storage rather than the one held here. Two threads
-        // moving one ratchet is a conversation neither can read, and this runs
-        // off the thread that called it (#112).
+        Logger.shared.log("Mls", "asking for invitations after somebody joined (attempt \(attempt))")
+
+        let _ = (joinPendingWelcomes(postbox: postbox, network: network, accountPeerId: accountPeerId)
+        |> mapToSignal { [weak self] joined -> Signal<Bool, NoError> in
+            guard let self = self else {
+                return .single(true)
+            }
+            guard !joined.isEmpty else {
+                return .single(false)
+            }
+            return combineLatest(joined.map { repairUnreadableMessages(postbox: postbox, runtime: self, peerId: $0) })
+            |> map { _ -> Bool in true }
+        }
+        |> deliverOn(Queue.concurrentDefaultQueue())).start(next: { [weak self] found in
+            guard let self = self, !found, attempt <= MlsRuntime.askAgainAfter.count else {
+                return
+            }
+            let _ = (Signal<Void, NoError>.complete()
+            |> suspendAwareDelay(MlsRuntime.askAgainAfter[attempt - 1], queue: Queue.concurrentDefaultQueue())).start(completed: { [weak self] in
+                self?.askForInvitations(attempt: attempt + 1)
+            })
+        })
+    }
+
+    /// The common half: off this thread, with a copy of the state read from
+    /// storage rather than the one held here.
+    private func changeMembership(of peerId: PeerId, over network: Network?, named: NamedInTheMessage) {
+        guard peerId.namespace == Namespaces.Peer.CloudGroup, let network = network else {
+            return
+        }
+        let postbox = self.postbox
+        let accountPeerId = self.accountPeerId
+        // Two threads moving one ratchet is a conversation neither can read, and
+        // this runs off the thread that called it (#112).
         let _ = (Signal<MlsIdentity?, NoError> { subscriber in
             subscriber.putNext(try? mlsIdentity(postbox: postbox, accountPeerId: accountPeerId))
             subscriber.putCompletion()
@@ -375,7 +477,7 @@ public final class MlsRuntime {
             }
             return reconcileMembership(
                 postbox: postbox, accountPeerId: accountPeerId, network: network,
-                identity: own, peerId: peerId, listIsFromTheServer: false)
+                identity: own, peerId: peerId, listIsFromTheServer: false, named: named)
         }
         |> deliverOn(Queue.concurrentDefaultQueue())).start()
     }

@@ -384,7 +384,10 @@ public enum MlsConversations {
             if "\(error)".contains("CannotDecryptOwnMessage") {
                 return .writtenHere
             }
-            Logger.shared.log("Mls", "cannot decrypt: \(error)")
+            // With the epoch this device is at, because the commonest reason a
+            // message will not open is that it was written in another one, and
+            // the error says which kind of wrong without saying how far.
+            Logger.shared.log("Mls", "cannot decrypt at epoch \(group.epoch): \(error)")
             return .unreadable
         }
     }
@@ -623,7 +626,11 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
                     let joinedId = try group.id
                     peers[welcome.fromId] = joinedId
                     opened.append(welcome.id)
-                    Logger.shared.log("Mls", "joined conversation \(mlsShortId(joinedId)) started by \(welcome.fromId)")
+                    // With the epoch, because without it there is no telling a
+                    // welcome that was taken from one that was declined in
+                    // favour of a group this device already had: both say
+                    // "joined", and only one of them can read what comes next.
+                    Logger.shared.log("Mls", "joined conversation \(mlsShortId(joinedId)) at epoch \(group.epoch) started by \(welcome.fromId)")
                 } catch {
                     Logger.shared.log("Mls", "cannot join the conversation from \(welcome.fromId): \(error)")
                     // A welcome whose key package has already been spent can

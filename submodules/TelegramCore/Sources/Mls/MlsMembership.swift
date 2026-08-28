@@ -34,6 +34,28 @@ import MlsCore
 /// loop with no end is a client that never stops trying.
 private let commitAttempts = 3
 
+/// Who a service message has just named, which the remembered participant list
+/// does not know about yet.
+///
+/// Every member gets these messages, which is why they are the one place a
+/// change can be acted on at once. The list is fetched on its own schedule and
+/// is behind - so a comparison made now finds nothing to do, and the person
+/// waits for a sweep. That is how somebody who followed a link sat in a group
+/// where nothing appeared, and how somebody removed went on reading.
+public struct NamedInTheMessage {
+    public let joined: [PeerId]
+    public let gone: [PeerId]
+
+    public init(joined: [PeerId] = [], gone: [PeerId] = []) {
+        self.joined = joined
+        self.gone = gone
+    }
+
+    public var isEmpty: Bool {
+        return self.joined.isEmpty && self.gone.isEmpty
+    }
+}
+
 /// What a change to the membership is, and how to make it again if somebody
 /// else's change took the epoch first.
 private enum MembershipChange {
@@ -70,6 +92,7 @@ private func offer(
     groupId: Data,
     audience: [PeerId],
     change: MembershipChange,
+    named: NamedInTheMessage,
     attempt: Int
 ) -> Signal<Void, NoError> {
     guard attempt <= commitAttempts else {
@@ -160,10 +183,12 @@ private func offer(
             |> mapToSignal { _ -> Signal<Void, NoError> in
                 // Worked out afresh rather than replayed: the change was built
                 // against a group that has since moved.
+                // Carried through: a change worked out afresh from a list that
+                // has still not caught up would forget who the message named.
                 return reconcileMembership(
                     postbox: postbox, accountPeerId: accountPeerId, network: network,
                     identity: identity, peerId: peerId,
-                    listIsFromTheServer: true, attempt: attempt + 1)
+                    listIsFromTheServer: true, named: named, attempt: attempt + 1)
             }
         }
 
@@ -192,6 +217,11 @@ private func offer(
 /// - Parameter listIsFromTheServer: whether the membership being compared
 ///   against was just handed over by the server rather than remembered here.
 ///   Only a fresh list may take somebody out.
+/// - Parameter named: people a service message has just named as having joined
+///   or gone. The list this device holds has not caught up with them yet - it is
+///   fetched on its own schedule - so comparing against it finds nothing and the
+///   change waits for a sweep. Naming is also better evidence than the list: it
+///   came from the server this second, about this one person.
 public func reconcileMembership(
     postbox: Postbox,
     accountPeerId: PeerId,
@@ -199,6 +229,7 @@ public func reconcileMembership(
     identity: MlsIdentity,
     peerId: PeerId,
     listIsFromTheServer: Bool,
+    named: NamedInTheMessage = NamedInTheMessage(),
     attempt: Int = 1
 ) -> Signal<Void, NoError> {
     guard peerId.namespace == Namespaces.Peer.CloudGroup else {
@@ -222,12 +253,22 @@ public func reconcileMembership(
         return (groupId, participants.participants.map({ $0.peerId }).filter({ $0 != accountPeerId }))
     }
     |> mapToSignal { found -> Signal<Void, NoError> in
-        guard let (groupId, members) = found else {
+        guard let (groupId, listed) = found else {
             return .complete()
         }
         guard let group = try? MlsGroup.load(identity: identity, id: groupId) else {
             return .complete()
         }
+
+        // Whoever a message has just named counts as being in the chat, ahead of
+        // the list saying so. Anybody it named as gone counts as out of it, and
+        // is dropped from the audience as well - a commit that removes somebody
+        // is not addressed to them.
+        var members = listed
+        for newcomer in named.joined where newcomer != accountPeerId && !members.contains(newcomer) {
+            members.append(newcomer)
+        }
+        members.removeAll(where: { named.gone.contains($0) })
 
         // A leaf is named <user>/<device>, so the person is what comes before
         // the slash, and one person with two phones is two leaves answering to
@@ -248,6 +289,20 @@ public func reconcileMembership(
         belong.insert(accountPeerId.id._internalGetInt64Value())
 
         let missing = members.filter { !inside.contains($0.id._internalGetInt64Value()) }
+        // Named departures first, and without waiting for a list: a removal that
+        // waits is a removal that has not happened, and what it leaves behind is
+        // somebody reading a conversation they are not in, with nothing on any
+        // screen to say so.
+        let namedOut = named.gone.filter { inside.contains($0.id._internalGetInt64Value()) }
+        if !namedOut.isEmpty {
+            Logger.shared.log("Mls", "\(namedOut) were named as gone from \(peerId)")
+            return offer(
+                postbox: postbox, accountPeerId: accountPeerId, network: network,
+                identity: identity, peerId: peerId, groupId: groupId,
+                audience: members, change: .putOut(leaving: namedOut),
+                named: named, attempt: attempt)
+        }
+
         let extra = members.isEmpty ? [] : inside.subtracting(belong)
 
         if listIsFromTheServer, !extra.isEmpty {
@@ -257,7 +312,7 @@ public func reconcileMembership(
                 postbox: postbox, accountPeerId: accountPeerId, network: network,
                 identity: identity, peerId: peerId, groupId: groupId,
                 audience: members.filter({ !extra.contains($0.id._internalGetInt64Value()) }),
-                change: .putOut(leaving: leaving), attempt: attempt)
+                change: .putOut(leaving: leaving), named: named, attempt: attempt)
         }
 
         guard !missing.isEmpty else {
@@ -291,7 +346,7 @@ public func reconcileMembership(
                 postbox: postbox, accountPeerId: accountPeerId, network: network,
                 identity: identity, peerId: peerId, groupId: groupId,
                 audience: members, change: .letIn(newcomers: reachable, keyPackages: packages),
-                attempt: attempt)
+                named: named, attempt: attempt)
         }
     }
 }
