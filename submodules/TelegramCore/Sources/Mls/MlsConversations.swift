@@ -702,7 +702,10 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
 /// been applied before and is dropped on sight - the same commit arrives twice
 /// on ordinary routes, through a confirmation that was lost or a device that
 /// stopped before saving.
-func applyPendingCommits(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<[Data], NoError> {
+/// Private on purpose: applying a commit without going back for the messages it
+/// opens leaves them hidden for good, so the only way in is catchUpWithTheGroup,
+/// which does both.
+private func applyPendingCommits(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<[Data], NoError> {
     return Signal<[Data], NoError> { subscriber in
         let identity: MlsIdentity
         do {
@@ -821,7 +824,25 @@ func managedMlsWelcomes(postbox: Postbox, network: Network, accountPeerId: PeerI
 /// each group among the ones this device holds; anything that cannot be placed
 /// is still applied, and only the reading back is skipped.
 func managedMlsCommits(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
-    let poll = applyPendingCommits(postbox: postbox, network: network, accountPeerId: accountPeerId)
+    let poll = catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId)
+
+    return (poll |> then(Signal<Void, NoError>.complete() |> suspendAwareDelay(30.0, queue: Queue.concurrentDefaultQueue())))
+    |> restart
+}
+
+/// Applies whatever changes are waiting and goes back for the messages they
+/// make readable.
+///
+/// The two halves belong together and were once apart, which is how a message
+/// stayed hidden for good: a commit arrived a second after the message that
+/// needed it, was applied by somebody rebuilding a change they had lost the
+/// race for, and nothing then went back to read the message - the poll that
+/// would have has already had that commit taken from under it. Seen on the
+/// stand: written at 10:47:44.267, openable from 10:47:44.901, never opened.
+///
+/// So every path that applies a commit reads back through this one.
+func catchUpWithTheGroup(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
+    return applyPendingCommits(postbox: postbox, network: network, accountPeerId: accountPeerId)
     |> mapToSignal { moved -> Signal<Void, NoError> in
         guard !moved.isEmpty else {
             return .complete()
@@ -829,6 +850,11 @@ func managedMlsCommits(postbox: Postbox, network: Network, accountPeerId: PeerId
         let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
         return runtime.reload()
         |> mapToSignal { _ -> Signal<Void, NoError> in
+            // A commit says which conversation moved and cannot say which chat
+            // that is - the server does not know, and must not. So the chats
+            // are found by looking up each group among the ones this device
+            // holds; anything that cannot be placed is still applied, and only
+            // the reading back is skipped.
             let peers = runtime.peers(ofConversations: moved)
             guard !peers.isEmpty else {
                 return .complete()
@@ -837,7 +863,4 @@ func managedMlsCommits(postbox: Postbox, network: Network, accountPeerId: PeerId
             |> map { _ -> Void in }
         }
     }
-
-    return (poll |> then(Signal<Void, NoError>.complete() |> suspendAwareDelay(30.0, queue: Queue.concurrentDefaultQueue())))
-    |> restart
 }

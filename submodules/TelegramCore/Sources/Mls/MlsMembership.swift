@@ -107,8 +107,7 @@ private func offer(
         // Catching up resolves it - the server left us a copy of our own commit
         // for exactly this - and then the change is made again.
         Logger.shared.log("Mls", "cannot build \(change.described) \(peerId): \(error)")
-        return applyPendingCommits(postbox: postbox, network: network, accountPeerId: accountPeerId)
-        |> mapToSignal { _ -> Signal<Void, NoError> in .complete() }
+        return catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId)
     }
 
     guard let offered = built else {
@@ -157,7 +156,7 @@ private func offer(
 
         guard result.accepted else {
             Logger.shared.log("Mls", "\(change.described) \(peerId) lost epoch \(offered.epoch); the group is at \(result.epoch), catching up")
-            return applyPendingCommits(postbox: postbox, network: network, accountPeerId: accountPeerId)
+            return catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId)
             |> mapToSignal { _ -> Signal<Void, NoError> in
                 // Worked out afresh rather than replayed: the change was built
                 // against a group that has since moved.
