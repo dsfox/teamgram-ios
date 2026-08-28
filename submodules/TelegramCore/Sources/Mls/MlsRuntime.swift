@@ -496,12 +496,31 @@ public final class MlsRuntime {
         guard MlsConversations.isCiphertext(text) else {
             return .nothing
         }
+        let (reading, toAdopt) = self.readHoldingTheLock(peerId: peerId, text: text)
+        // Outside the lock, which is the whole point of the split: adopt() takes
+        // that lock, and it is not one that can be taken twice. Taking it from
+        // inside stopped the thread that had just opened a message - and with it
+        // every other conversation, because they all queue behind this one lock.
+        //
+        // It cost an afternoon and looked like anything but a deadlock: the
+        // message stayed a padlock on the screen while the log said it had been
+        // opened, the accessibility tree came back empty, and taps stopped
+        // landing. The first message a device ever opened was the last thing it
+        // did.
+        if let groupId = toAdopt {
+            self.adopt(peerId: peerId, groupId: groupId)
+        }
+        return reading
+    }
 
+    /// The reading itself, and the conversation this chat turns out to belong
+    /// to when that is news - which the caller acts on once the lock is gone.
+    private func readHoldingTheLock(peerId: PeerId, text: String) -> (MlsConversations.Reading, Data?) {
         self.queue.lock()
         defer { self.queue.unlock() }
 
         if let already = self.opened[text] {
-            return .content(already)
+            return (.content(already), nil)
         }
 
         // The conversation the message names, not the one kept for the person
@@ -527,7 +546,7 @@ public final class MlsRuntime {
             found = self.group(for: peerId)
         }
         guard let (identity, group) = found else {
-            return .unreadable
+            return (.unreadable, nil)
         }
         let reading = MlsConversations.decrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text)
         if case let .content(content) = reading {
@@ -550,15 +569,12 @@ public final class MlsRuntime {
                 // Every message carries its group id in the clear, so the first
                 // one that opens says which chat it belongs to - and this is
                 // the only place both facts are known at once (#40).
-                self.queue.lock()
-                let known = self.conversationIds[peerId.mlsKey]
-                self.queue.unlock()
-                if known != groupId {
-                    self.adopt(peerId: peerId, groupId: groupId)
+                if self.conversationIds[peerId.mlsKey] != groupId {
+                    return (reading, groupId)
                 }
             }
         }
-        return reading
+        return (reading, nil)
     }
 
     /// The one account that is running, for the places that read a message into
