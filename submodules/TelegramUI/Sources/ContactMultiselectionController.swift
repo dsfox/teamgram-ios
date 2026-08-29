@@ -317,7 +317,18 @@ class ContactMultiselectionControllerImpl: ViewController, ContactMultiselection
         case .peerSelection, .chatSelection:
             let hasEditableTokens = !self.contactsNode.editableTokens.isEmpty
             self.rightNavigationButton?.isEnabled = updatedCount != 0 || hasEditableTokens || self.params.alwaysEnabled
-        case .groupCreation, .channelCreation, .premiumGifting, .requestedUsersSelection:
+        case .groupCreation:
+            // Agreeing with the update further down, which has always gated
+            // this on the count. Enabled from the start, "Next" led straight to
+            // naming a group nobody was in, and the request the server refuses
+            // came back as "you cannot create a group with these users because
+            // of their privacy settings" - about people who were never chosen.
+            //
+            // It is not a rare corner here: an account with no contacts on this
+            // server sees an empty list, and creating a group is one of the
+            // first things somebody tries.
+            self.rightNavigationButton?.isEnabled = updatedCount != 0 || self.params.alwaysEnabled
+        case .channelCreation, .premiumGifting, .requestedUsersSelection:
             self.rightNavigationButton?.isEnabled = true
         }
     }
