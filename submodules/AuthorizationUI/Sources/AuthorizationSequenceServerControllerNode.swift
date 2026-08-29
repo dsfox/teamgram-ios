@@ -62,6 +62,13 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
         self.addressSeparatorNode.backgroundColor = theme.list.itemPlainSeparatorColor
 
         self.addressField = TextFieldNode()
+        // Named, because this is the only thing on the screen a run can take
+        // hold of. The "Next" button lives in a navigation bar built out of
+        // nodes, and none of it reaches the accessibility tree - a fresh
+        // install left the sign-in tool looking at a screen with two unnamed
+        // elements on it. Pressing return in this field is what the delegate
+        // below reads as Next, so naming the field is enough to walk past.
+        self.addressField.textField.accessibilityIdentifier = "Auth.Server.AddressField"
         self.addressField.textField.font = Font.regular(20.0)
         self.addressField.textField.textColor = theme.list.itemPrimaryTextColor
         self.addressField.textField.textAlignment = .center
