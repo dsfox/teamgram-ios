@@ -75,6 +75,51 @@ private enum MembershipChange {
     }
 }
 
+/// How long to wait before looking again, in seconds.
+///
+/// The gap being waited out is the server's own: it moves the epoch and then
+/// fills the boxes, and a device refused in between is told the group has moved
+/// before the commit that moved it can be fetched. Measured at 156 milliseconds
+/// on the stand; the ladder is long enough to survive a slow answer and short
+/// enough that a device genuinely out of the group hears so while somebody is
+/// still looking at it.
+private let lookAgainAfter: [Double] = [2.0, 6.0, 15.0]
+
+/// Waits until this device stands where the group does, and says whether it got
+/// there.
+///
+/// The question is where this device is standing, not what this particular call
+/// managed to apply (#118). An empty commit box means nothing on its own: it is
+/// equally what a device sees when it has already caught up, and that is the
+/// common case rather than a rare one - the collector runs on its own rhythm and
+/// gets there first. Measured on Android, where the same shape lived: a phone
+/// applied the winning commit 45 milliseconds after losing, and twenty-three
+/// seconds later was told, wrongly and loudly, that it had fallen out of the
+/// conversation and had to be taken out of the chat and let back in.
+///
+/// Asking the epoch cannot be fooled that way. Ahead of us and nothing arriving
+/// is the real thing; standing level is fine however we got there.
+private func standWhereTheGroupIs(runtime: MlsRuntime, postbox: Postbox, network: Network,
+                                  accountPeerId: PeerId, groupId: Data, ahead: Int64,
+                                  attempt: Int) -> Signal<Bool, NoError> {
+    return catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId)
+    |> mapToSignal { _ -> Signal<Bool, NoError> in
+        let level = runtime.withState { identity -> Bool in
+            guard let group = try MlsGroup.load(identity: identity, id: groupId) else {
+                return false
+            }
+            return Int64(group.epoch) >= ahead
+        } ?? false
+        if level || attempt >= lookAgainAfter.count {
+            return .single(level)
+        }
+        return (.complete() |> suspendAwareDelay(lookAgainAfter[attempt], queue: Queue.concurrentDefaultQueue()))
+        |> then(standWhereTheGroupIs(runtime: runtime, postbox: postbox, network: network,
+                                     accountPeerId: accountPeerId, groupId: groupId,
+                                     ahead: ahead, attempt: attempt + 1))
+    }
+}
+
 /// Offers a change to the delivery service and does whatever its answer calls
 /// for.
 ///
@@ -215,15 +260,16 @@ private func offer(
         guard result.accepted else {
             Logger.shared.log("Mls", "\(change.described) \(peerId) lost epoch \(offered.epoch); the group is at \(result.epoch), catching up")
             // Losing is ordinary and the way back is the commit box. Losing and
-            // finding the box empty is not: the change that moved the group was
-            // never addressed to this device, and nothing after it can be
-            // applied without the one that is missing. The device is out of the
-            // conversation and will not find its own way back (#116).
-            let sawSomething = Atomic<Bool>(value: false)
-            return catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId, applied: sawSomething)
-            |> mapToSignal { _ -> Signal<Void, NoError> in
-                if !sawSomething.with({ $0 }) {
-                    Logger.shared.log("Mls", "fallen out of \(mlsShortId(groupId)) - staked epoch \(offered.epoch), the group is at \(result.epoch), and nothing is waiting to catch up with. This device has to be taken out of the chat and let back in (#116)")
+            // still standing behind the group afterwards is not: the change that
+            // moved it was never addressed to this device, and nothing after it
+            // can be applied without the one that is missing. The device is out
+            // of the conversation and will not find its own way back (#116).
+            return standWhereTheGroupIs(runtime: runtime, postbox: postbox, network: network,
+                                        accountPeerId: accountPeerId, groupId: groupId,
+                                        ahead: result.epoch, attempt: 0)
+            |> mapToSignal { level -> Signal<Void, NoError> in
+                if !level {
+                    Logger.shared.log("Mls", "fallen out of \(mlsShortId(groupId)) - staked epoch \(offered.epoch), the group is at \(result.epoch), and nothing arrived to catch up with. This device has to be taken out of the chat and let back in (#116)")
                 }
                 // Worked out afresh rather than replayed: the change was built
                 // against a group that has since moved.

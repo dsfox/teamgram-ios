@@ -23,9 +23,6 @@ public final class MlsRuntime {
     private let postbox: Postbox
     private let accountPeerId: PeerId
     private var identity: MlsIdentity?
-    /// The conversations this device is in, by their own id rather than by the
-    /// person they are with - because a person can be in more than one of them.
-    private var groups: [String: MlsGroup] = [:]
     /// Conversations being started, so that a burst of messages to somebody new
     /// starts one conversation rather than a race of several - and several
     /// would be worse than slow: each one would replace the last, and the other
@@ -250,19 +247,28 @@ public final class MlsRuntime {
     /// device can be in two with the same person - one it started and one it was
     /// invited into - and both are real for as long as messages keep arriving in
     /// them.
+    /// Loaded afresh every time, and deliberately not kept.
+    ///
+    /// A loaded group is a copy of the state, not a window onto it: a change
+    /// made through one handle is invisible to every other, for ever. Keeping
+    /// one meant that when the conversation was replaced underneath - which is
+    /// what rejoining is, because a welcome forgets the old group and builds a
+    /// new one - the copy in hand went on being the group from before. A device
+    /// let back in read every message with the state it had when it was thrown
+    /// out and said `WrongEpoch` about messages written where it was now
+    /// standing, until something restarted the client (#117).
+    ///
+    /// The cache saved a deserialisation per message and cost a correct answer.
+    /// Android has always loaded one per operation and closed it, and this is
+    /// now the same shape. `a_loaded_conversation_is_a_copy_and_not_a_window`
+    /// in the core holds the property this rests on.
     private func group(named groupId: Data) -> (MlsIdentity, MlsGroup)? {
         guard let identity = self.identity else {
             return nil
         }
-
-        let key = groupId.base64EncodedString()
-        if let group = self.groups[key] {
-            return (identity, group)
-        }
         guard let group = try? MlsGroup.load(identity: identity, id: groupId) else {
             return nil
         }
-        self.groups[key] = group
         return (identity, group)
     }
 
@@ -1072,7 +1078,6 @@ public final class MlsRuntime {
             self.conversationIds = stored.groupIdByPeer
             self.rebuilt = stored.rebuiltAtByPeer
             self.identity = identity
-            self.groups.removeAll()
             MlsRuntime.publishEncrypted(stored.groupIdByPeer.keys)
             self.queue.unlock()
         }
