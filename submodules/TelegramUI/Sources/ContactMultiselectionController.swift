@@ -317,18 +317,7 @@ class ContactMultiselectionControllerImpl: ViewController, ContactMultiselection
         case .peerSelection, .chatSelection:
             let hasEditableTokens = !self.contactsNode.editableTokens.isEmpty
             self.rightNavigationButton?.isEnabled = updatedCount != 0 || hasEditableTokens || self.params.alwaysEnabled
-        case .groupCreation:
-            // Agreeing with the update further down, which has always gated
-            // this on the count. Enabled from the start, "Next" led straight to
-            // naming a group nobody was in, and the request the server refuses
-            // came back as "you cannot create a group with these users because
-            // of their privacy settings" - about people who were never chosen.
-            //
-            // It is not a rare corner here: an account with no contacts on this
-            // server sees an empty list, and creating a group is one of the
-            // first things somebody tries.
-            self.rightNavigationButton?.isEnabled = updatedCount != 0 || self.params.alwaysEnabled
-        case .channelCreation, .premiumGifting, .requestedUsersSelection:
+        case .groupCreation, .channelCreation, .premiumGifting, .requestedUsersSelection:
             self.rightNavigationButton?.isEnabled = true
         }
     }
@@ -855,6 +844,26 @@ class ContactMultiselectionControllerImpl: ViewController, ContactMultiselection
                 additionalOptionIds.append(optionId)
             }
             additionalOptionIds.sort()
+        }
+        // Nobody chosen is not a group, and the server says so in words about
+        // other people's privacy settings - which is a lie, because nobody was
+        // chosen to have any. Answered here, in the words that are true.
+        //
+        // Greying the button out was tried first and was worse: on an account
+        // with no contacts yet the screen is empty, so it became a dead end
+        // with nothing on it to explain itself. The way forward from here is
+        // the search field - people are found by username - and a person has to
+        // be told that rather than left pressing a button that does nothing.
+        if case .groupCreation = self.mode, peerIds.isEmpty, !self.params.alwaysEnabled {
+            let presentationData = self.context.sharedContext.currentPresentationData.with { $0 }
+            self.present(
+                textAlertController(
+                    context: self.context,
+                    title: nil,
+                    text: presentationData.strings.Compose_TokenListPlaceholder,
+                    actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]),
+                in: .window(.root))
+            return
         }
         self._result.set(.single(.result(peerIds: peerIds, additionalOptionIds: additionalOptionIds)))
     }
