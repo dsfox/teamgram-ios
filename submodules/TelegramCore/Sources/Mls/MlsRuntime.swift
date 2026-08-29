@@ -495,6 +495,9 @@ public final class MlsRuntime {
                     postbox: postbox, accountPeerId: accountPeerId, network: network).start()
             }
         }
+        // And whatever changed while this phone was not running, which no update
+        // will ever tell it about (#124).
+        self.catchUpOnMembership(conversations: conversations, network: network)
         guard count > known else {
             return
         }
@@ -512,6 +515,50 @@ public final class MlsRuntime {
                 let _ = reconcileMembership(
                     postbox: postbox, accountPeerId: accountPeerId, network: network,
                     peerId: peerId, listIsFromTheServer: false).start()
+            }
+        }
+    }
+
+    /// Asks for the membership of every group this device holds a conversation
+    /// for.
+    ///
+    /// A change that happened while the app was not running never arrives as an
+    /// update - it is already in the history by then - and the hook that acts on
+    /// membership hangs on updates. So somebody who joined by a link while the
+    /// phone was off stayed outside the conversation: in the chat, and in a chat
+    /// where nothing would ever appear for them. The other direction is worse:
+    /// somebody removed while the phone was off keeps reading (#124).
+    ///
+    /// Asking for the chat is enough. The answer carries the participant list,
+    /// and the comparison already runs when one arrives - which is also why this
+    /// is a request rather than a second copy of that logic.
+    ///
+    /// On every round rather than once at the start, and the Android half was
+    /// measured into that shape: the change this is for does not only happen
+    /// while the app is down, it also happens while the app is up and the update
+    /// never arrives - a phone running, connected, publishing on its rhythm, and
+    /// never told that somebody had followed a link into its group. Asking on
+    /// each round bounds that at one round rather than for ever.
+    ///
+    /// Groups only. A chat between two never changes who is in it, and asking
+    /// about one would be a request per conversation per round for an answer
+    /// that cannot differ.
+    private func catchUpOnMembership(conversations: [PeerId], network: Network) {
+        let groups = conversations.filter { $0.namespace == Namespaces.Peer.CloudGroup }
+        // Counted out loud. Without it a pass over an empty list and a pass that
+        // was never called read exactly the same from the log, which is where an
+        // evening went on the Android side.
+        Logger.shared.log("Mls", "asking for the membership of \(groups.count) group(s)")
+        guard !groups.isEmpty else {
+            return
+        }
+        let postbox = self.postbox
+        let accountPeerId = self.accountPeerId
+        Queue.concurrentDefaultQueue().async {
+            for peerId in groups {
+                let _ = _internal_fetchAndUpdateCachedPeerData(
+                    accountPeerId: accountPeerId, peerId: peerId,
+                    network: network, postbox: postbox).start()
             }
         }
     }
