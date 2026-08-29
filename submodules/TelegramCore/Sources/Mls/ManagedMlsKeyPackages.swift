@@ -23,6 +23,29 @@ private let packagesPerRefill = 30
 /// so there is nothing to gain by asking often.
 private let betweenChecks: Double = 15 * 60
 
+/// Asks the server how many devices this account has, now rather than on the
+/// rhythm.
+///
+/// Called when a session has just been ended from this phone. The device that
+/// lost a phone is this one, and it is the one that has to take that phone's
+/// leaf out of every conversation - left to its own rhythm it notices a quarter
+/// of an hour later, and until then the phone that was signed out goes on
+/// reading everything said (#121).
+///
+/// An empty publish is that question: nothing is stored and the count comes
+/// back, which is what noteDevices acts on.
+func askHowManyDevices(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
+    return network.request(Api.functions.mls.publishKeyPackages(keyPackages: [], lastResort: Buffer()))
+    |> map(Optional.init)
+    |> `catch` { _ -> Signal<Api.mls.PublishResult?, NoError> in .single(nil) }
+    |> map { answer -> Void in
+        guard let answer = answer else {
+            return
+        }
+        MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).noteDevices(answer.devices)
+    }
+}
+
 func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
     let refill = Signal<Void, NoError> { subscriber in
         // The one copy of the state, borrowed for as long as it takes to make

@@ -38,7 +38,13 @@ func terminateAccountSession(account: Account, hash: Int64) -> Signal<Void, Term
         return .generic
     }
     |> mapToSignal { _ -> Signal<Void, TerminateSessionError> in
-        return .single(Void())
+        // The phone that just lost a device is this one, and it is the one that
+        // has to take that device's leaf out of every conversation. Left to its
+        // own rhythm it would notice a quarter of an hour later, and until then
+        // the phone that was signed out goes on reading everything said (#121).
+        return askHowManyDevices(postbox: account.postbox, network: account.network,
+                                 accountPeerId: account.peerId)
+        |> castError(TerminateSessionError.self)
     }
 }
 
@@ -51,7 +57,11 @@ func terminateOtherAccountSessions(account: Account) -> Signal<Void, TerminateSe
         return .generic
     }
     |> mapToSignal { _ -> Signal<Void, TerminateSessionError> in
-        return .single(Void())
+        // The same as ending one session, and the commoner way to answer
+        // "I have lost my phone" (#121).
+        return askHowManyDevices(postbox: account.postbox, network: account.network,
+                                 accountPeerId: account.peerId)
+        |> castError(TerminateSessionError.self)
     }
 }
 
