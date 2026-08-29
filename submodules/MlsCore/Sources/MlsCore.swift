@@ -65,6 +65,16 @@ public final class MlsIdentity {
         mls_identity_free(self.handle)
     }
 
+    /// The name this device goes under, which is the name of its own leaf.
+    ///
+    /// Written into the state and read back with it, so this survives a restart
+    /// without a copy kept beside it. Asked when a phone of the account has gone
+    /// and the leaves have to be told apart: every other leaf of this account is
+    /// a candidate for removal and this one never is (#41).
+    public func name() -> Data? {
+        return try? take(mls_identity_name(self.handle), "no name")
+    }
+
     /// What somebody else needs in order to add this device to a conversation.
     /// Published to the server, handed out on request, used once.
     public func keyPackage() throws -> Data {

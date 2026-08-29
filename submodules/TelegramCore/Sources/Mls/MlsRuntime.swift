@@ -473,7 +473,29 @@ public final class MlsRuntime {
         let conversations = self.conversationIds.keys.map { PeerId.fromMlsKey($0) }
         let network = self.network
         self.queue.unlock()
-        guard count > known, let network = network else {
+        guard let network = network else {
+            return
+        }
+        if known > 0 && count < known {
+            Logger.shared.log("Mls", "a device of this account is gone")
+        }
+        // Every time the count is known, and not only when it has just fallen.
+        //
+        // The trend lives in memory: a phone restarted after the other one was
+        // signed out starts from nothing, reads "one device" as a rise, and
+        // never looks. It was measured that way - the leaf stayed and the epoch
+        // did not move. The pass itself needs no trend, because it compares
+        // leaves against the count, so it is asked every time and costs nothing
+        // when there is nothing to do (#41).
+        do {
+            let postbox = self.postbox
+            let accountPeerId = self.accountPeerId
+            Queue.concurrentDefaultQueue().async {
+                let _ = takeOutMyLostDevices(
+                    postbox: postbox, accountPeerId: accountPeerId, network: network).start()
+            }
+        }
+        guard count > known else {
             return
         }
         Logger.shared.log("Mls", "this account now has \(count) device(s)")

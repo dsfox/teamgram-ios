@@ -64,6 +64,11 @@ private enum MembershipChange {
     case letIn(newcomers: [PeerId], keyPackages: [Data])
     /// Taking people out, and with each of them every phone they hold.
     case putOut(leaving: [PeerId])
+    /// Taking out one phone of this account by its own name, leaving the
+    /// person's other phones reading. `putOut` is asked about a person and
+    /// answers about every leaf they hold, which is right for somebody leaving
+    /// and wrong here.
+    case drop(leaves: [Data])
 
     var described: String {
         switch self {
@@ -71,6 +76,8 @@ private enum MembershipChange {
             return "letting \(newcomers.count) into"
         case let .putOut(leaving):
             return "taking \(leaving.count) out of"
+        case let .drop(leaves):
+            return "taking \(leaves.count) device(s) of this account out of"
         }
     }
 }
@@ -164,6 +171,14 @@ private func offer(
                 // Nobody matched, which is not a failure: two people removing
                 // the same person at once is ordinary, and the second is
                 // looking at a group that already looks the way they wanted.
+                return nil
+            }
+            return (commit: commit, welcome: nil, epoch: epoch)
+        case let .drop(leaves):
+            // The full name of a leaf, which is a prefix of exactly one of
+            // them - so the same call answers "this one phone" as well as it
+            // answers "this person".
+            guard let commit = try group.removeMembers(identity: identity, namePrefixes: leaves) else {
                 return nil
             }
             return (commit: commit, welcome: nil, epoch: epoch)
@@ -438,6 +453,119 @@ private func letInMyOtherDevices(
                 postbox: postbox, accountPeerId: accountPeerId, network: network,
                 peerId: peerId, groupId: groupId, audience: others,
                 change: .letIn(newcomers: [accountPeerId], keyPackages: wanted),
+                named: NamedInTheMessage(), attempt: attempt)
+        }
+    }
+}
+
+/// Takes the phones of this account that are gone out of a conversation.
+///
+/// The mirror of letting them in, and the half that makes losing a phone mean
+/// anything. Signing a device out takes its key packages off the server so
+/// nobody can add it again - but the leaf it already holds stays, and a leaf is
+/// what reading is. Until it is removed and the epoch moves, the phone in the
+/// drawer opens everything said afterwards (#41).
+///
+/// Two questions, answered by two different things. *Whether* a device is gone
+/// is the count: more leaves of mine here than devices the server knows of.
+/// *Which* one is the names: the server hands out one key package per live
+/// device, so a leaf of mine with no package behind it is a phone that has
+/// signed out.
+///
+/// The count is asked first because the names alone would be dangerous. A device
+/// that is merely offline still has packages, but one that had run out would look
+/// gone - and evicting a live phone is the worst thing this code could do.
+public func takeOutMyLostDevices(
+    postbox: Postbox,
+    accountPeerId: PeerId,
+    network: Network
+) -> Signal<Void, NoError> {
+    let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+    return postbox.transaction { transaction -> [PeerId] in
+        return Array(MlsConversationIds.load(transaction: transaction).groupIdByPeer.keys)
+            .map({ PeerId.fromMlsKey($0) })
+    }
+    |> mapToSignal { peers -> Signal<Void, NoError> in
+        var work: Signal<Void, NoError> = .complete()
+        for peerId in peers {
+            work = work
+            |> then(takeOutMyLostDevices(postbox: postbox, accountPeerId: accountPeerId,
+                                         network: network, peerId: peerId,
+                                         runtime: runtime, attempt: 1))
+        }
+        return work
+    }
+}
+
+private func takeOutMyLostDevices(
+    postbox: Postbox,
+    accountPeerId: PeerId,
+    network: Network,
+    peerId: PeerId,
+    runtime: MlsRuntime,
+    attempt: Int
+) -> Signal<Void, NoError> {
+    guard attempt <= commitAttempts else {
+        return .complete()
+    }
+    let devices = runtime.devices()
+    guard devices > 0 else {
+        // Nobody has asked the server yet, and zero is not an answer.
+        return .complete()
+    }
+    let self64 = accountPeerId.id._internalGetInt64Value()
+
+    return postbox.transaction { transaction -> Data? in
+        return MlsConversationIds.load(transaction: transaction).groupIdByPeer[peerId.mlsKey]
+    }
+    |> mapToSignal { found -> Signal<Void, NoError> in
+        guard let groupId = found else {
+            return .complete()
+        }
+        let prefix = "\(self64)/"
+        let mine: [Data]? = runtime.withState { identity in
+            guard let group = try MlsGroup.load(identity: identity, id: groupId) else {
+                return [Data]()
+            }
+            return group.memberNames().filter {
+                String(decoding: $0, as: UTF8.self).hasPrefix(prefix)
+            }
+        }
+        guard let here = mine, here.count > Int(devices) else {
+            return .complete()
+        }
+        // This device is never a candidate. A phone that could not tell which
+        // leaf was its own would evict itself from every conversation it holds.
+        let ours = runtime.withState { identity in identity.name() } ?? nil
+
+        Logger.shared.log("Mls", "this account has \(devices) device(s) and \(here.count) leaves in \(mlsShortId(groupId)), so one has gone")
+
+        return network.request(Api.functions.mls.claimKeyPackages(userId: self64))
+        |> map(Optional.init)
+        |> `catch` { _ -> Signal<Api.mls.KeyPackages?, NoError> in .single(nil) }
+        |> mapToSignal { answer -> Signal<Void, NoError> in
+            guard let answer = answer else {
+                Logger.shared.log("Mls", "cannot ask which devices of this account are still there")
+                return .complete()
+            }
+            let alive = answer.packages.compactMap { try? MlsGroup.name(ofKeyPackage: $0.makeData()) }
+            let gone = here.filter { leaf in
+                if let ours = ours, leaf == ours {
+                    return false
+                }
+                return !alive.contains(leaf)
+            }
+            guard !gone.isEmpty else {
+                // The count said one was missing and the names cannot say
+                // which. Nothing is removed on a guess.
+                Logger.shared.log("Mls", "a device of this account is gone from \(mlsShortId(groupId)) and the server's answer does not say which - leaving it alone")
+                return .complete()
+            }
+            Logger.shared.log("Mls", "taking \(gone.count) device(s) of this account out of \(mlsShortId(groupId))")
+            return offer(
+                postbox: postbox, accountPeerId: accountPeerId, network: network,
+                peerId: peerId, groupId: groupId, audience: [],
+                change: .drop(leaves: gone),
                 named: NamedInTheMessage(), attempt: attempt)
         }
     }
