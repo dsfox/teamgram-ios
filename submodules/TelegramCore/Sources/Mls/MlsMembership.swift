@@ -741,6 +741,22 @@ private func compareWithTheList(
         // or repair.
         belong.insert(accountPeerId.id._internalGetInt64Value())
 
+        // How many leaves each person has here, which is the question rather
+        // than whether they have any.
+        //
+        // "Is this person in the group" was the question until #132, and it is
+        // the wrong one the moment somebody replaces a phone: the leaf of the
+        // device that has gone still says yes, so nobody counts them as
+        // missing, nobody lets the phone they now hold in, and they sit in the
+        // chat watching padlocks for ever. Only a count can tell those apart,
+        // and the server is the one that has it.
+        var leavesOf: [Int64: Int] = [:]
+        for name in memberNames {
+            let text = String(decoding: name, as: UTF8.self)
+            if let slash = text.firstIndex(of: "/"), let who = Int64(text[text.startIndex ..< slash]) {
+                leavesOf[who] = (leavesOf[who] ?? 0) + 1
+            }
+        }
         let missing = members.filter { !inside.contains($0.id._internalGetInt64Value()) }
         // Named departures first, and without waiting for a list: a removal that
         // waits is a removal that has not happened, and what it leaves behind is
@@ -768,38 +784,77 @@ private func compareWithTheList(
                 change: .putOut(leaving: leaving), named: named, attempt: attempt)
         }
 
-        guard !missing.isEmpty else {
-            return .complete()
-        }
-
-        // Somebody with no devices to reach is left out of this round rather
-        // than stopping it: the others should not wait for a client that has
-        // not published anything yet, and the comparison runs again later.
-        return combineLatest(missing.map { member in
-            network.request(Api.functions.mls.claimKeyPackages(userId: member.id._internalGetInt64Value()))
-            |> map(Optional.init)
-            |> `catch` { _ -> Signal<Api.mls.KeyPackages?, NoError> in .single(nil) }
-        })
-        |> mapToSignal { answers -> Signal<Void, NoError> in
-            var packages: [Data] = []
-            var reachable: [PeerId] = []
-            for (index, answer) in answers.enumerated() {
-                guard let answer = answer, !answer.packages.isEmpty else {
-                    Logger.shared.log("Mls", "\(missing[index]) has no devices, so they stay outside \(peerId) for now")
-                    continue
+        // Who has fewer leaves here than they have devices. Somebody with none
+        // at all is the ordinary newcomer; somebody with one that is dead and a
+        // phone that is alive is #132, and until this both looked the same to
+        // the half of this that could see them.
+        return network.request(Api.functions.mls.devicesOf(users: members.map({ $0.id._internalGetInt64Value() })))
+        |> map(Optional.init)
+        |> `catch` { _ -> Signal<Api.mls.DeviceCounts?, NoError> in .single(nil) }
+        |> mapToSignal { counted -> Signal<Void, NoError> in
+            var wanting: [PeerId] = []
+            if let counted = counted, counted.counts.count == members.count {
+                for (index, member) in members.enumerated() {
+                    let here = leavesOf[member.id._internalGetInt64Value()] ?? 0
+                    if Int(counted.counts[index]) > here {
+                        wanting.append(member)
+                    }
                 }
-                packages.append(contentsOf: answer.packages.map { $0.makeData() })
-                reachable.append(missing[index])
+            } else {
+                // The server did not say. Falling back to the old question is
+                // right rather than tidy: it lets in whoever is plainly absent
+                // and does nothing about a leaf that may or may not be dead,
+                // which is the safe half.
+                Logger.shared.log("Mls", "the server did not say how many devices \(peerId) has, going by who is absent")
+                wanting = missing
             }
-            guard !packages.isEmpty else {
+            guard !wanting.isEmpty else {
                 return .complete()
             }
-            Logger.shared.log("Mls", "\(reachable.count) of \(peerId) are not in \(mlsShortId(groupId)) yet")
-            return offer(
-                postbox: postbox, accountPeerId: accountPeerId, network: network,
-                peerId: peerId, groupId: groupId,
-                audience: members, change: .letIn(newcomers: reachable, keyPackages: packages),
-                named: named, attempt: attempt)
+
+            // Somebody with no devices to reach is left out of this round rather
+            // than stopping it: the others should not wait for a client that has
+            // not published anything yet, and the comparison runs again later.
+            return combineLatest(wanting.map { member in
+                network.request(Api.functions.mls.claimKeyPackages(userId: member.id._internalGetInt64Value()))
+                |> map(Optional.init)
+                |> `catch` { _ -> Signal<Api.mls.KeyPackages?, NoError> in .single(nil) }
+            })
+            |> mapToSignal { answers -> Signal<Void, NoError> in
+                let here = Set(memberNames)
+                var packages: [Data] = []
+                var reachable: [PeerId] = []
+                for (index, answer) in answers.enumerated() {
+                    guard let answer = answer, !answer.packages.isEmpty else {
+                        Logger.shared.log("Mls", "\(wanting[index]) has no devices, so they stay outside \(peerId) for now")
+                        continue
+                    }
+                    // Not the ones already standing here. A person being caught
+                    // up has live devices in the group as well as the one that
+                    // is missing, and adding a leaf that is already there gives
+                    // them two, one of which holds no keys anybody has.
+                    let wanted = answer.packages.map({ $0.makeData() }).filter { keyPackage in
+                        guard let name = try? MlsGroup.name(ofKeyPackage: keyPackage) else {
+                            return false
+                        }
+                        return !here.contains(name)
+                    }
+                    guard !wanted.isEmpty else {
+                        continue
+                    }
+                    packages.append(contentsOf: wanted)
+                    reachable.append(wanting[index])
+                }
+                guard !packages.isEmpty else {
+                    return .complete()
+                }
+                Logger.shared.log("Mls", "\(reachable.count) of \(peerId) have a device that \(mlsShortId(groupId)) does not hold")
+                return offer(
+                    postbox: postbox, accountPeerId: accountPeerId, network: network,
+                    peerId: peerId, groupId: groupId,
+                    audience: members, change: .letIn(newcomers: reachable, keyPackages: packages),
+                    named: named, attempt: attempt)
+            }
         }
     }
 }

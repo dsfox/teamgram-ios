@@ -145,6 +145,31 @@ public extension Api.functions {
             })
         }
 
+        /// mls.devicesOf users:Vector<long> = mls.DeviceCounts;
+        ///
+        /// How many devices each of these people has published from. It is what
+        /// tells a leaf whose device is gone from a leaf that is still
+        /// somebody's - and without it a person who replaces a phone is never
+        /// let back into a group, because the leaf of the device that has gone
+        /// still stands for them (#132).
+        ///
+        /// Counting by claiming key packages would answer the same question and
+        /// spend one doing it, so a group asking on its rhythm would empty
+        /// everybody's supply within the hour.
+        public static func devicesOf(users: [Int64]) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.DeviceCounts>) {
+            let buffer = Buffer()
+            buffer.appendInt32(-657797125)
+            buffer.appendInt32(481674261)
+            buffer.appendInt32(Int32(users.count))
+            for item in users {
+                serializeInt64(item, buffer: buffer, boxed: false)
+            }
+            return (FunctionDescription(name: "mls.devicesOf", parameters: []), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.DeviceCounts? in
+                let reader = BufferReader(buffer)
+                return Api.mls.DeviceCounts.parse(reader)
+            })
+        }
+
         /// mls.claimKeyPackages user_id:long = mls.KeyPackages;
         public static func claimKeyPackages(userId: Int64) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.KeyPackages>) {
             let buffer = Buffer()
@@ -327,6 +352,35 @@ public extension Api {
         }
 
         /// mls.keyPackages packages:Vector<bytes> = mls.KeyPackages;
+        /// mls.deviceCounts counts:Vector<int> = mls.DeviceCounts;
+        public struct DeviceCounts {
+            /// One count per person asked about, in the order they were asked.
+            /// Zero means the server could not say, and nothing is concluded
+            /// from it - it already means "nobody has asked yet" everywhere
+            /// this is read.
+            public let counts: [Int32]
+
+            public static func parse(_ reader: BufferReader) -> DeviceCounts? {
+                guard let signature = reader.readInt32(), signature == 661412983 else {
+                    return nil
+                }
+                guard let vector = reader.readInt32(), vector == 481674261 else {
+                    return nil
+                }
+                guard let count = reader.readInt32() else {
+                    return nil
+                }
+                var counts: [Int32] = []
+                for _ in 0 ..< count {
+                    guard let item = reader.readInt32() else {
+                        return nil
+                    }
+                    counts.append(item)
+                }
+                return DeviceCounts(counts: counts)
+            }
+        }
+
         public struct KeyPackages {
             /// One package per device of the person asked about. A device with
             /// nothing left is missing rather than failing the request: one
