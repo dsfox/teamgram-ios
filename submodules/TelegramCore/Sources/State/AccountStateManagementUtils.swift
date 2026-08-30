@@ -590,6 +590,21 @@ func finalStateWithUpdateGroups(accountPeerId: PeerId, postbox: Postbox, network
         hadReset = true
         break
     }
+
+    if hadReset {
+        // The server has said "you may have missed something". For a client of
+        // this fork, one of the things it may have missed is a phone of its own
+        // being signed out - and the leaf that phone holds in every
+        // conversation goes on reading until another of this person's phones
+        // takes it out. Only the count says one has gone, and the count is
+        // asked on a rhythm; the server sends this the moment a session ends,
+        // so the rhythm stops being the answer (#121).
+        //
+        // An empty publish is the question, so nothing is stored and nothing
+        // else is disturbed.
+        let _ = askHowManyDevices(postbox: postbox, network: network,
+                                  accountPeerId: accountPeerId).start()
+    }
     
     var currentPtsUpdates = ptsUpdates(groups)
     currentPtsUpdates.sort(by: { $0.ptsRange.0 < $1.ptsRange.0 })
