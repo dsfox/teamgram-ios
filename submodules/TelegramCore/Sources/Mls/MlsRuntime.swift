@@ -495,9 +495,7 @@ public final class MlsRuntime {
                     postbox: postbox, accountPeerId: accountPeerId, network: network).start()
             }
         }
-        // And whatever changed while this phone was not running, which no update
-        // will ever tell it about (#124).
-        self.catchUpOnMembership(conversations: conversations, network: network)
+        self.slowRound(conversations: conversations, network: network)
         guard count > known else {
             return
         }
@@ -517,6 +515,31 @@ public final class MlsRuntime {
                     peerId: peerId, listIsFromTheServer: false).start()
             }
         }
+    }
+
+    /// The half of a round that does not have to be quick.
+    ///
+    /// Kept apart from noteDevices' own work on purpose. That is asked every
+    /// half minute, because a phone signed out goes on reading until the count
+    /// is asked again (#121) - and the two passes below are a request per group
+    /// and a piece of cryptography per conversation, for things that change in
+    /// hours or once in the life of an install. Every half minute they would be
+    /// waste.
+    private func slowRound(conversations: [PeerId], network: Network) {
+        guard self.onTheSlowRound() else {
+            return
+        }
+        let postbox = self.postbox
+        let accountPeerId = self.accountPeerId
+        Queue.concurrentDefaultQueue().async {
+            // The leaves that belong to nobody at all, which no comparison can
+            // claim and no owner will come for (#122).
+            let _ = takeOutLeavesThatBelongToNobody(
+                postbox: postbox, accountPeerId: accountPeerId, network: network).start()
+        }
+        // And whatever changed while this phone was not running, which no update
+        // will ever tell it about (#124).
+        self.catchUpOnMembership(conversations: conversations, network: network)
     }
 
     /// Asks for the membership of every group this device holds a conversation
@@ -543,6 +566,39 @@ public final class MlsRuntime {
     /// Groups only. A chat between two never changes who is in it, and asking
     /// about one would be a request per conversation per round for an answer
     /// that cannot differ.
+    /// How long to leave between two slow rounds.
+    ///
+    /// There are two rhythms now and they answer different questions. The count
+    /// of this account's devices is asked every half minute, because between
+    /// asking and asking again a phone that was signed out goes on reading
+    /// (#121) - and the pass that acts on it is a count against a list of leaf
+    /// names, which costs nothing.
+    ///
+    /// The rest is not like that. Asking the server for every group's
+    /// participant list, and opening every conversation's state to look for a
+    /// leaf that belongs to nobody, are a request per group and a piece of
+    /// cryptography per conversation. Every half minute they would be waste:
+    /// what they look for changes in hours, or once in the life of an install.
+    ///
+    /// Four minutes, which is Android's round. The two halves are meant to be
+    /// twins and were not - iOS asked every quarter of an hour, so a change lost
+    /// on iOS was lost for four times as long (#124).
+    private static let slowRoundNotBefore: Double = 4 * 60
+    private var slowRoundAt: Double = 0
+
+    /// Whether enough time has passed for the slow half of a round, and marks it
+    /// as taken when it has.
+    private func onTheSlowRound() -> Bool {
+        let now = CFAbsoluteTimeGetCurrent()
+        self.queue.lock()
+        defer { self.queue.unlock() }
+        if self.slowRoundAt > 0 && now - self.slowRoundAt < MlsRuntime.slowRoundNotBefore {
+            return false
+        }
+        self.slowRoundAt = now
+        return true
+    }
+
     private func catchUpOnMembership(conversations: [PeerId], network: Network) {
         let groups = conversations.filter { $0.namespace == Namespaces.Peer.CloudGroup }
         // Counted out loud. Without it a pass over an empty list and a pass that

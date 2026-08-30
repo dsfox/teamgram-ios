@@ -858,6 +858,20 @@ func managedMlsWelcomes(postbox: Postbox, network: Network, accountPeerId: PeerI
 /// is still applied, and only the reading back is skipped.
 func managedMlsCommits(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
     let poll = catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId)
+    // And how many devices this account has, on this rhythm rather than on the
+    // key packages' quarter of an hour.
+    //
+    // That count is the only thing that tells this phone another of its own has
+    // been signed out, and taking the signed-out phone's leaf out is what stops
+    // it reading. Asked every fifteen minutes, "the session was ended" and "the
+    // phone stopped reading" were up to fifteen minutes apart, and the phone in
+    // the drawer opened everything said in between (#121).
+    //
+    // It costs one small request per half minute: an empty publish is the
+    // question, so the server counts and stores nothing. The pass it feeds
+    // compares leaves against the count and returns at once when they agree,
+    // which is every time but one.
+    |> then(askHowManyDevices(postbox: postbox, network: network, accountPeerId: accountPeerId))
 
     return (poll |> then(Signal<Void, NoError>.complete() |> suspendAwareDelay(30.0, queue: Queue.concurrentDefaultQueue())))
     |> restart

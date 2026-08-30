@@ -215,7 +215,11 @@ private func offer(
         var holders: Set<Int64> = []
         for name in group.memberNames() {
             let text = String(decoding: name, as: UTF8.self)
-            if let slash = text.firstIndex(of: "/"), let who = Int64(text[text.startIndex ..< slash]) {
+            // Not the person with id zero: nobody has it, a commit addressed
+            // there reaches no device, and the delivery service would be asked
+            // to find their phones on every change (#122).
+            if let slash = text.firstIndex(of: "/"), let who = Int64(text[text.startIndex ..< slash]),
+               who != 0 {
                 holders.insert(who)
             }
         }
@@ -455,6 +459,100 @@ private func letInMyOtherDevices(
                 change: .letIn(newcomers: [accountPeerId], keyPackages: wanted),
                 named: NamedInTheMessage(), attempt: attempt)
         }
+    }
+}
+
+/// Takes out the leaves that belong to nobody.
+///
+/// A device whose identity was made before its account had signed in is named
+/// `0/1234`: the id was still zero when the name was built, and a name is part
+/// of the cryptography and cannot be changed afterwards. Nothing recognises
+/// such a leaf as anybody's - not the pass that lets this account's other
+/// phones in, not the one that takes a lost phone out, not the comparison of a
+/// chat with its conversation - so it sits there as a member no person owns,
+/// reading everything said (#122).
+///
+/// Making them stopped when the identity learned to refuse a nameless account.
+/// The ones already sitting in conversations were left, because there was
+/// nobody to claim them - which is why this removes them by name rather than
+/// by owner.
+///
+/// Every conversation, not only groups. The comparison with the chat is about
+/// a participant list and a chat between two has none, so it returns at once
+/// for those - and the leaf measured on the stand was in one of them, where
+/// nothing had ever looked.
+///
+/// Nobody has the id zero, so this needs no list to be sure: it is true in
+/// every conversation, whoever else is in it. And it is recoverable, which
+/// removing a leaf usually is not - the phone holding it starts its state over
+/// on its next launch, under its real name, and the ordinary comparison lets
+/// it back in.
+public func takeOutLeavesThatBelongToNobody(
+    postbox: Postbox,
+    accountPeerId: PeerId,
+    network: Network
+) -> Signal<Void, NoError> {
+    let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+    return postbox.transaction { transaction -> [PeerId] in
+        return Array(MlsConversationIds.load(transaction: transaction).groupIdByPeer.keys)
+            .map({ PeerId.fromMlsKey($0) })
+    }
+    |> mapToSignal { peers -> Signal<Void, NoError> in
+        var work: Signal<Void, NoError> = .complete()
+        for peerId in peers {
+            work = work
+            |> then(takeOutLeavesThatBelongToNobody(postbox: postbox, accountPeerId: accountPeerId,
+                                                    network: network, peerId: peerId,
+                                                    runtime: runtime, attempt: 1))
+        }
+        return work
+    }
+}
+
+private func takeOutLeavesThatBelongToNobody(
+    postbox: Postbox,
+    accountPeerId: PeerId,
+    network: Network,
+    peerId: PeerId,
+    runtime: MlsRuntime,
+    attempt: Int
+) -> Signal<Void, NoError> {
+    guard attempt <= commitAttempts else {
+        return .complete()
+    }
+    return postbox.transaction { transaction -> Data? in
+        return MlsConversationIds.load(transaction: transaction).groupIdByPeer[peerId.mlsKey]
+    }
+    |> mapToSignal { found -> Signal<Void, NoError> in
+        guard let groupId = found else {
+            return .complete()
+        }
+        let nobody: [Data]? = runtime.withState { identity in
+            guard let group = try MlsGroup.load(identity: identity, id: groupId) else {
+                return [Data]()
+            }
+            // Zero and only zero. A name this device cannot read at all is a
+            // different thing and needs the opposite answer: it may belong to
+            // somebody under a naming scheme this build does not know, and
+            // evicting on that guess is the one mistake there is no way back
+            // from.
+            return group.memberNames().filter { name in
+                let text = String(decoding: name, as: UTF8.self)
+                guard let slash = text.firstIndex(of: "/") else {
+                    return false
+                }
+                return Int64(text[text.startIndex ..< slash]) == 0
+            }
+        }
+        guard let leaves = nobody, !leaves.isEmpty else {
+            return .complete()
+        }
+        Logger.shared.log("Mls", "\(mlsShortId(groupId)) holds \(leaves.count) leaf/leaves that belong to nobody, taking them out")
+        return offer(
+            postbox: postbox, accountPeerId: accountPeerId, network: network,
+            peerId: peerId, groupId: groupId, audience: [],
+            change: .drop(leaves: leaves),
+            named: NamedInTheMessage(), attempt: attempt)
     }
 }
 
