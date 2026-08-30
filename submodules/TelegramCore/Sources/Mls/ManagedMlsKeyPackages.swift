@@ -34,8 +34,24 @@ private let betweenChecks: Double = 15 * 60
 ///
 /// An empty publish is that question: nothing is stored and the count comes
 /// back, which is what noteDevices acts on.
+/// The leaf name of the identity this device has now.
+///
+/// Said on every publish, the empty ones included. A device that starts its
+/// state over leaves what it published under the old identity on the server;
+/// the server counts a supply by the device rather than by the identity, sees a
+/// full one, never asks for more - and everybody who starts a conversation with
+/// this person builds an invitation it can never open (#136). Naming the
+/// identity is what lets the server throw the old ones away.
+private func nameOfThisDevice(postbox: Postbox, accountPeerId: PeerId) -> Buffer {
+    let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+    let name = runtime.withState { identity -> Data? in identity.name() } ?? nil
+    return Buffer(data: name ?? Data())
+}
+
 func askHowManyDevices(postbox: Postbox, network: Network, accountPeerId: PeerId) -> Signal<Void, NoError> {
-    return network.request(Api.functions.mls.publishKeyPackages(keyPackages: [], lastResort: Buffer()))
+    return network.request(Api.functions.mls.publishKeyPackages(
+        keyPackages: [], lastResort: Buffer(),
+        name: nameOfThisDevice(postbox: postbox, accountPeerId: accountPeerId)))
     |> map(Optional.init)
     |> `catch` { _ -> Signal<Api.mls.PublishResult?, NoError> in .single(nil) }
     |> map { answer -> Void in
@@ -67,7 +83,9 @@ func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: Pe
         /// An empty publish is the question "how many do I have?": nothing is
         /// stored and the count comes back, so no separate method is needed for
         /// it.
-        let ask = network.request(Api.functions.mls.publishKeyPackages(keyPackages: [], lastResort: Buffer()))
+        let ask = network.request(Api.functions.mls.publishKeyPackages(
+            keyPackages: [], lastResort: Buffer(),
+            name: nameOfThisDevice(postbox: postbox, accountPeerId: accountPeerId)))
         |> map(Optional.init)
         |> `catch` { _ -> Signal<Api.mls.PublishResult?, NoError> in
             return .single(nil)
@@ -103,7 +121,9 @@ func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: Pe
                 return .single(nil)
             }
 
-            return network.request(Api.functions.mls.publishKeyPackages(keyPackages: packages, lastResort: lastResort))
+            return network.request(Api.functions.mls.publishKeyPackages(
+                keyPackages: packages, lastResort: lastResort,
+                name: nameOfThisDevice(postbox: postbox, accountPeerId: accountPeerId)))
             |> map(Optional.init)
             |> `catch` { _ -> Signal<Api.mls.PublishResult?, NoError> in
                 return .single(nil)

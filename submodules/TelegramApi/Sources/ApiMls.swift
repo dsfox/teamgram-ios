@@ -15,16 +15,17 @@ import Foundation
 /// rather than only the number.
 public extension Api.functions {
     enum mls {
-        /// mls.publishKeyPackages key_packages:Vector<bytes> last_resort:bytes = mls.PublishResult;
-        public static func publishKeyPackages(keyPackages: [Buffer], lastResort: Buffer) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.PublishResult>) {
+        /// mls.publishKeyPackages key_packages:Vector<bytes> last_resort:bytes name:bytes = mls.PublishResult;
+        public static func publishKeyPackages(keyPackages: [Buffer], lastResort: Buffer, name: Buffer) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.PublishResult>) {
             let buffer = Buffer()
-            buffer.appendInt32(940659472)
+            buffer.appendInt32(-913436181)
             buffer.appendInt32(481674261)
             buffer.appendInt32(Int32(keyPackages.count))
             for item in keyPackages {
                 serializeBytes(item, buffer: buffer, boxed: false)
             }
             serializeBytes(lastResort, buffer: buffer, boxed: false)
+            serializeBytes(name, buffer: buffer, boxed: false)
             return (FunctionDescription(name: "mls.publishKeyPackages", parameters: [("keyPackages", ConstructorParameterDescription(keyPackages)), ("lastResort", ConstructorParameterDescription(lastResort))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.PublishResult? in
                 let reader = BufferReader(buffer)
                 return Api.mls.PublishResult.parse(reader)
