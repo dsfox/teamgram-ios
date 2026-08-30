@@ -845,26 +845,20 @@ class ContactMultiselectionControllerImpl: ViewController, ContactMultiselection
             }
             additionalOptionIds.sort()
         }
-        // Nobody chosen is not a group, and the server says so in words about
-        // other people's privacy settings - which is a lie, because nobody was
-        // chosen to have any. Answered here, in the words that are true.
+        // A group with nobody else in it is a group, and here it is the usual
+        // way to start one: people arrive by a link, and this fork asks for no
+        // access to anybody's address book - so the screen a person meets first
+        // is empty by design.
         //
-        // Greying the button out was tried first and was worse: on an account
-        // with no contacts yet the screen is empty, so it became a dead end
-        // with nothing on it to explain itself. The way forward from here is
-        // the search field - people are found by username - and a person has to
-        // be told that rather than left pressing a button that does nothing.
-        if case .groupCreation = self.mode, peerIds.isEmpty, !self.params.alwaysEnabled {
-            let presentationData = self.context.sharedContext.currentPresentationData.with { $0 }
-            self.present(
-                textAlertController(
-                    context: self.context,
-                    title: nil,
-                    text: presentationData.strings.Compose_TokenListPlaceholder,
-                    actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]),
-                in: .window(.root))
-            return
-        }
+        // Two things were tried before this and both were walls. Greying the
+        // button out made a dead end with nothing on it to explain itself. A
+        // message explaining it was still a wall, only a polite one: the person
+        // wanted to make the group now and invite later, which is exactly what
+        // the link is for.
+        //
+        // The server takes an empty list and makes a group of one. It refused
+        // it until today, with a sentence about other people's privacy settings
+        // - about people who had never been chosen.
         self._result.set(.single(.result(peerIds: peerIds, additionalOptionIds: additionalOptionIds)))
     }
 }
