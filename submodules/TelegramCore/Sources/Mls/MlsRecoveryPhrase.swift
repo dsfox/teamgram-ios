@@ -244,7 +244,16 @@ private func showRecoveryPhrase(transaction: Transaction, accountPeerId: PeerId,
         groupingKey: nil,
         threadId: nil,
         timestamp: Int32(Date().timeIntervalSince1970),
-        flags: [],
+        // Incoming, which it is: the author is the service account, not this
+        // person. Written with no flags at all it was outgoing - a message this
+        // device is in the middle of sending - and Postbox put it where the
+        // chat list could see it and the chat could not. The words showed in
+        // the row and were nowhere inside, which is the shape of fault this
+        // half of the tests exists to catch (#130).
+        //
+        // Android says the same thing as `out = false`, and its copy is in the
+        // chat: measured on a fresh account on 30 August, six words on screen.
+        flags: [.Incoming],
         tags: [],
         globalTags: [],
         localTags: [],
