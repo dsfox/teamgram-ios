@@ -294,7 +294,17 @@ public enum MlsConversations {
                         return .single(nil)
                     }
                     guard held.groupId.makeData() == groupId else {
-                        Logger.shared.log("Mls", "\(peerId) already has conversation \(mlsShortId(held.groupId.makeData())), leaving the one just made alone and waiting to be let in")
+                        Logger.shared.log("Mls", "\(peerId) already has conversation \(mlsShortId(held.groupId.makeData())), letting go of the one just made and waiting to be let in")
+                        // Nobody is bound to it, so nothing would look at it
+                        // again - but everything this device knows about
+                        // encryption is one blob, read whole and written whole
+                        // on every message (#112), and what is never removed is
+                        // carried for ever. Somebody typing while they wait to
+                        // be let in makes one of these per message.
+                        let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
+                        let _ = runtime.withState { identity -> Void in
+                            MlsGroup.forget(identity: identity, id: groupId)
+                        }
                         return .single(nil)
                     }
                     return postbox.transaction { transaction -> Void in

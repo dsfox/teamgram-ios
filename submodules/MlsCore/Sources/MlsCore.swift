@@ -139,6 +139,28 @@ public final class MlsGroup {
         return MlsGroup(handle: handle)
     }
 
+    /// Throws away everything this device kept about a conversation.
+    ///
+    /// For one this device made and then learned was not the chat's: the first
+    /// claim on a chat wins, and a device whose claim loses has made a
+    /// conversation nobody will ever use (#135). Left behind it is never
+    /// referenced again and never removed either - and everything this device
+    /// knows about encryption is one blob, read whole and written whole on
+    /// every message (#112), so what is never removed is carried for ever.
+    ///
+    /// Answering true for a conversation this device does not have is right:
+    /// what was asked for is that it should be gone.
+    @discardableResult
+    public static func forget(identity: MlsIdentity, id: Data) -> Bool {
+        return id.withUnsafeBytes { raw -> Bool in
+            mls_group_forget(
+                identity.handle,
+                raw.bindMemory(to: UInt8.self).baseAddress,
+                UInt(id.count)
+            )
+        }
+    }
+
     /// Which conversation this is, to keep beside the chat so it can be
     /// reopened after a restart.
     public var id: Data {
