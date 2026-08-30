@@ -145,6 +145,24 @@ public extension Api.functions {
             })
         }
 
+        /// mls.claimConversation peer_id:long group_id:bytes = mls.Conversation;
+        ///
+        /// Which conversation this chat has, settled by whoever asks first.
+        /// Nothing settled it before, and every device that wanted to send into
+        /// a chat without one started its own - three people beginning a group
+        /// within a minute ended in two conversations that cannot read each
+        /// other (#135).
+        public static func claimConversation(peerId: Int64, groupId: Buffer) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Conversation>) {
+            let buffer = Buffer()
+            buffer.appendInt32(-1101602434)
+            serializeInt64(peerId, buffer: buffer, boxed: false)
+            serializeBytes(groupId, buffer: buffer, boxed: false)
+            return (FunctionDescription(name: "mls.claimConversation", parameters: [("peerId", ConstructorParameterDescription(peerId))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Conversation? in
+                let reader = BufferReader(buffer)
+                return Api.mls.Conversation.parse(reader)
+            })
+        }
+
         /// mls.devicesOf users:Vector<long> = mls.DeviceCounts;
         ///
         /// How many devices each of these people has published from. It is what
@@ -352,6 +370,27 @@ public extension Api {
         }
 
         /// mls.keyPackages packages:Vector<bytes> = mls.KeyPackages;
+        /// mls.conversation peer_id:long group_id:bytes = mls.Conversation;
+        public struct Conversation {
+            public let peerId: Int64
+            /// The conversation this chat has: the claimant's own when it was
+            /// first, and somebody else's when it was not.
+            public let groupId: Buffer
+
+            public static func parse(_ reader: BufferReader) -> Conversation? {
+                guard let signature = reader.readInt32(), signature == 622211617 else {
+                    return nil
+                }
+                guard let peerId = reader.readInt64() else {
+                    return nil
+                }
+                guard let groupId = parseBytes(reader) else {
+                    return nil
+                }
+                return Conversation(peerId: peerId, groupId: groupId)
+            }
+        }
+
         /// mls.deviceCounts counts:Vector<int> = mls.DeviceCounts;
         public struct DeviceCounts {
             /// One count per person asked about, in the order they were asked.

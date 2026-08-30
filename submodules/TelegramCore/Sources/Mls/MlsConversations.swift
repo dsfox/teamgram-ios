@@ -262,9 +262,44 @@ public enum MlsConversations {
                 // state: a write that goes its own way lands out of order and
                 // takes a spent secret back with it.
                 MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
-                return (postbox.transaction { transaction -> Void in
-                    MlsConversationIds.remember(transaction: transaction, peerId: peerId, groupId: groupId)
-                }
+                // And only now asked whether this chat is ours to start.
+                //
+                // Nothing decided which conversation a chat's was, so every
+                // device that wanted to send into one without a conversation
+                // started its own. Between two people that almost always lands
+                // on one; three people beginning a group within a minute ended
+                // in two conversations that cannot read each other, with no way
+                // back (#135). The devices cannot settle it among themselves -
+                // whoever loses has to be told, and when everybody is offline
+                // and arrives in a random order there is nobody to tell them.
+                //
+                // A claim that loses leaves the group made here unused: it is
+                // never bound to the chat, so nothing looks at it again, and the
+                // way in is the ordinary one - this device is in the chat with
+                // no leaf in the conversation that won, and its members let it
+                // in.
+                //
+                // An unanswered claim adopts nothing. Going ahead on a claim
+                // that was not granted is exactly the split this exists to stop,
+                // and it is the one mistake here with no way back; a chat can
+                // wait for the next attempt, and until then a message goes as it
+                // always did.
+                return (network.request(Api.functions.mls.claimConversation(
+                            peerId: peerId.dialogId, groupId: Buffer(data: groupId)))
+                |> map(Optional.init)
+                |> `catch` { _ -> Signal<Api.mls.Conversation?, NoError> in .single(nil) }
+                |> mapToSignal { held -> Signal<Data?, NoError> in
+                    guard let held = held else {
+                        Logger.shared.log("Mls", "nobody said whose conversation \(peerId) is, not starting one")
+                        return .single(nil)
+                    }
+                    guard held.groupId.makeData() == groupId else {
+                        Logger.shared.log("Mls", "\(peerId) already has conversation \(mlsShortId(held.groupId.makeData())), leaving the one just made alone and waiting to be let in")
+                        return .single(nil)
+                    }
+                    return postbox.transaction { transaction -> Void in
+                        MlsConversationIds.remember(transaction: transaction, peerId: peerId, groupId: groupId)
+                    }
                 |> mapToSignal { _ -> Signal<Data?, NoError> in
                     // One welcome, handed to each member separately: the
                     // mailbox is addressed to a person, and add_members made a
@@ -288,6 +323,7 @@ public enum MlsConversations {
                         Logger.shared.log("Mls", "started conversation \(mlsShortId(groupId)) with \(members.count) member(s) of \(peerId.id._internalGetInt64Value())")
                         return groupId
                     }
+                }
                 })
             } catch {
                 Logger.shared.log("Mls", "cannot start a conversation with \(peerId): \(error)")
