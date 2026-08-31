@@ -392,7 +392,7 @@ public extension Api {
             }
         }
 
-        /// mls.deviceCounts counts:Vector<int> = mls.DeviceCounts;
+        /// mls.deviceCounts counts:Vector<int> names:Vector<bytes> = mls.DeviceCounts;
         public struct DeviceCounts {
             /// One count per person asked about, in the order they were asked.
             /// Zero means the server could not say, and nothing is concluded
@@ -400,8 +400,44 @@ public extension Api {
             /// this is read.
             public let counts: [Int32]
 
+            /// The leaf name of every one of those devices, all of them in one
+            /// list: the counts say where to cut it. One entry per counted
+            /// device, so the cut is always right, and empty for a device that
+            /// published before key packages said which identity they belong
+            /// to (#136).
+            ///
+            /// In the same answer as the counts on purpose. Taking a leaf out
+            /// asks two questions - whether a device is missing, which the
+            /// count answers, and which leaf is it, which these answer - and
+            /// while they came from two calls they could disagree (#139).
+            public let names: [Buffer]
+
+            /// The names belonging to the person at that place in the answer,
+            /// or nil when the answer cannot be cut there.
+            ///
+            /// Nil rather than an empty array, because the two mean opposite
+            /// things: a person with no devices is a real answer, and a list
+            /// that does not add up is one nothing may be concluded from.
+            /// Everything that removes a leaf goes through here, so a short or
+            /// ragged answer stops it rather than shifting one person's devices
+            /// onto the next.
+            public func namesOf(_ who: Int) -> [Buffer]? {
+                guard who >= 0 && who < self.counts.count else {
+                    return nil
+                }
+                var at = 0
+                for i in 0 ..< who {
+                    at += Int(self.counts[i])
+                }
+                let mine = Int(self.counts[who])
+                guard at >= 0 && mine >= 0 && at + mine <= self.names.count else {
+                    return nil
+                }
+                return Array(self.names[at ..< (at + mine)])
+            }
+
             public static func parse(_ reader: BufferReader) -> DeviceCounts? {
-                guard let signature = reader.readInt32(), signature == 661412983 else {
+                guard let signature = reader.readInt32(), signature == 1890672928 else {
                     return nil
                 }
                 guard let vector = reader.readInt32(), vector == 481674261 else {
@@ -417,7 +453,20 @@ public extension Api {
                     }
                     counts.append(item)
                 }
-                return DeviceCounts(counts: counts)
+                guard let namesVector = reader.readInt32(), namesVector == 481674261 else {
+                    return nil
+                }
+                guard let named = reader.readInt32() else {
+                    return nil
+                }
+                var names: [Buffer] = []
+                for _ in 0 ..< named {
+                    guard let item = parseBytes(reader) else {
+                        return nil
+                    }
+                    names.append(item)
+                }
+                return DeviceCounts(counts: counts, names: names)
             }
         }
 
