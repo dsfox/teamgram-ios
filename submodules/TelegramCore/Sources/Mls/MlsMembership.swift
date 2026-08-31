@@ -56,6 +56,61 @@ public struct NamedInTheMessage {
     }
 }
 
+/// The leaves in a conversation whose device no longer exists.
+///
+/// The twin of the Android pass of the same name, and the half that had no way
+/// to be written until the server could name a device without spending a key
+/// package. A person replaces a phone: the new one is let in, and the leaf of
+/// the old one stays, because whoever compares the chat with the conversation
+/// reasons about people and that person is still there. Nobody removes it - the
+/// pass that drops leaves only ever looked at this account - so it stays for the
+/// life of the group and every commit is encrypted to it. Four people on the
+/// stand were carrying twelve leaves (#139).
+///
+/// Two questions, answered by two halves of one answer, and in this order.
+/// *Whether* a device is gone is the count: more leaves of theirs here than
+/// devices the server knows of. *Which* one is the names. The count is asked
+/// first because the names alone would be dangerous, and it is the same rule
+/// this account's own leaves are taken out by - evicting a live phone is the
+/// worst thing this code can do.
+///
+/// Three things stop it, each of which would otherwise cost somebody their
+/// conversation: an answer that cannot be cut, which `namesOf` says rather than
+/// guessing; a device that cannot be named, because a key package published
+/// before they carried an identity (#136) is counted and has an empty name; and
+/// this account, whose own leaves are another pass's job with a guard of its own.
+private func whoseDeviceIsGone(members: [PeerId], counted: Api.mls.DeviceCounts,
+                               memberNames: [Data], leavesOf: [Int64: Int],
+                               accountPeerId: PeerId) -> [Data] {
+    var dead: [Data] = []
+    for (index, member) in members.enumerated() {
+        let who = member.id._internalGetInt64Value()
+        if member == accountPeerId {
+            continue
+        }
+        let here = leavesOf[who] ?? 0
+        guard here > Int(counted.counts[index]) else {
+            // The count does not say anybody of theirs is missing. Nothing is
+            // removed on the names alone.
+            continue
+        }
+        guard let alive = counted.namesOf(index) else {
+            Logger.shared.log("Mls", "the devices of \(who) cannot be read out of the answer")
+            continue
+        }
+        let names = alive.map { $0.makeData() }
+        if names.contains(where: { $0.isEmpty }) {
+            Logger.shared.log("Mls", "\(who) has a device that cannot be named, so none of their leaves is touched")
+            continue
+        }
+        let prefix = "\(who)/".data(using: .utf8) ?? Data()
+        for leaf in memberNames where leaf.starts(with: prefix) && !names.contains(leaf) {
+            dead.append(leaf)
+        }
+    }
+    return dead
+}
+
 /// What a change to the membership is, and how to make it again if somebody
 /// else's change took the epoch first.
 private enum MembershipChange {
@@ -64,11 +119,14 @@ private enum MembershipChange {
     case letIn(newcomers: [PeerId], keyPackages: [Data])
     /// Taking people out, and with each of them every phone they hold.
     case putOut(leaving: [PeerId])
-    /// Taking out one phone of this account by its own name, leaving the
-    /// person's other phones reading. `putOut` is asked about a person and
-    /// answers about every leaf they hold, which is right for somebody leaving
-    /// and wrong here.
-    case drop(leaves: [Data])
+    /// Taking out leaves by their own names, leaving the person's other phones
+    /// reading. `putOut` is asked about a person and answers about every leaf
+    /// they hold, which is right for somebody leaving and wrong here.
+    ///
+    /// `what` is whose leaves these are, for the log. The same call takes out a
+    /// phone of this account and a leaf of somebody else whose device is gone
+    /// (#139), and the two read as opposite things.
+    case drop(leaves: [Data], what: String)
 
     var described: String {
         switch self {
@@ -76,8 +134,8 @@ private enum MembershipChange {
             return "letting \(newcomers.count) into"
         case let .putOut(leaving):
             return "taking \(leaving.count) out of"
-        case let .drop(leaves):
-            return "taking \(leaves.count) device(s) of this account out of"
+        case let .drop(leaves, what):
+            return "taking \(leaves.count) \(what) out of"
         }
     }
 }
@@ -174,7 +232,7 @@ private func offer(
                 return nil
             }
             return (commit: commit, welcome: nil, epoch: epoch)
-        case let .drop(leaves):
+        case let .drop(leaves, _):
             // The full name of a leaf, which is a prefix of exactly one of
             // them - so the same call answers "this one phone" as well as it
             // answers "this person".
@@ -551,7 +609,7 @@ private func takeOutLeavesThatBelongToNobody(
         return offer(
             postbox: postbox, accountPeerId: accountPeerId, network: network,
             peerId: peerId, groupId: groupId, audience: [],
-            change: .drop(leaves: leaves),
+            change: .drop(leaves: leaves, what: "device(s) of this account"),
             named: NamedInTheMessage(), attempt: attempt)
     }
 }
@@ -663,7 +721,7 @@ private func takeOutMyLostDevices(
             return offer(
                 postbox: postbox, accountPeerId: accountPeerId, network: network,
                 peerId: peerId, groupId: groupId, audience: [],
-                change: .drop(leaves: gone),
+                change: .drop(leaves: gone, what: "device(s) of this account"),
                 named: NamedInTheMessage(), attempt: attempt)
         }
     }
@@ -794,6 +852,22 @@ private func compareWithTheList(
         |> mapToSignal { counted -> Signal<Void, NoError> in
             var wanting: [PeerId] = []
             if let counted = counted, counted.counts.count == members.count {
+                // The other direction first: a leaf whose device is gone. Taken
+                // before anybody is let in because it is the smaller group that
+                // results, and because letting somebody in while the tree still
+                // holds their dead leaf is how one person came to hold three.
+                let dead = whoseDeviceIsGone(
+                    members: members, counted: counted, memberNames: memberNames,
+                    leavesOf: leavesOf, accountPeerId: accountPeerId)
+                if !dead.isEmpty {
+                    Logger.shared.log("Mls", "\(dead.count) leaf/leaves in \(mlsShortId(groupId)) belong to devices that are gone")
+                    return offer(
+                        postbox: postbox, accountPeerId: accountPeerId, network: network,
+                        peerId: peerId, groupId: groupId,
+                        audience: members, change: .drop(leaves: dead, what: "leaf(es) whose device is gone"),
+                        named: named, attempt: attempt)
+                }
+
                 for (index, member) in members.enumerated() {
                     let here = leavesOf[member.id._internalGetInt64Value()] ?? 0
                     if Int(counted.counts[index]) > here {
