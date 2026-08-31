@@ -146,18 +146,27 @@ public extension Api.functions {
             })
         }
 
-        /// mls.claimConversation peer_id:long group_id:bytes = mls.Conversation;
+        /// mls.claimConversation peer_id:long group_id:bytes holds_everybody:Bool = mls.Conversation;
         ///
         /// Which conversation this chat has, settled by whoever asks first.
         /// Nothing settled it before, and every device that wanted to send into
         /// a chat without one started its own - three people beginning a group
         /// within a minute ended in two conversations that cannot read each
         /// other (#135).
-        public static func claimConversation(peerId: Int64, groupId: Buffer) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Conversation>) {
+        ///
+        /// holdsEverybody is the other thing to say here, and the only one that
+        /// replaces an answer already settled: this device is inside the
+        /// conversation and has just found a leaf there for every device of
+        /// every member of the chat. Without it the first answer stood for ever,
+        /// and one won by a conversation that a rebuilding device made and
+        /// nobody followed sends every device starting from nothing to a group
+        /// with nobody in it, to wait for an invitation that cannot come (#139).
+        public static func claimConversation(peerId: Int64, groupId: Buffer, holdsEverybody: Swift.Bool) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Conversation>) {
             let buffer = Buffer()
-            buffer.appendInt32(-1101602434)
+            buffer.appendInt32(-936499491)
             serializeInt64(peerId, buffer: buffer, boxed: false)
             serializeBytes(groupId, buffer: buffer, boxed: false)
+            buffer.appendInt32(holdsEverybody ? -1720552011 : -1132882121)
             return (FunctionDescription(name: "mls.claimConversation", parameters: [("peerId", ConstructorParameterDescription(peerId))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Conversation? in
                 let reader = BufferReader(buffer)
                 return Api.mls.Conversation.parse(reader)

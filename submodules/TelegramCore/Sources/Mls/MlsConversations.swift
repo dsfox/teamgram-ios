@@ -284,8 +284,14 @@ public enum MlsConversations {
                 // and it is the one mistake here with no way back; a chat can
                 // wait for the next attempt, and until then a message goes as it
                 // always did.
+                // Not holdsEverybody: this conversation was made a moment ago
+                // and holds only whoever was invited into it. Saying otherwise
+                // here would let a device that has just built a second
+                // conversation take the chat away from the one everybody is in,
+                // which is the split this call exists to prevent (#139).
                 return (network.request(Api.functions.mls.claimConversation(
-                            peerId: peerId.dialogId, groupId: Buffer(data: groupId)))
+                            peerId: peerId.dialogId, groupId: Buffer(data: groupId),
+                            holdsEverybody: false))
                 |> map(Optional.init)
                 |> `catch` { _ -> Signal<Api.mls.Conversation?, NoError> in .single(nil) }
                 |> mapToSignal { held -> Signal<Data?, NoError> in
