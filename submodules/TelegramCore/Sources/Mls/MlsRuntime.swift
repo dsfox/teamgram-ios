@@ -990,7 +990,7 @@ public final class MlsRuntime {
                 return content
             case .writtenHere:
                 writtenHere = true
-            case .nothing, .unreadable:
+            case .nothing, .unreadable, .writtenBeforeThisDeviceCouldRead:
                 break
             }
         }
@@ -1077,15 +1077,33 @@ public final class MlsRuntime {
                 // nothing else would ever try again.
                 return self.reload()
             }
-            |> mapToSignal { [weak self] _ -> Signal<Int, NoError> in
+            |> mapToSignal { [weak self] _ -> Signal<MlsRepair, NoError> in
                 guard let self = self else {
-                    return .single(0)
+                    return .single(MlsRepair(repaired: 0, inTheSendersConversation: false))
                 }
                 return repairUnreadableMessages(postbox: postbox, runtime: self, peerId: peerId)
             }
-            |> mapToSignal { [weak self] repaired -> Signal<Int, NoError> in
-                guard let self = self, repaired == 0 else {
-                    return .single(repaired)
+            |> mapToSignal { [weak self] repair -> Signal<Int, NoError> in
+                guard let self = self, repair.repaired == 0 else {
+                    return .single(repair.repaired)
+                }
+                if repair.inTheSendersConversation {
+                    // Something that would not open reached the secret tree,
+                    // which is only possible once the group id and the epoch
+                    // have both matched - so the sender is in this very
+                    // conversation and it is working. What will not open was
+                    // written where this device cannot go, before it joined or
+                    // further back than the keys it keeps, and no conversation
+                    // that could be built now would open it either.
+                    //
+                    // Rebuilding on that reading is what this exists to stop.
+                    // It fired on the stand three times in twenty minutes: each
+                    // time a second conversation was started for a chat that
+                    // already had a working one, half the group followed the
+                    // welcome and half did not, and the messages of the people
+                    // left behind stopped opening. That is issue #139, and its
+                    // own log line was mistaken for the fault twice over.
+                    return .single(0)
                 }
                 // Still unreadable, and no welcome explains it. The conversation
                 // the other side is encrypting to is one this device is not in

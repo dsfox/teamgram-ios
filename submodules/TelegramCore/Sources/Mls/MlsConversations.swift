@@ -405,6 +405,17 @@ public enum MlsConversations {
         case writtenHere
         /// Not readable here, and it may mean the conversation needs rebuilding.
         case unreadable
+        /// Not readable here and rebuilding cannot help: it was written at a
+        /// point in this very conversation that this device cannot reach -
+        /// before it joined, or further back than the keys it keeps.
+        ///
+        /// Told apart from `unreadable` because the two call for opposite
+        /// things. Reaching the secret tree at all means the group id and the
+        /// epoch both matched, so the sender is in the same conversation as
+        /// this device; rebuilding on one of these tears down a working
+        /// conversation and starts a second one for the same chat, which is
+        /// how a group comes to be read by everybody except its author (#139).
+        case writtenBeforeThisDeviceCouldRead
 
         /// What there is to show, for the callers that only want that.
         public var content: MlsMessageContent? {
@@ -454,6 +465,14 @@ public enum MlsConversations {
             if "\(error)".contains("CannotDecryptOwnMessage") {
                 return .writtenHere
             }
+            // A failure inside the secret tree, which is reached only once the
+            // group id and the epoch have both matched. The message belongs to
+            // this conversation and was written where this device cannot go -
+            // there is nothing to repair and nothing to rebuild.
+            if "\(error)".contains("SecretTreeError") {
+                Logger.shared.log("Mls", "a message at epoch \(group.epoch) was written before this device could read it: \(error)")
+                return .writtenBeforeThisDeviceCouldRead
+            }
             // With the epoch this device is at, because the commonest reason a
             // message will not open is that it was written in another one, and
             // the error says which kind of wrong without saying how far.
@@ -486,6 +505,22 @@ public struct MlsMessageContent {
     }
 }
 
+/// What a pass over the messages that would not open found.
+///
+/// The count alone was enough while the only question was whether anything had
+/// been recovered. It is not enough for the question that follows it - whether
+/// this conversation has to be started again - because the answer turns on
+/// *why* the rest did not open, and one of the reasons means nothing is wrong
+/// with the conversation at all (#139).
+public struct MlsRepair {
+    /// How many turned out to be readable after all.
+    public let repaired: Int
+    /// Whether anything that still would not open proved this device is in the
+    /// sender's conversation: a message that reached the secret tree and failed
+    /// there matched both the group and the epoch.
+    public let inTheSendersConversation: Bool
+}
+
 /// Reads back the messages of a conversation that arrived before this device
 /// could open them, and rewrites the ones it can now read.
 ///
@@ -497,8 +532,8 @@ public struct MlsMessageContent {
 ///
 /// Our own messages are skipped: nothing on this device will ever read them
 /// back, so trying would only waste the walk.
-public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peerId: PeerId) -> Signal<Int, NoError> {
-    return postbox.transaction { transaction -> Int in
+public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peerId: PeerId) -> Signal<MlsRepair, NoError> {
+    return postbox.transaction { transaction -> MlsRepair in
         var unreadable: [MessageId] = []
         var examined = 0
         transaction.withAllMessages(peerId: peerId, { message in
@@ -518,6 +553,7 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
         })
 
         var repaired = 0
+        var inTheSendersConversation = false
         for id in unreadable {
             guard let message = transaction.getMessage(id) else {
                 continue
@@ -530,7 +566,18 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
             // the text and the placeholder takes its place.
             var content: MlsMessageContent?
             if message.flags.contains(.Incoming) {
-                content = runtime.decrypt(peerId: peerId, text: ciphertext)
+                switch runtime.read(peerId: peerId, text: ciphertext) {
+                case let .content(read):
+                    content = read
+                case .writtenBeforeThisDeviceCouldRead:
+                    // Kept, because the caller decides whether to rebuild the
+                    // conversation on what this pass could not read, and this
+                    // is the one kind that proves there is nothing wrong with
+                    // it (#139).
+                    inTheSendersConversation = true
+                case .nothing, .writtenHere, .unreadable:
+                    break
+                }
             }
             if content == nil {
                 guard held == nil else {
@@ -571,7 +618,7 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
         if repaired > 0 {
             Logger.shared.log("Mls", "read back \(repaired) message(s) from \(peerId) that arrived before the conversation")
         }
-        return repaired
+        return MlsRepair(repaired: repaired, inTheSendersConversation: inTheSendersConversation)
     }
 }
 
