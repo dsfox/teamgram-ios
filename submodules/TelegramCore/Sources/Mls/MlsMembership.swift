@@ -476,9 +476,10 @@ public func reconcileMembership(
     named: NamedInTheMessage = NamedInTheMessage(),
     attempt: Int = 1
 ) -> Signal<Void, NoError> {
-    // The list half is about groups - a chat between two never changes who is in
-    // it - and the half below is about this account's own phones, which a chat
-    // of two has as much of a problem with.
+    // The list half reaches a chat between two as well now: who is in one does
+    // not change, but how many devices they have does, and until #142 nobody
+    // was looking for the pair. The half below is about this account's own
+    // phones, which the first cannot see because it is about people.
     return compareWithTheList(
         postbox: postbox, accountPeerId: accountPeerId, network: network,
         peerId: peerId, listIsFromTheServer: listIsFromTheServer,
@@ -803,6 +804,27 @@ private func takeOutMyLostDevices(
     }
 }
 
+/// Whether this conversation is one to compare with its chat.
+///
+/// A group, and a chat between two - which was left out of the comparison with
+/// "a chat between two never changes who is in it" written beside it on both
+/// clients. Who is in it does not change; how many devices they have does, and
+/// that is what this has been about since #132. In a group somebody notices a
+/// phone that has been replaced and lets the new one in. In a chat between two
+/// nobody was looking, so the person sat there watching padlocks with nothing on
+/// any screen to say why - and the settled answer for that chat could never be
+/// put right either, because the moment that puts it right is the end of this
+/// very comparison (#139, #142).
+///
+/// A channel is not: broadcasting is a different thing and none of it is built
+/// (#16).
+///
+/// The Android twin is MlsRuntime.worthComparing.
+private func worthComparing(_ peerId: PeerId) -> Bool {
+    return peerId.namespace == Namespaces.Peer.CloudGroup
+        || peerId.namespace == Namespaces.Peer.CloudUser
+}
+
 private func compareWithTheList(
     postbox: Postbox,
     accountPeerId: PeerId,
@@ -812,9 +834,8 @@ private func compareWithTheList(
     named: NamedInTheMessage,
     attempt: Int
 ) -> Signal<Void, NoError> {
-    guard peerId.namespace == Namespaces.Peer.CloudGroup else {
-        // A chat between two never changes who is in it, and a channel is
-        // broadcasting rather than a conversation (#16).
+    guard worthComparing(peerId) else {
+        // A channel is broadcasting rather than a conversation (#16).
         return .complete()
     }
 
@@ -825,6 +846,12 @@ private func compareWithTheList(
             // rule for a group is all of them or none, and that was settled
             // when the conversation began.
             return nil
+        }
+        guard peerId.namespace == Namespaces.Peer.CloudGroup else {
+            // A chat between two: the other person is the whole membership, and
+            // there is no participant list to look it up in. Said the same way
+            // the audience lookup above says it.
+            return (groupId, [peerId])
         }
         guard let cached = transaction.getPeerCachedData(peerId: peerId) as? CachedGroupData,
               let participants = cached.participants else {
@@ -908,7 +935,12 @@ private func compareWithTheList(
 
         let extra = members.isEmpty ? [] : inside.subtracting(belong)
 
-        if listIsFromTheServer, !extra.isEmpty {
+        // Only for a group, and only on a fresh list. A chat between two has
+        // nobody who could have to leave it - the membership is the two of them
+        // and there is no removal to miss - so the half that fails safely by
+        // removing has nothing to do here, and every mistake it could make would
+        // be a person cut out of their own conversation.
+        if listIsFromTheServer, peerId.namespace == Namespaces.Peer.CloudGroup, !extra.isEmpty {
             let leaving = extra.map { PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value($0)) }
             Logger.shared.log("Mls", "\(leaving) are in \(mlsShortId(groupId)) and no longer in \(peerId)")
             return offer(
