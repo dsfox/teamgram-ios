@@ -252,7 +252,7 @@ private func synchronizePinnedChats(transaction: Transaction, postbox: Postbox, 
                         allPeersWithMessages.insert(message.id.peerId)
                     }
                 }
-                let _ = transaction.addMessages(storeMessages, location: .UpperHistoryBlock)
+                let _ = transaction.addMessages(mlsKeepingWhatIsReadable(storeMessages, transaction: transaction), location: .UpperHistoryBlock)
                 
                 transaction.resetIncomingReadStates(readStates)
                 
@@ -344,7 +344,7 @@ private func synchronizePinnedSavedChats(transaction: Transaction, postbox: Post
                 
                 transaction.setPeerPinnedThreads(peerId: accountPeerId, threadIds: resultingItemIds.map { $0.toInt64() })
                 
-                let _ = transaction.addMessages(storeMessages, location: .UpperHistoryBlock)
+                let _ = transaction.addMessages(mlsKeepingWhatIsReadable(storeMessages, transaction: transaction), location: .UpperHistoryBlock)
                 
                 return .complete()
             }

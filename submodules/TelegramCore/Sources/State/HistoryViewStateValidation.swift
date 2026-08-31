@@ -916,7 +916,7 @@ private func validateBatch(postbox: Postbox, network: Network, transaction: Tran
                                         print("\(id) missing")
                                     }
                                 } else {
-                                    let _ = transaction.addMessages([message], location: .Random)
+                                    let _ = transaction.addMessages(mlsKeepingWhatIsReadable([message], transaction: transaction), location: .Random)
                                 }
                             }
                         }
@@ -1160,7 +1160,7 @@ private func validateReplyThreadBatch(postbox: Postbox, network: Network, transa
                                     print("\(id) missing")
                                 }
                             } else {
-                                let _ = transaction.addMessages([message], location: .Random)
+                                let _ = transaction.addMessages(mlsKeepingWhatIsReadable([message], transaction: transaction), location: .Random)
                             }
                         }
                     }

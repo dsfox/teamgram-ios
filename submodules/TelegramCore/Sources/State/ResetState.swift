@@ -53,8 +53,8 @@ func _internal_resetAccountState(postbox: Postbox, network: Network, accountPeer
                 }
                 
                 transaction.updateCurrentPeerNotificationSettings(fetchedChats.notificationSettings)
-                let _ = transaction.addMessages(fetchedChats.storeMessages, location: .UpperHistoryBlock)
-                let _ = transaction.addMessages(additionalMessages, location: .Random)
+                let _ = transaction.addMessages(mlsKeepingWhatIsReadable(fetchedChats.storeMessages, transaction: transaction), location: .UpperHistoryBlock)
+                let _ = transaction.addMessages(mlsKeepingWhatIsReadable(additionalMessages, transaction: transaction), location: .Random)
                 transaction.resetIncomingReadStates(fetchedChats.readStates)
                 
                 for (peerId, autoremoveValue) in fetchedChats.ttlPeriods {
