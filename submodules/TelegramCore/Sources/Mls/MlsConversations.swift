@@ -48,9 +48,26 @@ public struct MlsConversationIds: Codable, Equatable {
     /// single time the app started.
     public var rebuiltAtByPeer: [Int64: Int32]
 
-    public init(groupIdByPeer: [Int64: Data] = [:], rebuiltAtByPeer: [Int64: Int32] = [:]) {
+    /// How new the thing that taught us each note was, in server seconds.
+    ///
+    /// A chat really can move to another conversation - the other side rebuilds
+    /// and starts a new one - so what a message says replaces what is here. That
+    /// is only true forwards. A chat that has moved leaves ciphertexts of the
+    /// conversation it left lying in it for ever, and the repair pass walks all
+    /// of them in whatever order the database yields; following one would drag
+    /// the chat back to a group the other side is no longer in. So a note is
+    /// only replaced by something newer than what wrote it (#155).
+    ///
+    /// Not rebuiltAtByPeer, which is the local clock and is about how often this
+    /// device may build a conversation. This is compared with the date on a
+    /// message, so it is the server's clock or nothing.
+    public var learntAtByPeer: [Int64: Int32]
+
+    public init(groupIdByPeer: [Int64: Data] = [:], rebuiltAtByPeer: [Int64: Int32] = [:],
+                learntAtByPeer: [Int64: Int32] = [:]) {
         self.groupIdByPeer = groupIdByPeer
         self.rebuiltAtByPeer = rebuiltAtByPeer
+        self.learntAtByPeer = learntAtByPeer
     }
 
     // Two parallel arrays of the simplest types there are.
@@ -80,6 +97,16 @@ public struct MlsConversationIds: Codable, Equatable {
             rebuilt[peer] = rebuiltAt[index]
         }
         self.rebuiltAtByPeer = rebuilt
+
+        // Missing for anything written before this existed, which reads back as
+        // nothing known and lets the first message that says anything correct it.
+        let learntPeers = try container.decodeIfPresent([Int64].self, forKey: "lp") ?? []
+        let learntAt = try container.decodeIfPresent([Int32].self, forKey: "lt") ?? []
+        var learnt: [Int64: Int32] = [:]
+        for (index, peer) in learntPeers.enumerated() where index < learntAt.count {
+            learnt[peer] = learntAt[index]
+        }
+        self.learntAtByPeer = learnt
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -92,6 +119,10 @@ public struct MlsConversationIds: Codable, Equatable {
         let rebuilt = self.rebuiltAtByPeer.sorted(by: { $0.key < $1.key })
         try container.encode(rebuilt.map({ $0.key }), forKey: "rp")
         try container.encode(rebuilt.map({ $0.value }), forKey: "rt")
+
+        let learnt = self.learntAtByPeer.sorted(by: { $0.key < $1.key })
+        try container.encode(learnt.map({ $0.key }), forKey: "lp")
+        try container.encode(learnt.map({ $0.value }), forKey: "lt")
     }
 }
 
@@ -152,11 +183,12 @@ public extension MlsConversationIds {
             .get(MlsConversationIds.self) ?? MlsConversationIds()
     }
 
-    static func remember(transaction: Transaction, peerId: PeerId, groupId: Data) {
+    static func remember(transaction: Transaction, peerId: PeerId, groupId: Data, learntAt: Int32) {
         transaction.updatePreferencesEntry(key: PreferencesKeys.mlsConversations, { entry in
             var ids = entry?.get(MlsConversationIds.self) ?? MlsConversationIds()
             ids.groupIdByPeer[peerId.mlsKey] = groupId
             ids.rebuiltAtByPeer[peerId.mlsKey] = Int32(Date().timeIntervalSince1970)
+            ids.learntAtByPeer[peerId.mlsKey] = learntAt
             return PreferencesEntry(ids)
         })
     }
@@ -313,7 +345,12 @@ public enum MlsConversations {
                         return .single(nil)
                     }
                     return postbox.transaction { transaction -> Void in
-                        MlsConversationIds.remember(transaction: transaction, peerId: peerId, groupId: groupId)
+                        // Now, by the server's clock: this conversation was made
+                        // a moment ago, so no message older than this moment may
+                        // move the chat out of it (#155).
+                        MlsConversationIds.remember(transaction: transaction, peerId: peerId,
+                                                    groupId: groupId,
+                                                    learntAt: Int32(network.globalTime))
                     }
                 |> mapToSignal { _ -> Signal<Data?, NoError> in
                     // One welcome, handed to each member separately: the
@@ -571,7 +608,7 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
             // the text and the placeholder takes its place.
             var content: MlsMessageContent?
             if message.flags.contains(.Incoming) {
-                switch runtime.read(peerId: peerId, text: ciphertext) {
+                switch runtime.read(peerId: peerId, text: ciphertext, at: message.timestamp) {
                 case let .content(read):
                     content = read
                 case .writtenBeforeThisDeviceCouldRead:

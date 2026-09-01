@@ -219,6 +219,9 @@ public final class MlsRuntime {
     /// like one and got `.mlsKey` applied to it twice.
     private func remember(key: Int64, groupId: Data) {
         self.conversationIds[key] = groupId
+        // Now, by the server's clock: this was built or joined a moment ago, so
+        // no message older than this moment may move the chat out of it (#155).
+        self.learntAt[key] = Int32(self.network?.globalTime ?? Date().timeIntervalSince1970)
         MlsRuntime.publishEncrypted([key])
         // The group itself is not dropped here: it is held by its own id, and a
         // conversation this device is in stays readable whoever it is now
@@ -824,17 +827,15 @@ public final class MlsRuntime {
 
     /// What this text really says, or nothing if it is not ours or cannot be
     /// read - and then the caller puts the ciphertext aside and comes back to it.
-    public func decrypt(peerId: PeerId, text: String) -> MlsMessageContent? {
-        return self.read(peerId: peerId, text: text).content
-    }
-
-    /// The same, with the reason kept - which the caller needs before deciding
-    /// that a conversation has to be rebuilt.
-    func read(peerId: PeerId, text: String) -> MlsConversations.Reading {
+    ///
+    /// - Parameter at: the date on the message, by the server's clock. It is
+    ///   what decides whether this message may move the chat to the conversation
+    ///   it names, because that must only ever happen forwards (#155).
+    func read(peerId: PeerId, text: String, at: Int32) -> MlsConversations.Reading {
         guard MlsConversations.isCiphertext(text) else {
             return .nothing
         }
-        let (reading, toAdopt) = self.readHoldingTheLock(peerId: peerId, text: text)
+        let (reading, toAdopt) = self.readHoldingTheLock(peerId: peerId, text: text, at: at)
         // Outside the lock, which is the whole point of the split: adopt() takes
         // that lock, and it is not one that can be taken twice. Taking it from
         // inside stopped the thread that had just opened a message - and with it
@@ -846,14 +847,14 @@ public final class MlsRuntime {
         // landing. The first message a device ever opened was the last thing it
         // did.
         if let groupId = toAdopt {
-            self.adopt(peerId: peerId, groupId: groupId)
+            self.adopt(peerId: peerId, groupId: groupId, learntAt: at)
         }
         return reading
     }
 
     /// The reading itself, and the conversation this chat turns out to belong
     /// to when that is news - which the caller acts on once the lock is gone.
-    private func readHoldingTheLock(peerId: PeerId, text: String) -> (MlsConversations.Reading, Data?) {
+    private func readHoldingTheLock(peerId: PeerId, text: String, at: Int32) -> (MlsConversations.Reading, Data?) {
         self.queue.lock()
         defer { self.queue.unlock() }
 
@@ -870,8 +871,38 @@ public final class MlsRuntime {
         // An older message from before the group id travelled, or one this
         // device cannot parse, falls back to the conversation kept for the
         // sender - which is what this always did.
+        let named = MlsConversations.conversation(ofCiphertext: text)
+
+        // Which conversation this chat belongs to, learnt from the message
+        // rather than from the welcome.
+        //
+        // A welcome says who sent it and nothing else. That is enough for a
+        // conversation between two and wrong for a group: the joiner would
+        // record the group against the person who invited them, and their own
+        // first message into the chat would find no conversation and start a
+        // second group for the same chat. Every message carries its group id in
+        // the clear, so a message says which chat it belongs to - and this is
+        // the only place both facts are known at once (#40).
+        //
+        // Decided before the message is opened rather than after, because the
+        // message this matters for is the one that will not open: the one from
+        // a conversation this device does not know it is meant to be in.
+        // Reading the id needs no key. Asked after opening, it only ever
+        // confirmed what was already right, and the device that most needed
+        // telling was never told (#155).
+        //
+        // Forwards only. See learntAt.
+        var toAdopt: Data? = nil
+        if let named, self.conversationIds[peerId.mlsKey] != named {
+            if at >= (self.learntAt[peerId.mlsKey] ?? 0) {
+                toAdopt = named
+            } else {
+                Logger.shared.log("Mls", "a message in \(mlsShortId(named)) is older than what named this chat's conversation, leaving it be")
+            }
+        }
+
         let found: (MlsIdentity, MlsGroup)?
-        if let named = MlsConversations.conversation(ofCiphertext: text) {
+        if let named {
             found = self.group(named: named)
             if found == nil {
                 // Worth saying plainly: this device is not in the conversation
@@ -884,7 +915,7 @@ public final class MlsRuntime {
             found = self.group(for: peerId)
         }
         guard let (identity, group) = found else {
-            return (.unreadable, nil)
+            return (.unreadable, toAdopt)
         }
         let reading = MlsConversations.decrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text)
         if case let .content(content) = reading {
@@ -896,23 +927,9 @@ public final class MlsRuntime {
             // out - only that something opened, from whom, and where.
             if let groupId = try? group.id {
                 Logger.shared.log("Mls", "opened a message from \(peerId.id._internalGetInt64Value()) in conversation \(mlsShortId(groupId))")
-                // Which conversation this group belongs to, learnt from a
-                // message rather than from the welcome.
-                //
-                // A welcome says who sent it and nothing else. That is enough
-                // for a conversation between two and wrong for a group: the
-                // joiner would record the group against the person who invited
-                // them, and their own first message into the chat would find no
-                // conversation and start a second group for the same chat.
-                // Every message carries its group id in the clear, so the first
-                // one that opens says which chat it belongs to - and this is
-                // the only place both facts are known at once (#40).
-                if self.conversationIds[peerId.mlsKey] != groupId {
-                    return (reading, groupId)
-                }
             }
         }
-        return (reading, nil)
+        return (reading, toAdopt)
     }
 
     /// The one account that is running, for the places that read a message into
@@ -998,7 +1015,9 @@ public final class MlsRuntime {
         encryptedPeersLock.unlock()
     }
 
-    public static func decryptIncoming(peerId: PeerId, text: String) -> MlsMessageContent? {
+    /// - Parameter at: the date on the message, which decides whether it may
+    ///   move the chat to the conversation it names. See `read`.
+    public static func decryptIncoming(peerId: PeerId, text: String, at: Int32) -> MlsMessageContent? {
         guard MlsConversations.isCiphertext(text) else {
             return nil
         }
@@ -1009,7 +1028,7 @@ public final class MlsRuntime {
 
         var writtenHere = false
         for runtime in candidates {
-            switch runtime.read(peerId: peerId, text: text) {
+            switch runtime.read(peerId: peerId, text: text, at: at) {
             case let .content(content):
                 return content
             case .writtenHere:
@@ -1061,6 +1080,10 @@ public final class MlsRuntime {
     /// not make this device forget it has just rebuilt and do it again. Seconds
     /// since 1970, like everything else that is written down.
     private var rebuilt: [Int64: Int32] = [:]
+
+    /// How new the thing that taught us each note was, by the server's clock.
+    /// See MlsConversationIds.learntAtByPeer, which is where it is kept.
+    private var learntAt: [Int64: Int32] = [:]
 
     private func markRebuilt(_ key: Int64) {
         self.rebuilt[key] = Int32(Date().timeIntervalSince1970)
@@ -1209,9 +1232,15 @@ public final class MlsRuntime {
         return found
     }
 
-    public func adopt(peerId: PeerId, groupId: Data) {
+    /// - Parameter learntAt: the date of whatever said so, by the server's
+    ///   clock. Nothing means this moment, which is what a conversation just
+    ///   built or just joined deserves; a message passes its own date, so that
+    ///   an older one cannot undo a newer one (#155).
+    public func adopt(peerId: PeerId, groupId: Data, learntAt: Int32? = nil) {
         self.queue.lock()
+        let at = learntAt ?? Int32(self.network?.globalTime ?? Date().timeIntervalSince1970)
         self.conversationIds[peerId.mlsKey] = groupId
+        self.learntAt[peerId.mlsKey] = at
         self.markRebuilt(peerId.mlsKey)
         MlsRuntime.publishEncrypted([peerId.mlsKey])
         self.queue.unlock()
@@ -1223,7 +1252,8 @@ public final class MlsRuntime {
         // it built another one and the two sides diverged again. Twice in one
         // evening, and both times it looked like the join had failed.
         let _ = (self.postbox.transaction { transaction -> Void in
-            MlsConversationIds.remember(transaction: transaction, peerId: peerId, groupId: groupId)
+            MlsConversationIds.remember(transaction: transaction, peerId: peerId,
+                                        groupId: groupId, learntAt: at)
         }).start()
     }
 
@@ -1250,6 +1280,7 @@ public final class MlsRuntime {
             self.queue.lock()
             self.conversationIds = stored.groupIdByPeer
             self.rebuilt = stored.rebuiltAtByPeer
+            self.learntAt = stored.learntAtByPeer
             self.identity = identity
             MlsRuntime.publishEncrypted(stored.groupIdByPeer.keys)
             self.queue.unlock()

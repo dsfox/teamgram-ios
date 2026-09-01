@@ -1247,7 +1247,7 @@ extension StoreMessage {
                 // ciphertext, correct and unused.
                 var decrypted: MlsMessageContent?
                 if MlsRuntime.isCiphertext(message) {
-                    if let content = MlsRuntime.decryptIncoming(peerId: peerId, text: message) {
+                    if let content = MlsRuntime.decryptIncoming(peerId: peerId, text: message, at: date) {
                         messageText = content.text
                         decrypted = content
                     } else {
