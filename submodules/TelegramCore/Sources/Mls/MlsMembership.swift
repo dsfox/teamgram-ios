@@ -400,86 +400,6 @@ private func offer(
 ///   fetched on its own schedule - so comparing against it finds nothing and the
 ///   change waits for a sweep. Naming is also better evidence than the list: it
 ///   came from the server this second, about this one person.
-/// Chats this run has already told the server hold everybody, and in which
-/// conversation. The comparison runs on the rhythm of sending and the answer
-/// does not change between two messages, so it is said once.
-private let saidToHoldEverybody = Atomic<[Int64: Data]>(value: [:])
-
-/// Tells the server that this conversation is the chat's, having just found a
-/// leaf in it for every device of every member.
-///
-/// Which conversation a chat has is settled by the first device to ask (#135),
-/// and until this that first answer was the answer for ever. One chat on the
-/// stand had it won by a conversation that a device rebuilding on a misreading
-/// made and nobody followed: everybody talks in another one, and every device
-/// that starts from nothing is sent to a group with nobody in it to wait for an
-/// invitation that cannot come. Neither a message nor an invitation is ever
-/// compared with that answer, so nothing undoes it (#139).
-///
-/// Said only from the comparison, and only where the count answered it. That is
-/// what makes it a fact and not a hope: this device is in the conversation and
-/// has just looked. It hands nobody anything new either - a member can already
-/// take the chat into a conversation of their own by inviting everybody to it -
-/// so all it does is write down where the chat ended up.
-///
-/// It moves nobody. A device holding the wrong conversation is still brought
-/// across by the invitation it will be sent; this only stops the next device
-/// that starts from nothing being sent somewhere empty.
-///
-/// The Android twin is MlsRuntime.sayItHoldsEverybody.
-private func sayItHoldsEverybody(
-    network: Network,
-    peerId: PeerId,
-    groupId: Data
-) -> Signal<Void, NoError> {
-    var alreadySaid = false
-    let _ = saidToHoldEverybody.modify { said -> [Int64: Data] in
-        var said = said
-        if said[peerId.mlsKey] == groupId {
-            alreadySaid = true
-            return said
-        }
-        said[peerId.mlsKey] = groupId
-        return said
-    }
-    if alreadySaid {
-        return .complete()
-    }
-
-    // No roster here, and empty means "nothing said" rather than "nobody in it"
-    // - this call has no tree in scope and is about the claim rather than the
-    // membership. The roster comes from the two places that know it for
-    // certain: a commit, and the claim a new group makes (#147).
-    return network.request(Api.functions.mls.claimConversation(
-                peerId: peerId.dialogId, groupId: Buffer(data: groupId), holdsEverybody: true,
-                holds: []))
-    |> map(Optional.init)
-    |> `catch` { _ -> Signal<Api.mls.Conversation?, NoError> in .single(nil) }
-    |> mapToSignal { held -> Signal<Void, NoError> in
-        guard let held = held else {
-            // Forgotten, so the next comparison says it again. One that was
-            // never delivered but remembered as said is the same silence this
-            // exists to end.
-            let _ = saidToHoldEverybody.modify { said -> [Int64: Data] in
-                var said = said
-                said.removeValue(forKey: peerId.mlsKey)
-                return said
-            }
-            Logger.shared.log("Mls", "could not say that \(mlsShortId(groupId)) holds all of \(peerId)")
-            return .complete()
-        }
-        let settled = held.groupId.makeData()
-        guard settled == groupId else {
-            // Nothing to do about it from here, and everything to say: a server
-            // that keeps another answer after being told this one is the state
-            // the whole pass exists to find.
-            Logger.shared.log("Mls", "\(mlsShortId(groupId)) holds all of \(peerId) and the server still says \(mlsShortId(settled))")
-            return .complete()
-        }
-        Logger.shared.log("Mls", "\(peerId) is settled on \(mlsShortId(groupId)), which holds everybody")
-        return .complete()
-    }
-}
 
 public func reconcileMembership(
     postbox: Postbox,
@@ -1012,13 +932,13 @@ private func compareWithTheList(
                 wanting = missing
             }
             guard !wanting.isEmpty else {
-                // Nobody missing, on the answer that can say so. This is the one
-                // moment this device knows as a fact that the conversation holds
-                // the chat, so it is the moment to say it.
-                guard countsAnswered else {
-                    return .complete()
-                }
-                return sayItHoldsEverybody(network: network, peerId: peerId, groupId: groupId)
+                // Nobody missing. There used to be something to say here - this
+                // device vouching that the conversation held every device of
+                // every member, which was the one thing that could replace an
+                // answer already settled (#139). The server keeps the roster now
+                // and can see that for itself, so the vouch is gone and this
+                // round has nothing left to do (#147).
+                return .complete()
             }
 
             // Somebody with no devices to reach is left out of this round rather
