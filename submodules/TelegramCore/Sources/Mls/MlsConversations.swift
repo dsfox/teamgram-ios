@@ -183,6 +183,31 @@ public extension MlsConversationIds {
             .get(MlsConversationIds.self) ?? MlsConversationIds()
     }
 
+    /// Gives a date to every note that has none, and answers with what is
+    /// stored afterwards.
+    ///
+    /// A note written before it carried one read as "anything at all may
+    /// correct this", and the first run after the change is exactly where a
+    /// chat's whole history of old ciphertexts is waiting. On the stand one of
+    /// them moved a live chat into a group two days dead, at the first attempt
+    /// (#155).
+    ///
+    /// Now is the honest answer: what is written here was true as of this
+    /// moment, so nothing older may undo it and the other side's next message
+    /// still can.
+    static func dateWhatHasNoDate(transaction: Transaction, at: Int32) -> MlsConversationIds {
+        var answer = MlsConversationIds()
+        transaction.updatePreferencesEntry(key: PreferencesKeys.mlsConversations, { entry in
+            var ids = entry?.get(MlsConversationIds.self) ?? MlsConversationIds()
+            for key in ids.groupIdByPeer.keys where ids.learntAtByPeer[key] == nil {
+                ids.learntAtByPeer[key] = at
+            }
+            answer = ids
+            return PreferencesEntry(ids)
+        })
+        return answer
+    }
+
     static func remember(transaction: Transaction, peerId: PeerId, groupId: Data, learntAt: Int32) {
         transaction.updatePreferencesEntry(key: PreferencesKeys.mlsConversations, { entry in
             var ids = entry?.get(MlsConversationIds.self) ?? MlsConversationIds()

@@ -1267,8 +1267,9 @@ public final class MlsRuntime {
     public func reload() -> Signal<Void, NoError> {
         let postbox = self.postbox
         let accountPeerId = self.accountPeerId
+        let now = Int32(self.networkOutsideTheLock()?.globalTime ?? Date().timeIntervalSince1970)
         return postbox.transaction { transaction -> MlsConversationIds in
-            return MlsConversationIds.load(transaction: transaction)
+            return MlsConversationIds.dateWhatHasNoDate(transaction: transaction, at: now)
         }
         |> deliverOn(MlsRuntime.results)
         |> map { [weak self] stored -> Void in
