@@ -289,9 +289,14 @@ public enum MlsConversations {
                 // here would let a device that has just built a second
                 // conversation take the chat away from the one everybody is in,
                 // which is the split this call exists to prevent (#139).
+                // And the roster, which is where the delivery service learns a
+                // new group's membership at all: this is the one commit that is
+                // never posted - accepted above, with nobody to have raced with -
+                // so no commit will ever carry it (#147).
                 return (network.request(Api.functions.mls.claimConversation(
                             peerId: peerId.dialogId, groupId: Buffer(data: groupId),
-                            holdsEverybody: false))
+                            holdsEverybody: false,
+                            holds: group.stagedMemberNames().map { Buffer(data: $0) }))
                 |> map(Optional.init)
                 |> `catch` { _ -> Signal<Api.mls.Conversation?, NoError> in .single(nil) }
                 |> mapToSignal { held -> Signal<Data?, NoError> in

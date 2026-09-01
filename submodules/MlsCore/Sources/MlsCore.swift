@@ -310,7 +310,24 @@ public final class MlsGroup {
     /// The count cannot answer what this is asked for: two people leaving and
     /// two joining leaves the count exactly where it was.
     public func memberNames() -> [Data] {
-        let buffer = mls_group_member_names(self.handle)
+        return self.unpackNames(mls_group_member_names(self.handle))
+    }
+
+    /// The same, counting the commit this device has staged and not yet
+    /// applied: a newcomer already in, somebody removed already out.
+    ///
+    /// It is what a committer tells the delivery service its group holds, and
+    /// it has to be the membership *after* the commit - between offering one
+    /// and hearing whether it was taken, the tree still shows the one before
+    /// (#147). With nothing staged the two answers are the same.
+    public func stagedMemberNames() -> [Data] {
+        return self.unpackNames(mls_group_staged_member_names(self.handle))
+    }
+
+    /// Length-prefixed names, as the core packs them. Written once: two copies
+    /// of one wire format is how the two come to disagree, and a disagreement
+    /// here reads as a membership that changed on its own.
+    private func unpackNames(_ buffer: MlsBuffer) -> [Data] {
         guard let packed = try? take(buffer, "") else {
             return []
         }

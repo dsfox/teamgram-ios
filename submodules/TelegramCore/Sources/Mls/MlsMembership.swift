@@ -266,9 +266,15 @@ private func offer(
     //
     // The leaves are the definition of who must apply a commit. Anybody being
     // let in is added on top, because they are not a leaf until this is applied.
-    var members = runtime.withState({ identity -> [Int64] in
+    //
+    // The same pass answers what the delivery service is told the group holds,
+    // because both come off the same tree and loading it twice is how the two
+    // answers come to be about different moments. That one is the roster
+    // *after* this commit - staged, not applied, so the tree on its own still
+    // shows the membership before it (#147).
+    let seen = runtime.withState({ identity -> ([Int64], [Data]) in
         guard let group = try MlsGroup.load(identity: identity, id: groupId) else {
-            return []
+            return ([], [])
         }
         var holders: Set<Int64> = []
         for name in group.memberNames() {
@@ -281,8 +287,10 @@ private func offer(
                 holders.insert(who)
             }
         }
-        return Array(holders)
-    }) ?? audience.map { $0.id._internalGetInt64Value() }
+        return (Array(holders), group.stagedMemberNames())
+    })
+    var members = seen?.0 ?? audience.map { $0.id._internalGetInt64Value() }
+    let holds = seen?.1 ?? []
     if case let .letIn(newcomers, _) = change {
         for newcomer in newcomers {
             let id = newcomer.id._internalGetInt64Value()
@@ -302,7 +310,8 @@ private func offer(
         groupId: Buffer(data: groupId),
         epoch: offered.epoch,
         members: members,
-        commit: Buffer(data: offered.commit)))
+        commit: Buffer(data: offered.commit),
+        holds: holds.map { Buffer(data: $0) }))
     |> map(Optional.init)
     |> `catch` { _ -> Signal<Api.mls.CommitResult?, NoError> in
         // No answer is not the same as a refusal, and must not be treated as
@@ -437,8 +446,13 @@ private func sayItHoldsEverybody(
         return .complete()
     }
 
+    // No roster here, and empty means "nothing said" rather than "nobody in it"
+    // - this call has no tree in scope and is about the claim rather than the
+    // membership. The roster comes from the two places that know it for
+    // certain: a commit, and the claim a new group makes (#147).
     return network.request(Api.functions.mls.claimConversation(
-                peerId: peerId.dialogId, groupId: Buffer(data: groupId), holdsEverybody: true))
+                peerId: peerId.dialogId, groupId: Buffer(data: groupId), holdsEverybody: true,
+                holds: []))
     |> map(Optional.init)
     |> `catch` { _ -> Signal<Api.mls.Conversation?, NoError> in .single(nil) }
     |> mapToSignal { held -> Signal<Void, NoError> in

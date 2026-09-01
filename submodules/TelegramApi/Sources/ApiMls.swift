@@ -92,16 +92,23 @@ public extension Api.functions {
             })
         }
 
-        /// mls.sendCommit group_id:bytes epoch:long members:Vector<long> commit:bytes = mls.CommitResult;
+        /// mls.sendCommit group_id:bytes epoch:long members:Vector<long> commit:bytes holds:Vector<bytes> = mls.CommitResult;
         ///
         /// A membership change, offered to the delivery service. It is the one
         /// place the server has an opinion about a conversation: MLS validates
         /// a commit against the epoch it was made from, so of two made from the
         /// same epoch exactly one can be taken, and RFC 9420 gives that
         /// ordering to the delivery service. The answer says which.
-        public static func sendCommit(groupId: Buffer, epoch: Int64, members: [Int64], commit: Buffer) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.CommitResult>) {
+        ///
+        /// holds is the roster after this commit: one entry per leaf, each the
+        /// leaf's identity as MLS carries it, which here is the bytes of
+        /// `<user_id>/<device_id>`. The committer is the one party that knows
+        /// it for certain - it is this device's own tree and it has just
+        /// changed it. Whole rather than incremental, so any commit repairs
+        /// what the server holds and drift has nowhere to accumulate (#147).
+        public static func sendCommit(groupId: Buffer, epoch: Int64, members: [Int64], commit: Buffer, holds: [Buffer]) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.CommitResult>) {
             let buffer = Buffer()
-            buffer.appendInt32(-945155929)
+            buffer.appendInt32(781607113)
             serializeBytes(groupId, buffer: buffer, boxed: false)
             serializeInt64(epoch, buffer: buffer, boxed: false)
             buffer.appendInt32(481674261)
@@ -110,6 +117,11 @@ public extension Api.functions {
                 serializeInt64(item, buffer: buffer, boxed: false)
             }
             serializeBytes(commit, buffer: buffer, boxed: false)
+            buffer.appendInt32(481674261)
+            buffer.appendInt32(Int32(holds.count))
+            for item in holds {
+                serializeBytes(item, buffer: buffer, boxed: false)
+            }
             return (FunctionDescription(name: "mls.sendCommit", parameters: [("epoch", ConstructorParameterDescription(epoch))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.CommitResult? in
                 let reader = BufferReader(buffer)
                 return Api.mls.CommitResult.parse(reader)
@@ -146,7 +158,7 @@ public extension Api.functions {
             })
         }
 
-        /// mls.claimConversation peer_id:long group_id:bytes holds_everybody:Bool = mls.Conversation;
+        /// mls.claimConversation peer_id:long group_id:bytes holds_everybody:Bool holds:Vector<bytes> = mls.Conversation;
         ///
         /// Which conversation this chat has, settled by whoever asks first.
         /// Nothing settled it before, and every device that wanted to send into
@@ -161,12 +173,22 @@ public extension Api.functions {
         /// and one won by a conversation that a rebuilding device made and
         /// nobody followed sends every device starting from nothing to a group
         /// with nobody in it, to wait for an invitation that cannot come (#139).
-        public static func claimConversation(peerId: Int64, groupId: Buffer, holdsEverybody: Swift.Bool) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Conversation>) {
+        ///
+        /// holds is the same roster a commit carries, and it rides here because
+        /// a group's first membership arrives with no commit at all: the
+        /// creator accepts its own commit locally and never posts it, there
+        /// being nobody to have raced with (#147).
+        public static func claimConversation(peerId: Int64, groupId: Buffer, holdsEverybody: Swift.Bool, holds: [Buffer]) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Conversation>) {
             let buffer = Buffer()
-            buffer.appendInt32(-936499491)
+            buffer.appendInt32(-1427126146)
             serializeInt64(peerId, buffer: buffer, boxed: false)
             serializeBytes(groupId, buffer: buffer, boxed: false)
             buffer.appendInt32(holdsEverybody ? -1720552011 : -1132882121)
+            buffer.appendInt32(481674261)
+            buffer.appendInt32(Int32(holds.count))
+            for item in holds {
+                serializeBytes(item, buffer: buffer, boxed: false)
+            }
             return (FunctionDescription(name: "mls.claimConversation", parameters: [("peerId", ConstructorParameterDescription(peerId))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Conversation? in
                 let reader = BufferReader(buffer)
                 return Api.mls.Conversation.parse(reader)
