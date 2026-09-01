@@ -582,9 +582,14 @@ public final class MlsRuntime {
     /// never told that somebody had followed a link into its group. Asking on
     /// each round bounds that at one round rather than for ever.
     ///
-    /// Groups only. A chat between two never changes who is in it, and asking
-    /// about one would be a request per conversation per round for an answer
-    /// that cannot differ.
+    /// Groups only, and for a narrower reason than the sentence that used to
+    /// stand here. "A chat between two never changes who is in it" was true of
+    /// the participant list and false of everything that was hung on it: how
+    /// many devices those two have does change, which is what the comparison is
+    /// for and why it covers such a chat as well (#142, `worthComparing`). What
+    /// is groups-only is this request - the participant list of a chat of two
+    /// cannot differ from one round to the next, so asking for it every round
+    /// would buy nothing.
     /// How long to leave between two slow rounds.
     ///
     /// There are two rhythms now and they answer different questions. The count
