@@ -20,6 +20,24 @@ public final class MlsRuntime {
     private static let instancesLock = NSLock()
 
     private let queue = NSLock()
+    /// Where a result is handed back once it has left the database's thread.
+    ///
+    /// Serial, and that is the whole of it. `deliverOn` puts the value and the
+    /// completion that follows it on the queue as two separate pieces of work,
+    /// so on a *concurrent* queue the completion can overtake the value: the
+    /// subscriber is finished before the value reaches it, and `putNext` on a
+    /// finished subscriber does nothing and says nothing. It is not a rare race
+    /// - it happens whenever whatever receives the value takes a moment, and
+    /// reading this device's state back takes a couple of hundred milliseconds,
+    /// so it happened every time.
+    ///
+    /// That is the second half of #144. `reload()` completed without ever
+    /// emitting, so nothing hanging off it ever ran: not the pass over stored
+    /// messages at startup, not the one behind a welcome, not the one behind a
+    /// commit. A message that arrived before the conversation it was written in
+    /// stayed sealed for good, and the log said nothing at all, because none of
+    /// that code was reached.
+    private static let results = Queue(name: "MlsRuntimeResults")
     private let postbox: Postbox
     private let accountPeerId: PeerId
     private var identity: MlsIdentity?
@@ -59,6 +77,7 @@ public final class MlsRuntime {
             self.queue.lock()
             let peers = self.conversationIds.keys.map { PeerId.fromMlsKey($0) }
             self.queue.unlock()
+            Logger.shared.log("Mls", "at startup: \(peers.count) conversation(s) to read back")
             let repair: Signal<Void, NoError>
             if peers.isEmpty {
                 repair = .complete()
@@ -665,7 +684,7 @@ public final class MlsRuntime {
             return combineLatest(joined.map { repairUnreadableMessages(postbox: postbox, runtime: self, peerId: $0) })
             |> map { _ -> Bool in true }
         }
-        |> deliverOn(Queue.concurrentDefaultQueue())).start(next: { [weak self] found in
+        |> deliverOn(MlsRuntime.results)).start(next: { [weak self] found in
             guard let self = self, !found, attempt <= MlsRuntime.askAgainAfter.count else {
                 return
             }
@@ -761,7 +780,7 @@ public final class MlsRuntime {
 
         let postbox = self.postbox
         let _ = (MlsConversations.start(postbox: postbox, accountPeerId: self.accountPeerId, network: network, identity: identity, peerId: peerId)
-        |> deliverOn(Queue.concurrentDefaultQueue())).start(next: { [weak self] groupId in
+        |> deliverOn(MlsRuntime.results)).start(next: { [weak self] groupId in
             guard let self = self else {
                 return
             }
@@ -1052,11 +1071,16 @@ public final class MlsRuntime {
         self.queue.lock()
         let key = peerId.mlsKey
         guard !self.recovering.contains(key), let network = self.network else {
+            let already = self.recovering.contains(key)
             self.queue.unlock()
+            // The other way the repair never runs at all. Silent, it reads from
+            // the log exactly like a repair that ran and found nothing.
+            Logger.shared.log("Mls", "not going back for \(peerId.id._internalGetInt64Value()): \(already ? "one is already running" : "no network yet")")
             return
         }
         self.recovering.insert(key)
         self.queue.unlock()
+        Logger.shared.log("Mls", "going back for what \(peerId.id._internalGetInt64Value()) could not open")
 
         let postbox = self.postbox
         let accountPeerId = self.accountPeerId
@@ -1143,7 +1167,7 @@ public final class MlsRuntime {
                     return .single(0)
                 }
             }
-            |> deliverOn(Queue.concurrentDefaultQueue())).start(next: { [weak self] _ in
+            |> deliverOn(MlsRuntime.results)).start(next: { [weak self] _ in
                 guard let self = self else {
                     return
                 }
@@ -1211,8 +1235,9 @@ public final class MlsRuntime {
         return postbox.transaction { transaction -> MlsConversationIds in
             return MlsConversationIds.load(transaction: transaction)
         }
-        |> deliverOn(Queue.concurrentDefaultQueue())
+        |> deliverOn(MlsRuntime.results)
         |> map { [weak self] stored -> Void in
+            Logger.shared.log("Mls", "read \(stored.groupIdByPeer.count) conversation(s) off disk")
             guard let self = self else {
                 return
             }

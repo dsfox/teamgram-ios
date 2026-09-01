@@ -621,9 +621,11 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
             repaired += 1
         }
 
-        if repaired > 0 {
-            Logger.shared.log("Mls", "read back \(repaired) message(s) from \(peerId) that arrived before the conversation")
-        }
+        // Said on every pass, and not only when something was read back. While
+        // this waited for `repaired > 0`, "the repair never ran" and "it ran and
+        // the message was not there to find" printed the same thing - nothing -
+        // and telling those two apart is the whole of #144.
+        Logger.shared.log("Mls", "repair of \(peerId.id._internalGetInt64Value()): looked at \(examined) message(s), \(unreadable.count) unreadable, read back \(repaired)")
         return MlsRepair(repaired: repaired, inTheSendersConversation: inTheSendersConversation)
     }
 }
