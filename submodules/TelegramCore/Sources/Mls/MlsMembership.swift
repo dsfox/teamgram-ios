@@ -56,61 +56,6 @@ public struct NamedInTheMessage {
     }
 }
 
-/// The leaves in a conversation whose device no longer exists.
-///
-/// The twin of the Android pass of the same name, and the half that had no way
-/// to be written until the server could name a device without spending a key
-/// package. A person replaces a phone: the new one is let in, and the leaf of
-/// the old one stays, because whoever compares the chat with the conversation
-/// reasons about people and that person is still there. Nobody removes it - the
-/// pass that drops leaves only ever looked at this account - so it stays for the
-/// life of the group and every commit is encrypted to it. Four people on the
-/// stand were carrying twelve leaves (#139).
-///
-/// Two questions, answered by two halves of one answer, and in this order.
-/// *Whether* a device is gone is the count: more leaves of theirs here than
-/// devices the server knows of. *Which* one is the names. The count is asked
-/// first because the names alone would be dangerous, and it is the same rule
-/// this account's own leaves are taken out by - evicting a live phone is the
-/// worst thing this code can do.
-///
-/// Three things stop it, each of which would otherwise cost somebody their
-/// conversation: an answer that cannot be cut, which `namesOf` says rather than
-/// guessing; a device that cannot be named, because a key package published
-/// before they carried an identity (#136) is counted and has an empty name; and
-/// this account, whose own leaves are another pass's job with a guard of its own.
-private func whoseDeviceIsGone(members: [PeerId], counted: Api.mls.DeviceCounts,
-                               memberNames: [Data], leavesOf: [Int64: Int],
-                               accountPeerId: PeerId) -> [Data] {
-    var dead: [Data] = []
-    for (index, member) in members.enumerated() {
-        let who = member.id._internalGetInt64Value()
-        if member == accountPeerId {
-            continue
-        }
-        let here = leavesOf[who] ?? 0
-        guard here > Int(counted.counts[index]) else {
-            // The count does not say anybody of theirs is missing. Nothing is
-            // removed on the names alone.
-            continue
-        }
-        guard let alive = counted.namesOf(index) else {
-            Logger.shared.log("Mls", "the devices of \(who) cannot be read out of the answer")
-            continue
-        }
-        let names = alive.map { $0.makeData() }
-        if names.contains(where: { $0.isEmpty }) {
-            Logger.shared.log("Mls", "\(who) has a device that cannot be named, so none of their leaves is touched")
-            continue
-        }
-        let prefix = "\(who)/".data(using: .utf8) ?? Data()
-        for leaf in memberNames where leaf.starts(with: prefix) && !names.contains(leaf) {
-            dead.append(leaf)
-        }
-    }
-    return dead
-}
-
 /// What a change to the membership is, and how to make it again if somebody
 /// else's change took the epoch first.
 private enum MembershipChange {
@@ -633,15 +578,16 @@ private func takeOutLeavesThatBelongToNobody(
 /// what reading is. Until it is removed and the epoch moves, the phone in the
 /// drawer opens everything said afterwards (#41).
 ///
-/// Two questions, answered by two different things. *Whether* a device is gone
-/// is the count: more leaves of mine here than devices the server knows of.
-/// *Which* one is the names: the server hands out one key package per live
-/// device, so a leaf of mine with no package behind it is a phone that has
-/// signed out.
+/// It used to ask this in two pieces and reason about the difference: how many
+/// devices the server counted, then which of them it could name, and a leaf of
+/// mine in neither was taken for gone. The count had to come first because the
+/// names alone were dangerous - a device that had merely run out of key
+/// packages looked exactly like one that had left.
 ///
-/// The count is asked first because the names alone would be dangerous. A device
-/// that is merely offline still has packages, but one that had run out would look
-/// gone - and evicting a live phone is the worst thing this code could do.
+/// The server answers both halves at once now, about this very conversation
+/// (#147). What is left here is the one thing this side must decide: never this
+/// device's own leaf, because a phone that could not tell which leaf was its own
+/// would evict itself from every conversation it holds.
 public func takeOutMyLostDevices(
     postbox: Postbox,
     accountPeerId: PeerId,
@@ -675,11 +621,6 @@ private func takeOutMyLostDevices(
     guard attempt <= commitAttempts else {
         return .complete()
     }
-    let devices = runtime.devices()
-    guard devices > 0 else {
-        // Nobody has asked the server yet, and zero is not an answer.
-        return .complete()
-    }
     let self64 = accountPeerId.id._internalGetInt64Value()
 
     return postbox.transaction { transaction -> Data? in
@@ -698,34 +639,30 @@ private func takeOutMyLostDevices(
                 String(decoding: $0, as: UTF8.self).hasPrefix(prefix)
             }
         }
-        guard let here = mine, here.count > Int(devices) else {
+        guard let here = mine, here.count > 1 else {
+            // One leaf is this device's own, and there is nothing to lose.
             return .complete()
         }
-        // This device is never a candidate. A phone that could not tell which
-        // leaf was its own would evict itself from every conversation it holds.
+        // This device is never a candidate, whatever the server says about it.
         let ours = runtime.withState { identity in identity.name() } ?? nil
 
-        Logger.shared.log("Mls", "this account has \(devices) device(s) and \(here.count) leaves in \(mlsShortId(groupId)), so one has gone")
-
-        return network.request(Api.functions.mls.claimKeyPackages(userId: self64))
+        return network.request(Api.functions.mls.membersOf(
+            peerId: peerId.dialogId, groupId: Buffer(data: groupId)))
         |> map(Optional.init)
-        |> `catch` { _ -> Signal<Api.mls.KeyPackages?, NoError> in .single(nil) }
-        |> mapToSignal { answer -> Signal<Void, NoError> in
-            guard let answer = answer else {
-                Logger.shared.log("Mls", "cannot ask which devices of this account are still there")
+        |> `catch` { _ -> Signal<Api.mls.Members?, NoError> in .single(nil) }
+        |> mapToSignal { held -> Signal<Void, NoError> in
+            guard let held = held else {
+                Logger.shared.log("Mls", "cannot ask what \(mlsShortId(groupId)) holds, leaving this account's leaves alone")
                 return .complete()
             }
-            let alive = answer.packages.compactMap { try? MlsGroup.name(ofKeyPackage: $0.makeData()) }
+            let dead = Set(held.holds.filter({ !$0.alive }).map({ $0.name.makeData() }))
             let gone = here.filter { leaf in
                 if let ours = ours, leaf == ours {
                     return false
                 }
-                return !alive.contains(leaf)
+                return dead.contains(leaf)
             }
             guard !gone.isEmpty else {
-                // The count said one was missing and the names cannot say
-                // which. Nothing is removed on a guess.
-                Logger.shared.log("Mls", "a device of this account is gone from \(mlsShortId(groupId)) and the server's answer does not say which - leaving it alone")
                 return .complete()
             }
             Logger.shared.log("Mls", "taking \(gone.count) device(s) of this account out of \(mlsShortId(groupId))")
@@ -807,6 +744,13 @@ private func compareWithTheList(
         guard let memberNames = names, !memberNames.isEmpty else {
             return .complete()
         }
+        // What this device's own tree holds, said out loud once a round.
+        //
+        // The roster the delivery service keeps is what it was told, and this is
+        // what is true; the two are compared after a walk, and until this line
+        // existed only one side of that comparison could be read at all (#147).
+        Logger.shared.log("Mls", "\(mlsShortId(groupId)) here holds: "
+            + memberNames.map({ String(decoding: $0, as: UTF8.self) }).sorted().joined(separator: " "))
 
         // Whoever a message has just named counts as being in the chat, ahead of
         // the list saying so. Anybody it named as gone counts as out of it, and
@@ -836,22 +780,6 @@ private func compareWithTheList(
         // or repair.
         belong.insert(accountPeerId.id._internalGetInt64Value())
 
-        // How many leaves each person has here, which is the question rather
-        // than whether they have any.
-        //
-        // "Is this person in the group" was the question until #132, and it is
-        // the wrong one the moment somebody replaces a phone: the leaf of the
-        // device that has gone still says yes, so nobody counts them as
-        // missing, nobody lets the phone they now hold in, and they sit in the
-        // chat watching padlocks for ever. Only a count can tell those apart,
-        // and the server is the one that has it.
-        var leavesOf: [Int64: Int] = [:]
-        for name in memberNames {
-            let text = String(decoding: name, as: UTF8.self)
-            if let slash = text.firstIndex(of: "/"), let who = Int64(text[text.startIndex ..< slash]) {
-                leavesOf[who] = (leavesOf[who] ?? 0) + 1
-            }
-        }
         let missing = members.filter { !inside.contains($0.id._internalGetInt64Value()) }
         // Named departures first, and without waiting for a list: a removal that
         // waits is a removal that has not happened, and what it leaves behind is
@@ -888,26 +816,33 @@ private func compareWithTheList(
         // at all is the ordinary newcomer; somebody with one that is dead and a
         // phone that is alive is #132, and until this both looked the same to
         // the half of this that could see them.
-        return network.request(Api.functions.mls.devicesOf(users: members.map({ $0.id._internalGetInt64Value() })))
+        return network.request(Api.functions.mls.membersOf(
+            peerId: peerId.dialogId, groupId: Buffer(data: groupId)))
         |> map(Optional.init)
-        |> `catch` { _ -> Signal<Api.mls.DeviceCounts?, NoError> in .single(nil) }
-        |> mapToSignal { counted -> Signal<Void, NoError> in
+        |> `catch` { _ -> Signal<Api.mls.Members?, NoError> in .single(nil) }
+        |> mapToSignal { held -> Signal<Void, NoError> in
             var wanting: [PeerId] = []
-            // Which of the two questions was answered. Only the count is
-            // evidence enough to tell the server this conversation holds
-            // everybody: the fallback below answers who is plainly absent, which
-            // is the question that was wrong until #132 - a person who has
-            // replaced a phone is not absent and is not here either.
-            var countsAnswered = false
-            if let counted = counted, counted.counts.count == members.count {
-                countsAnswered = true
+            if let held = held {
                 // The other direction first: a leaf whose device is gone. Taken
                 // before anybody is let in because it is the smaller group that
                 // results, and because letting somebody in while the tree still
                 // holds their dead leaf is how one person came to hold three.
-                let dead = whoseDeviceIsGone(
-                    members: members, counted: counted, memberNames: memberNames,
-                    leavesOf: leavesOf, accountPeerId: accountPeerId)
+                //
+                // Only leaves this tree actually has. The roster is what the
+                // server was told and this tree is what this device can act on;
+                // where they differ the tree wins, and the difference is what
+                // the gate on the roster is for (#147).
+                //
+                // And never this account's own: those are another pass's job,
+                // with a guard of its own, because a device that could not tell
+                // which leaf was its own would evict itself from everything.
+                let here = Set(memberNames)
+                let ours = "\(accountPeerId.id._internalGetInt64Value())/"
+                let dead = held.holds
+                    .filter { !$0.alive }
+                    .map { $0.name.makeData() }
+                    .filter { here.contains($0)
+                        && !String(decoding: $0, as: UTF8.self).hasPrefix(ours) }
                 if !dead.isEmpty {
                     Logger.shared.log("Mls", "\(dead.count) leaf/leaves in \(mlsShortId(groupId)) belong to devices that are gone")
                     return offer(
@@ -917,18 +852,25 @@ private func compareWithTheList(
                         named: named, attempt: attempt)
                 }
 
-                for (index, member) in members.enumerated() {
-                    let here = leavesOf[member.id._internalGetInt64Value()] ?? 0
-                    if Int(counted.counts[index]) > here {
-                        wanting.append(member)
-                    }
+                // Who the server says has a phone this group has never met.
+                // That is the half no client could work out: somebody who has
+                // replaced a phone is not absent and is not here either, and
+                // until the server answered it both looked the same (#132).
+                var short = Set(held.wanting)
+                // And whoever is plainly absent, which this side has always
+                // been able to see for itself - the chat's list against the
+                // tree. The server does not answer it because it does not have
+                // the chat's list here.
+                for member in missing {
+                    short.insert(member.id._internalGetInt64Value())
                 }
+                wanting = members.filter { short.contains($0.id._internalGetInt64Value()) }
             } else {
                 // The server did not say. Falling back to the old question is
                 // right rather than tidy: it lets in whoever is plainly absent
                 // and does nothing about a leaf that may or may not be dead,
                 // which is the safe half.
-                Logger.shared.log("Mls", "the server did not say how many devices \(peerId) has, going by who is absent")
+                Logger.shared.log("Mls", "the server did not say what \(mlsShortId(groupId)) holds, going by who is absent")
                 wanting = missing
             }
             guard !wanting.isEmpty else {

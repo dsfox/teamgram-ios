@@ -186,28 +186,27 @@ public extension Api.functions {
             })
         }
 
-        /// mls.devicesOf users:Vector<long> = mls.DeviceCounts;
+        /// mls.membersOf peer_id:long group_id:bytes = mls.Members;
         ///
-        /// How many devices each of these people has published from. It is what
-        /// tells a leaf whose device is gone from a leaf that is still
-        /// somebody's - and without it a person who replaces a phone is never
-        /// let back into a group, because the leaf of the device that has gone
-        /// still stands for them (#132).
+        /// What the delivery service holds about this conversation: the leaves
+        /// it has been told the group holds, whether the device behind each one
+        /// is still answering, and who among them has a device with no leaf
+        /// here.
         ///
-        /// Counting by claiming key packages would answer the same question and
-        /// spend one doing it, so a group asking on its rhythm would empty
-        /// everybody's supply within the hour.
-        public static func devicesOf(users: [Int64]) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.DeviceCounts>) {
+        /// One question in place of a dance. This client used to walk its own
+        /// tree, count the leaves per person, ask how many devices each of
+        /// those people had, and work the answer out by arithmetic - and the
+        /// count and the names came from two calls that could disagree, so
+        /// nobody dared act on them for anybody but their own account (#132,
+        /// #136, #139). Only the counting was ever this side's to do.
+        public static func membersOf(peerId: Int64, groupId: Buffer) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.Members>) {
             let buffer = Buffer()
-            buffer.appendInt32(-657797125)
-            buffer.appendInt32(481674261)
-            buffer.appendInt32(Int32(users.count))
-            for item in users {
-                serializeInt64(item, buffer: buffer, boxed: false)
-            }
-            return (FunctionDescription(name: "mls.devicesOf", parameters: []), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.DeviceCounts? in
+            buffer.appendInt32(1023161582)
+            serializeInt64(peerId, buffer: buffer, boxed: false)
+            serializeBytes(groupId, buffer: buffer, boxed: false)
+            return (FunctionDescription(name: "mls.membersOf", parameters: []), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.Members? in
                 let reader = BufferReader(buffer)
-                return Api.mls.DeviceCounts.parse(reader)
+                return Api.mls.Members.parse(reader)
             })
         }
 
@@ -414,81 +413,88 @@ public extension Api {
             }
         }
 
-        /// mls.deviceCounts counts:Vector<int> names:Vector<bytes> = mls.DeviceCounts;
-        public struct DeviceCounts {
-            /// One count per person asked about, in the order they were asked.
-            /// Zero means the server could not say, and nothing is concluded
-            /// from it - it already means "nobody has asked yet" everywhere
-            /// this is read.
-            public let counts: [Int32]
-
-            /// The leaf name of every one of those devices, all of them in one
-            /// list: the counts say where to cut it. One entry per counted
-            /// device, so the cut is always right, and empty for a device that
-            /// published before key packages said which identity they belong
-            /// to (#136).
+        /// mls.leaf name:bytes user_id:long alive:Bool = mls.Leaf;
+        public struct Leaf {
+            /// The leaf's identity as MLS carries it: `<user_id>/<device_id>`.
+            public let name: Buffer
+            /// The part before the slash, read by the server rather than here.
+            public let userId: Int64
+            /// Whether anybody is behind it. False means the device has gone -
+            /// signed out, or reinstalled and come back as another device - and
+            /// the leaf it left is reading everything said since (#41).
             ///
-            /// In the same answer as the counts on purpose. Taking a leaf out
-            /// asks two questions - whether a device is missing, which the
-            /// count answers, and which leaf is it, which these answer - and
-            /// while they came from two calls they could disagree (#139).
-            public let names: [Buffer]
+            /// True whenever the server cannot say otherwise, which is the safe
+            /// direction: a device that published before key packages named
+            /// their identity (#136) cannot be matched to a leaf at all, and
+            /// evicting a live phone is the worst thing this can lead to.
+            public let alive: Swift.Bool
 
-            /// The names belonging to the person at that place in the answer,
-            /// or nil when the answer cannot be cut there.
-            ///
-            /// Nil rather than an empty array, because the two mean opposite
-            /// things: a person with no devices is a real answer, and a list
-            /// that does not add up is one nothing may be concluded from.
-            /// Everything that removes a leaf goes through here, so a short or
-            /// ragged answer stops it rather than shifting one person's devices
-            /// onto the next.
-            public func namesOf(_ who: Int) -> [Buffer]? {
-                guard who >= 0 && who < self.counts.count else {
+            public static func parse(_ reader: BufferReader) -> Leaf? {
+                guard let signature = reader.readInt32(), signature == 631366541 else {
                     return nil
                 }
-                var at = 0
-                for i in 0 ..< who {
-                    at += Int(self.counts[i])
-                }
-                let mine = Int(self.counts[who])
-                guard at >= 0 && mine >= 0 && at + mine <= self.names.count else {
+                guard let name = parseBytes(reader) else {
                     return nil
                 }
-                return Array(self.names[at ..< (at + mine)])
+                guard let userId = reader.readInt64() else {
+                    return nil
+                }
+                guard let alive = reader.readInt32() else {
+                    return nil
+                }
+                return Leaf(name: name, userId: userId, alive: alive == -1720552011)
             }
+        }
 
-            public static func parse(_ reader: BufferReader) -> DeviceCounts? {
-                guard let signature = reader.readInt32(), signature == 1890672928 else {
+        /// mls.members epoch:long holds:Vector<mls.Leaf> wanting:Vector<long> = mls.Members;
+        public struct Members {
+            /// What the delivery service believes the group is on, which is how
+            /// a device learns it is behind without sending a commit to find
+            /// out.
+            public let epoch: Int64
+            /// The leaves the group has been reported to hold.
+            public let holds: [Leaf]
+            /// People already in the conversation who have a device answering
+            /// and no leaf here for it. Somebody with none at all is the
+            /// ordinary newcomer and this side works that out for itself, from
+            /// the chat's own participant list; somebody with one dead leaf and
+            /// one live phone is #132, and only the server can see it.
+            public let wanting: [Int64]
+
+            public static func parse(_ reader: BufferReader) -> Members? {
+                guard let signature = reader.readInt32(), signature == 2000012518 else {
+                    return nil
+                }
+                guard let epoch = reader.readInt64() else {
                     return nil
                 }
                 guard let vector = reader.readInt32(), vector == 481674261 else {
                     return nil
                 }
-                guard let count = reader.readInt32() else {
+                guard let held = reader.readInt32() else {
                     return nil
                 }
-                var counts: [Int32] = []
-                for _ in 0 ..< count {
-                    guard let item = reader.readInt32() else {
+                var holds: [Leaf] = []
+                for _ in 0 ..< held {
+                    guard let leaf = Leaf.parse(reader) else {
                         return nil
                     }
-                    counts.append(item)
+                    holds.append(leaf)
                 }
-                guard let namesVector = reader.readInt32(), namesVector == 481674261 else {
+                guard let people = reader.readInt32(), people == 481674261 else {
                     return nil
                 }
-                guard let named = reader.readInt32() else {
+                guard let short = reader.readInt32() else {
                     return nil
                 }
-                var names: [Buffer] = []
-                for _ in 0 ..< named {
-                    guard let item = parseBytes(reader) else {
+                var wanting: [Int64] = []
+                for _ in 0 ..< short {
+                    guard let who = reader.readInt64() else {
                         return nil
                     }
-                    names.append(item)
+                    wanting.append(who)
                 }
-                return DeviceCounts(counts: counts, names: names)
+                return Members(epoch: epoch, holds: holds, wanting: wanting)
             }
         }
 
