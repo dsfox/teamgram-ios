@@ -874,12 +874,18 @@ private func compareWithTheList(
                 wanting = missing
             }
             guard !wanting.isEmpty else {
-                // Nobody missing. There used to be something to say here - this
-                // device vouching that the conversation held every device of
-                // every member, which was the one thing that could replace an
-                // answer already settled (#139). The server keeps the roster now
-                // and can see that for itself, so the vouch is gone and this
-                // round has nothing left to do (#147).
+                // Nobody missing, and it has to be said out loud. What used to
+                // stand here was this device vouching to the server that the
+                // conversation held every device of every member, which was the
+                // one thing that could replace an answer already settled (#139);
+                // the server keeps the roster now and sees that for itself
+                // (#147).
+                //
+                // What went with the vouch was the only line a comparison that
+                // ends well ever printed, so the pass spoke on failure and was
+                // silent on success - and then "it ran and found nothing" and
+                // "it never ran" look exactly alike.
+                Logger.shared.log("Mls", "\(peerId.dialogId) is compared and nothing is missing from \(mlsShortId(groupId))")
                 return .complete()
             }
 
