@@ -4,7 +4,7 @@ import Display
 import AsyncDisplayKit
 import SwiftSignalKit
 import TelegramCore
-import MessageUI
+import InvitationComposer
 import TelegramPresentationData
 import ItemListUI
 import PresentationDataUtils
@@ -811,31 +811,12 @@ private func deviceContactInfoEntries(context: ShareControllerAccountContext, pr
     return entries
 }
 
-private final class DeviceContactInfoController: ItemListController, MFMessageComposeViewControllerDelegate, UINavigationControllerDelegate {
-    private var composer: MFMessageComposeViewController?
-    func inviteContact(presentationData: PresentationData, numbers: [String]) {
-        if MFMessageComposeViewController.canSendText() {
-            let composer = MFMessageComposeViewController()
-            composer.messageComposeDelegate = self
-            composer.recipients = Array(Set(numbers))
-            let url = presentationData.strings.InviteText_URL
-            let body = presentationData.strings.InviteText_SingleContact(url).string
-            composer.body = body
-            self.composer = composer
-            if let window = self.view.window {
-                window.rootViewController?.present(composer, animated: true)
-            }
-        }
-    }
-    
-    @objc func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {
-        self.composer = nil
-        
-        controller.dismiss(animated: true, completion: nil)
-        
-        guard case .sent = result else {
+private final class DeviceContactInfoController: ItemListController {
+    func inviteContact(context: AccountContext, numbers: [String]) {
+        guard let phone = numbers.first else {
             return
         }
+        InvitationComposer.invite(context: context, phone: phone, from: self)
     }
 }
 
@@ -1324,7 +1305,12 @@ public func deviceContactInfoController(context: ShareControllerAccountContext, 
         }
     }
     inviteImpl = { [weak controller] numbers in
-        controller?.inviteContact(presentationData: environment.presentationData, numbers: numbers)
+        // Only the app can mint a code; the share extension has no account
+        // to ask with, and an SMS without a code is not worth composing.
+        guard let controller, let context = (context as? ShareControllerAppAccountContext)?.context else {
+            return
+        }
+        controller.inviteContact(context: context, numbers: numbers)
     }
     openAddressImpl = { [weak controller] address in
         guard let _ = controller else {

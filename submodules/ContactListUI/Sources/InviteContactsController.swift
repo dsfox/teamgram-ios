@@ -4,7 +4,7 @@ import Display
 import AsyncDisplayKit
 import SwiftSignalKit
 import TelegramCore
-import MessageUI
+import InvitationComposer
 import TelegramPresentationData
 import AccountContext
 import ShareController
@@ -12,7 +12,7 @@ import AlertUI
 import PresentationDataUtils
 import SearchUI
 
-public class InviteContactsController: ViewController, MFMessageComposeViewControllerDelegate, UINavigationControllerDelegate {
+public class InviteContactsController: ViewController {
     private let context: AccountContext
     
     private var contactsNode: InviteContactsControllerNode {
@@ -27,8 +27,6 @@ public class InviteContactsController: ViewController, MFMessageComposeViewContr
     private var presentationData: PresentationData
     private var presentationDataDisposable: Disposable?
     
-    private var composer: MFMessageComposeViewController?
-    private let mintDisposable = MetaDisposable()
     
     private var searchContentNode: NavigationBarSearchContentNode?
     
@@ -84,7 +82,6 @@ public class InviteContactsController: ViewController, MFMessageComposeViewContr
     
     deinit {
         self.presentationDataDisposable?.dispose()
-        self.mintDisposable.dispose()
     }
     
     private func updateThemeAndStrings() {
@@ -127,37 +124,12 @@ public class InviteContactsController: ViewController, MFMessageComposeViewContr
             guard let strongSelf = self, let first = numbers.first, let phone = first.0.phoneNumbers.first?.value else {
                 return
             }
-            // The code is bound to this number on the server (#47): only the
-            // phone the carrier delivers the SMS to can sign in with it.
-            strongSelf.mintDisposable.set((strongSelf.context.engine.contacts.mintInvitation(phone: phone)
-            |> deliverOnMainQueue).start(next: { code in
-                guard let strongSelf = self, MFMessageComposeViewController.canSendText() else {
-                    return
-                }
-                let strings = strongSelf.presentationData.strings
-                let composer = MFMessageComposeViewController()
-                composer.messageComposeDelegate = strongSelf
-                composer.recipients = [phone]
-                composer.body = strings.InviteText_SingleContact(strings.InviteText_URL).string + "\n" + strings.Invite_CodeLine(code).string
-                strongSelf.composer = composer
-                if let window = strongSelf.view.window {
-                    window.rootViewController?.present(composer, animated: true)
-                }
-            }, error: { error in
+            InvitationComposer.invite(context: strongSelf.context, phone: phone, from: strongSelf, onSent: { [weak self] in
                 guard let strongSelf = self else {
                     return
                 }
-                // Said, not swallowed: an SMS without a code is useless.
-                let strings = strongSelf.presentationData.strings
-                let text: String
-                switch error {
-                case .alreadyHere:
-                    text = strings.Invite_AlreadyHere
-                case .generic:
-                    text = strings.Invite_NoCode
-                }
-                strongSelf.present(textAlertController(context: strongSelf.context, title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strings.Common_OK, action: {})]), in: .window(.root))
-            }))
+                strongSelf.contactsNode.selectionState = strongSelf.contactsNode.selectionState.withClearedSelection()
+            })
         }
         
         self.contactsNode.listNode.visibleContentOffsetChanged = { [weak self] offset, _ in
@@ -208,17 +180,5 @@ public class InviteContactsController: ViewController, MFMessageComposeViewContr
                 self.contactsNode.deactivateSearch(placeholderNode: searchContentNode.placeholderNode)
             }
         }
-    }
-    
-    @objc public func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {
-        self.composer = nil
-        
-        controller.dismiss(animated: true, completion: nil)
-        
-        guard case .sent = result else {
-            return
-        }
-        
-        self.contactsNode.selectionState = self.contactsNode.selectionState.withClearedSelection()
     }
 }

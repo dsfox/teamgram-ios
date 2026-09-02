@@ -122,7 +122,6 @@ import PeerNameColorScreen
 import ChatEmptyNode
 import ChatMediaInputStickerGridItem
 import AdsInfoScreen
-import MessageUI
 import PhoneNumberFormat
 import OwnershipTransferController
 import OldChannelsController
@@ -597,7 +596,6 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
     
     var stickerVideoExport: MediaEditorVideoExport?
     
-    var messageComposeController: MFMessageComposeViewController?
     
     weak var currentSendStarsUndoController: UndoOverlayController?
     var currentSendStarsUndoMessageId: EngineMessage.Id?

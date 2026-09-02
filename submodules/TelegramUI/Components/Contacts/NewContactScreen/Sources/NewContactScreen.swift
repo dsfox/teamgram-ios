@@ -25,7 +25,7 @@ import Markdown
 import CountrySelectionUI
 import PhoneNumberFormat
 import QrCodeUI
-import MessageUI
+import InvitationComposer
 import AvatarNode
 
 final class NewContactScreenComponent: Component {
@@ -62,7 +62,7 @@ final class NewContactScreenComponent: Component {
         case notFound
     }
     
-    final class View: UIView, UIScrollViewDelegate, MFMessageComposeViewControllerDelegate {
+    final class View: UIView, UIScrollViewDelegate {
         private let scrollView: UIScrollView
         private let edgeEffectView: EdgeEffectView
         
@@ -100,7 +100,6 @@ final class NewContactScreenComponent: Component {
         
         private var cachedChevronImage: (UIImage, PresentationTheme)?
         
-        private var composer: MFMessageComposeViewController?
         
         override init(frame: CGRect) {
             self.scrollView = UIScrollView()
@@ -215,25 +214,10 @@ final class NewContactScreenComponent: Component {
         }
         
         func sendInvite() {
-            guard MFMessageComposeViewController.canSendText(), let environment = self.environment else {
+            guard let component = self.component, let environment = self.environment, let controller = environment.controller() else {
                 return
             }
-            let composer = MFMessageComposeViewController()
-            composer.messageComposeDelegate = self
-            composer.recipients = [self.currentPhoneNumber]
-            let url = environment.strings.InviteText_URL
-            let body = environment.strings.InviteText_SingleContact(url).string
-            composer.body = body
-            self.composer = composer
-            if let window = self.window {
-                window.rootViewController?.present(composer, animated: true)
-            }
-        }
-        
-        @objc public func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {
-            self.composer = nil
-            
-            controller.dismiss(animated: true, completion: nil)
+            InvitationComposer.invite(context: component.context, phone: self.currentPhoneNumber, from: controller)
         }
                 
         func update(component: NewContactScreenComponent, availableSize: CGSize, state: EmptyComponentState, environment: Environment<EnvironmentType>, transition: ComponentTransition) -> CGSize {

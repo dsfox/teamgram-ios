@@ -18,6 +18,7 @@ swift_library(
         "//submodules/ItemListUI",
         "//submodules/AccountContext",
         "//submodules/AlertUI",
+        "//submodules/InvitationComposer",
         "//submodules/PresentationDataUtils",
         "//submodules/TextFormat",
         "//submodules/ObjCRuntimeUtils",

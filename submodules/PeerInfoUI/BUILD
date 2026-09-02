@@ -19,6 +19,7 @@ swift_library(
         "//submodules/AccountContext:AccountContext",
         "//submodules/ItemListUI:ItemListUI",
         "//submodules/AlertUI:AlertUI",
+        "//submodules/InvitationComposer:InvitationComposer",
         "//submodules/PresentationDataUtils:PresentationDataUtils",
         "//submodules/ItemListAvatarAndNameInfoItem:ItemListAvatarAndNameInfoItem",
         "//submodules/UndoUI:UndoUI",

@@ -25,6 +25,7 @@ swift_library(
         "//submodules/TelegramPermissionsUI:TelegramPermissionsUI",
         "//submodules/TelegramNotices:TelegramNotices",
         "//submodules/AlertUI:AlertUI",
+        "//submodules/InvitationComposer:InvitationComposer",
         "//submodules/PresentationDataUtils:PresentationDataUtils",
         "//submodules/ShareController:ShareController",
         "//submodules/AppBundle:AppBundle",

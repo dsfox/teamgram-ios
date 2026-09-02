@@ -114,6 +114,7 @@ swift_library(
         "//submodules/ActionSheetPeerItem:ActionSheetPeerItem",
         "//submodules/TelegramUI/Components/ComposePollScreen",
         "//submodules/AlertUI:AlertUI",
+        "//submodules/InvitationComposer:InvitationComposer",
         "//submodules/PresentationDataUtils:PresentationDataUtils",
         "//submodules/TelegramUI/Components/OpenUserGeneratedUrl:OpenUserGeneratedUrl",
         "//submodules/TouchDownGesture:TouchDownGesture",

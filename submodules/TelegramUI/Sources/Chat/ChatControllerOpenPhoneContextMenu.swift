@@ -11,11 +11,11 @@ import ChatMessageItemView
 import ChatMessageItemCommon
 import AvatarNode
 import UndoUI
-import MessageUI
+import InvitationComposer
 import PeerInfoUI
 import ChatControllerInteraction
 
-extension ChatControllerImpl: MFMessageComposeViewControllerDelegate {
+extension ChatControllerImpl {
     func openPhoneContextMenu(number: String, params: ChatControllerInteraction.LongTapParams) -> Void {
         guard let message = params.message, let contentNode = params.contentNode else {
             return
@@ -194,24 +194,10 @@ extension ChatControllerImpl: MFMessageComposeViewControllerDelegate {
     }
     
     private func inviteToTelegram(numbers: [String]) {
-        if MFMessageComposeViewController.canSendText() {
-            let composer = MFMessageComposeViewController()
-            composer.messageComposeDelegate = self
-            composer.recipients = Array(Set(numbers))
-            let url = self.presentationData.strings.InviteText_URL
-            let body = self.presentationData.strings.InviteText_SingleContact(url).string
-            composer.body = body
-            self.messageComposeController = composer
-            if let window = self.view.window {
-                window.rootViewController?.present(composer, animated: true)
-            }
+        guard let phone = numbers.first else {
+            return
         }
-    }
-    
-    @objc public func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {
-        self.messageComposeController = nil
-        
-        controller.dismiss(animated: true, completion: nil)
+        InvitationComposer.invite(context: self.context, phone: phone, from: self)
     }
 }
 
