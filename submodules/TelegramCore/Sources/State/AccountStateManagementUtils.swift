@@ -1580,6 +1580,13 @@ private func finalStateWithUpdatesAndServerTime(accountPeerId: PeerId, postbox: 
                         return current
                     }
                 })
+            case .updateMlsMailbox:
+                // The server says there is a commit or a welcome waiting. Fetch
+                // both boxes at once, so a message sent into a new epoch does
+                // not overtake the commit that opens it on the way to the screen
+                // (#156). The runtime reads its own state and network; this only
+                // says "now".
+                MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).boxHasSomething()
             case let .updateEncryption(updateEncryptionData):
                 updatedState.updateSecretChat(chat: updateEncryptionData.chat, timestamp: updateEncryptionData.date)
             case let .updateNewEncryptedMessage(updateNewEncryptedMessageData):

@@ -665,42 +665,43 @@ public final class MlsRuntime {
     /// Without this the box is only read on its own half-minute rhythm, which is
     /// a person joining a group and watching nothing appear for as long as that
     /// takes. The cost is a handful of small requests per membership change.
-    private static let askAgainAfter: [Double] = [3.0, 8.0, 20.0, 45.0]
 
     /// Somebody joined a chat, and if it was this account there is an invitation
     /// waiting on the server this second.
     public func invited() {
-        self.askForInvitations(attempt: 1)
+        self.boxHasSomething()
     }
 
-    private func askForInvitations(attempt: Int) {
+    /// The server says there is a commit or a welcome waiting - fetch both, once
+    /// (#156).
+    ///
+    /// Once, not on a ladder of delays. This used to guess when a welcome had
+    /// been posted and ask again four times, further apart each time, because
+    /// nothing told it (#110). Now updateMlsMailbox tells it the moment
+    /// mls.sendWelcome or mls.sendCommit runs, so the one fetch lands on
+    /// something. It is still safe against a dropped push: a message that will
+    /// not open triggers a catch-up of its own, and a fetch on the next start.
+    ///
+    /// Both boxes, because a change of membership leaves a commit for those
+    /// already in and a welcome for whoever was added, and one push covers both.
+    public func boxHasSomething() {
         guard let network = self.networkOutsideTheLock() else {
             return
         }
         let postbox = self.postbox
         let accountPeerId = self.accountPeerId
-        Logger.shared.log("Mls", "asking for invitations after somebody joined (attempt \(attempt))")
+        Logger.shared.log("Mls", "the server says the box has something; fetching")
 
         let _ = (joinPendingWelcomes(postbox: postbox, network: network, accountPeerId: accountPeerId)
-        |> mapToSignal { [weak self] joined -> Signal<Bool, NoError> in
-            guard let self = self else {
-                return .single(true)
-            }
-            guard !joined.isEmpty else {
-                return .single(false)
+        |> mapToSignal { [weak self] joined -> Signal<Void, NoError> in
+            guard let self = self, !joined.isEmpty else {
+                return .complete()
             }
             return combineLatest(joined.map { repairUnreadableMessages(postbox: postbox, runtime: self, peerId: $0) })
-            |> map { _ -> Bool in true }
+            |> map { _ -> Void in Void() }
         }
-        |> deliverOn(MlsRuntime.results)).start(next: { [weak self] found in
-            guard let self = self, !found, attempt <= MlsRuntime.askAgainAfter.count else {
-                return
-            }
-            let _ = (Signal<Void, NoError>.complete()
-            |> suspendAwareDelay(MlsRuntime.askAgainAfter[attempt - 1], queue: Queue.concurrentDefaultQueue())).start(completed: { [weak self] in
-                self?.askForInvitations(attempt: attempt + 1)
-            })
-        })
+        |> then(catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId))
+        |> deliverOn(MlsRuntime.results)).start()
     }
 
     /// The common half: off this thread, with a copy of the state read from

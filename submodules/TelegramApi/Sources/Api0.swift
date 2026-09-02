@@ -1252,6 +1252,7 @@ fileprivate let parsers: [Int32 : (BufferReader) -> Any?] = {
     dict[-1306491994] = { return Api.Update.parse_updateNewBotConnection($0) }
     dict[1656358105] = { return Api.Update.parse_updateNewChannelMessage($0) }
     dict[314359194] = { return Api.Update.parse_updateNewEncryptedMessage($0) }
+    dict[-1291471772] = { return Api.Update.parse_updateMlsMailbox($0) }
     dict[549239713] = { return Api.Update.parse_updateNewEphemeralMessage($0) }
     dict[522914557] = { return Api.Update.parse_updateNewMessage($0) }
     dict[-180508905] = { return Api.Update.parse_updateNewQuickReply($0) }

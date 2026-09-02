@@ -2695,6 +2695,7 @@ public extension Api {
         case updateNewAuthorization(Cons_updateNewAuthorization)
         case updateNewBotConnection(Cons_updateNewBotConnection)
         case updateNewChannelMessage(Cons_updateNewChannelMessage)
+        case updateMlsMailbox
         case updateNewEncryptedMessage(Cons_updateNewEncryptedMessage)
         case updateNewEphemeralMessage(Cons_updateNewEphemeralMessage)
         case updateNewMessage(Cons_updateNewMessage)
@@ -3700,6 +3701,11 @@ public extension Api {
                 serializeInt32(_data.pts, buffer: buffer, boxed: false)
                 serializeInt32(_data.ptsCount, buffer: buffer, boxed: false)
                 break
+            case .updateMlsMailbox:
+                if boxed {
+                    buffer.appendInt32(-1291471772)
+                }
+                break
             case .updateNewEncryptedMessage(let _data):
                 if boxed {
                     buffer.appendInt32(314359194)
@@ -4485,6 +4491,8 @@ public extension Api {
                 return ("updateNewBotConnection", [("flags", ConstructorParameterDescription(_data.flags)), ("botId", ConstructorParameterDescription(_data.botId)), ("date", ConstructorParameterDescription(_data.date)), ("device", ConstructorParameterDescription(_data.device)), ("location", ConstructorParameterDescription(_data.location))])
             case .updateNewChannelMessage(let _data):
                 return ("updateNewChannelMessage", [("message", ConstructorParameterDescription(_data.message)), ("pts", ConstructorParameterDescription(_data.pts)), ("ptsCount", ConstructorParameterDescription(_data.ptsCount))])
+            case .updateMlsMailbox:
+                return ("updateMlsMailbox", [])
             case .updateNewEncryptedMessage(let _data):
                 return ("updateNewEncryptedMessage", [("message", ConstructorParameterDescription(_data.message)), ("qts", ConstructorParameterDescription(_data.qts))])
             case .updateNewEphemeralMessage(let _data):
@@ -6512,6 +6520,9 @@ public extension Api {
             else {
                 return nil
             }
+        }
+        public static func parse_updateMlsMailbox(_ reader: BufferReader) -> Update? {
+            return Api.Update.updateMlsMailbox
         }
         public static func parse_updateNewEncryptedMessage(_ reader: BufferReader) -> Update? {
             var _1: Api.EncryptedMessage?
