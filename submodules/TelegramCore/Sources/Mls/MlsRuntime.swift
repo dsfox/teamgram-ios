@@ -371,6 +371,11 @@ public final class MlsRuntime {
     /// that never leaves is worse than one somebody cannot open.
     private static let comparisonWait: Double = 5.0
 
+    /// The comparison in flight for each conversation, so a second message
+    /// within the interval waits for the first one's rather than going ahead
+    /// of it at the old epoch.
+    private var comparing: [Int64: ValuePromise<Bool>] = [:]
+
     /// Compares the conversation with the chat, additively, before a message
     /// goes out - and completes only when the comparison has, so the message
     /// is encrypted at the epoch that holds everybody the chat does.
@@ -384,7 +389,14 @@ public final class MlsRuntime {
         let key = peerId.mlsKey
         let now = CFAbsoluteTimeGetCurrent()
         if let last = self.comparedAt[key], now - last < MlsRuntime.compareNotBefore {
-            return .single(Void())
+            guard let inFlight = self.comparing[key] else {
+                return .single(Void())
+            }
+            return (inFlight.get()
+            |> filter { $0 }
+            |> take(1)
+            |> map { _ -> Void in Void() }
+            |> timeout(MlsRuntime.comparisonWait, queue: Queue.concurrentDefaultQueue(), alternate: .single(Void())))
         }
         self.comparedAt[key] = now
         // A group, and a chat between two - whose membership does not change
@@ -395,6 +407,20 @@ public final class MlsRuntime {
         }
         let postbox = self.postbox
         let accountPeerId = self.accountPeerId
+        let done = ValuePromise<Bool>(false)
+        self.comparing[key] = done
+        // Whichever way this ends - compared, timed out, disposed - the ones
+        // waiting behind it are let go and it stops being the one in flight.
+        let over: () -> Void = { [weak self] in
+            if let strongSelf = self {
+                strongSelf.queue.lock()
+                if strongSelf.comparing[key] === done {
+                    strongSelf.comparing.removeValue(forKey: key)
+                }
+                strongSelf.queue.unlock()
+            }
+            done.set(true)
+        }
         // Off this thread, explicitly: everything below takes the lock again.
         return (Signal<Void, NoError> { subscriber in
             return reconcileMembership(
@@ -406,6 +432,7 @@ public final class MlsRuntime {
             })
         }
         |> runOn(Queue.concurrentDefaultQueue())
+        |> afterDisposed(over)
         |> timeout(MlsRuntime.comparisonWait, queue: Queue.concurrentDefaultQueue(), alternate: .single(Void())))
     }
 
