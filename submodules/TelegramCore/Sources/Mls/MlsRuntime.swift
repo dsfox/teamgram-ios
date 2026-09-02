@@ -351,17 +351,9 @@ public final class MlsRuntime {
         if let groupId = self.conversationIds[peerId.mlsKey] {
             Logger.shared.log("Mls", "sending to \(peerId.id._internalGetInt64Value()) in conversation \(mlsShortId(groupId)) at epoch \(group.epoch)")
         }
-        // Before a message goes out is the moment worth checking that the
-        // conversation still holds the people the chat does: it is the one
-        // moment where being wrong is about to matter. Additions only, because
-        // the list this reads is whatever was remembered here and a remembered
-        // list can be missing somebody who joined while this device was away -
-        // taking them out on that evidence is not recoverable by being sorry.
-        //
-        // Behind the send rather than in front of it: this runs on the thread
-        // that is building the request, and a message that waits for a
-        // handshake is a messenger that pauses for reasons a person cannot see.
-        self.compareMembershipSoon(with: peerId)
+        // The comparison with the chat that used to be kicked off here, beside
+        // the send, runs before it now - in ensureConversation, which is the
+        // step ahead of this one on the same path (#158).
         return MlsConversations.encrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text, entities: entities, forwarded: forwarded, media: media)
     }
 
@@ -373,17 +365,48 @@ public final class MlsRuntime {
     /// enough that a burst of messages does not open the group each time.
     private static let compareNotBefore: Double = 5.0
 
-    /// Compares the conversation with the chat, additively, out of the way of
-    /// whatever asked. Called with the lock held.
-    private func compareMembershipSoon(with peerId: PeerId) {
+    /// How long a message may wait for that comparison before it goes anyway.
+    /// One round trip and at most one commit, so half the handshake's ten
+    /// seconds; past it the message goes as it would have, because a message
+    /// that never leaves is worse than one somebody cannot open.
+    private static let comparisonWait: Double = 5.0
+
+    /// Compares the conversation with the chat, additively, before a message
+    /// goes out - and completes only when the comparison has, so the message
+    /// is encrypted at the epoch that holds everybody the chat does.
+    ///
+    /// Before rather than beside: on 2 September a message went out 109 ms
+    /// ahead of the add that let a reinstalled phone in, and that phone holds
+    /// it as ciphertext for ever (#158). Within the interval it completes at
+    /// once, so a burst of messages pays the round trip once. Called with the
+    /// lock held; the work itself runs off this thread.
+    private func compareMembershipFirst(with peerId: PeerId) -> Signal<Void, NoError> {
         let key = peerId.mlsKey
         let now = CFAbsoluteTimeGetCurrent()
         if let last = self.comparedAt[key], now - last < MlsRuntime.compareNotBefore {
-            return
+            return .single(Void())
         }
         self.comparedAt[key] = now
-        // Read straight off: this one is called with the lock already held.
-        self.changeMembership(of: peerId, over: self.network, named: NamedInTheMessage())
+        // A group, and a chat between two - whose membership does not change
+        // but whose devices do, which is what this has been about since #142.
+        guard peerId.namespace == Namespaces.Peer.CloudGroup || peerId.namespace == Namespaces.Peer.CloudUser,
+              let network = self.network else {
+            return .single(Void())
+        }
+        let postbox = self.postbox
+        let accountPeerId = self.accountPeerId
+        // Off this thread, explicitly: everything below takes the lock again.
+        return (Signal<Void, NoError> { subscriber in
+            return reconcileMembership(
+                postbox: postbox, accountPeerId: accountPeerId, network: network,
+                peerId: peerId, listIsFromTheServer: false, named: NamedInTheMessage()
+            ).start(completed: {
+                subscriber.putNext(Void())
+                subscriber.putCompletion()
+            })
+        }
+        |> runOn(Queue.concurrentDefaultQueue())
+        |> timeout(MlsRuntime.comparisonWait, queue: Queue.concurrentDefaultQueue(), alternate: .single(Void())))
     }
 
     /// The network, for the entry points that are called without the lock. Taken
@@ -739,13 +762,20 @@ public final class MlsRuntime {
         let worth = self.worthEncrypting(to: peerId)
         let network = self.network
         let identity = self.identity
+        // Before a message goes out is the moment worth checking that the
+        // conversation still holds the people the chat does: it is the one
+        // moment where being wrong is about to matter (#158).
+        let compared: Signal<Void, NoError>? = haveGroup ? self.compareMembershipFirst(with: peerId) : nil
         self.queue.unlock()
 
         // A value, then completion. Returning only completion is what broke
         // sending outright: the step after this one runs on a value, so a
         // signal that merely completes stops the message before it is built,
         // and the spinner turns for ever with nothing to explain it.
-        if haveGroup || !worth {
+        if let compared = compared {
+            return compared
+        }
+        if !worth {
             return .single(Void())
         }
         guard let network = network, let identity = identity else {
