@@ -142,34 +142,21 @@ struct InviteContactsGroupSelectionState: Equatable {
         self.nextSelectionIndex = 0
     }
     
-    func withReplacedSelectedContactIds(_ contactIds: [String]) -> InviteContactsGroupSelectionState {
-        var selectedContactIndices: [String: Int] = [:]
-        var nextSelectionIndex: Int = self.nextSelectionIndex
-        for contactId in contactIds {
-            selectedContactIndices[contactId] = nextSelectionIndex
-            nextSelectionIndex += 1
-        }
-        return InviteContactsGroupSelectionState(selectedContactIndices: selectedContactIndices, nextSelectionIndex: nextSelectionIndex)
-    }
-    
+    /// One invitation is one person vouched for (#47): picking a second
+    /// contact replaces the first rather than adding to it.
     func withToggledContactId(_ contactId: String) -> InviteContactsGroupSelectionState {
-        var updatedIndices = self.selectedContactIndices
-        if let _ = updatedIndices[contactId] {
-            updatedIndices.removeValue(forKey: contactId)
-            return InviteContactsGroupSelectionState(selectedContactIndices: updatedIndices, nextSelectionIndex: self.nextSelectionIndex)
+        if let _ = self.selectedContactIndices[contactId] {
+            return self.withClearedSelection()
         } else {
-            updatedIndices[contactId] = self.nextSelectionIndex
-            return InviteContactsGroupSelectionState(selectedContactIndices: updatedIndices, nextSelectionIndex: self.nextSelectionIndex + 1)
+            return self.withSelectedContactId(contactId)
         }
     }
     
     func withSelectedContactId(_ contactId: String) -> InviteContactsGroupSelectionState {
-        var updatedIndices = self.selectedContactIndices
-        if let _ = updatedIndices[contactId] {
+        if let _ = self.selectedContactIndices[contactId] {
             return self
         } else {
-            updatedIndices[contactId] = self.nextSelectionIndex
-            return InviteContactsGroupSelectionState(selectedContactIndices: updatedIndices, nextSelectionIndex: self.nextSelectionIndex + 1)
+            return InviteContactsGroupSelectionState(selectedContactIndices: [contactId: self.nextSelectionIndex], nextSelectionIndex: self.nextSelectionIndex + 1)
         }
     }
     
@@ -237,7 +224,6 @@ final class InviteContactsControllerNode: ASDisplayNode {
     var requestDeactivateSearch: (() -> Void)?
     var requestShareTelegram: (() -> Void)?
     var requestShare: (([(DeviceContactBasicData, Int32)]) -> Void)?
-    var selectionChanged: (() -> Void)?
     
     let currentSortedContacts = Atomic<[(DeviceContactStableId, DeviceContactBasicData, Int32)]?>(value: nil)
     
@@ -251,7 +237,6 @@ final class InviteContactsControllerNode: ASDisplayNode {
                         self.containerLayoutUpdated(layout, navigationBarHeight: navigationHeight, actualNavigationBarHeight: actualNavigationHeight, transition: .animated(duration: 0.3, curve: .spring))
                     }
                 }
-                self.selectionChanged?()
             }
         }
     }
@@ -584,17 +569,5 @@ final class InviteContactsControllerNode: ASDisplayNode {
                 })
             }
         }
-    }
-    
-    func selectAll() {
-        let ids = self.currentSortedContacts.with { $0 }?.map { $0.0 } ?? []
-        var allSelected = true
-        for id in ids {
-            if self.selectionState.selectedContactIndices[id] == nil {
-                allSelected = false
-                break
-            }
-        }
-        self.selectionState = self.selectionState.withReplacedSelectedContactIds(allSelected ? [] : ids)
     }
 }

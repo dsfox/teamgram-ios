@@ -14,7 +14,9 @@ public func authorizationCurrentOptionText(_ type: SentAuthorizationCodeType, ph
     
     switch type {
     case .sms:
-        return parseMarkdownIntoAttributedString(strings.Login_EnterCodeSMSText(phoneNumber).string, attributes: attributes, textAlignment: .center)
+        // Nobody on our side sent an SMS: the code came from whoever invited
+        // this person, over their own carrier (#47).
+        return parseMarkdownIntoAttributedString(strings.Invite_CodeHint, attributes: attributes, textAlignment: .center)
     case .otherSession:
         return parseMarkdownIntoAttributedString(strings.Login_EnterCodeTelegramText(phoneNumber).string, attributes: attributes, textAlignment: .center)
     case .missedCall:

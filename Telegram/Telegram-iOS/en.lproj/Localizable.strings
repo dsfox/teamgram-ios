@@ -2908,6 +2908,10 @@ Unused sets are archived when you add more.";
 
 "InviteText.URL" = "";
 "InviteText.SingleContact" = "Hey, I'm using ice9 to chat. Join me! Download it here: %@";
+"Invite.CodeLine" = "Your invitation code: %@";
+"Invite.AlreadyHere" = "This person is already on ice9 — just write to them.";
+"Invite.NoCode" = "Could not get an invitation code. Try again later.";
+"Invite.CodeHint" = "The code is in the SMS from whoever invited you.";
 "InviteText.ContactsCountText_1" = "Hey, I'm using ice9 to chat. Join me! Download it here: {url}";
 "InviteText.ContactsCountText_2" = "Hey, I'm using ice9 to chat – and so are 2 of our other contacts. Join us! Download it here: {url}";
 "InviteText.ContactsCountText_3_10" = "Hey, I'm using ice9 to chat – and so are %@ of our other contacts. Join us! Download it here: {url}";

@@ -28,6 +28,7 @@ public class InviteContactsController: ViewController, MFMessageComposeViewContr
     private var presentationDataDisposable: Disposable?
     
     private var composer: MFMessageComposeViewController?
+    private let mintDisposable = MetaDisposable()
     
     private var searchContentNode: NavigationBarSearchContentNode?
     
@@ -83,6 +84,7 @@ public class InviteContactsController: ViewController, MFMessageComposeViewContr
     
     deinit {
         self.presentationDataDisposable?.dispose()
+        self.mintDisposable.dispose()
     }
     
     private func updateThemeAndStrings() {
@@ -91,18 +93,6 @@ public class InviteContactsController: ViewController, MFMessageComposeViewContr
         self.searchContentNode?.updateThemeAndPlaceholder(theme: self.presentationData.theme, placeholder: self.presentationData.strings.Common_Search)
         self.title = self.presentationData.strings.Contacts_InviteFriends
         self.navigationItem.backBarButtonItem = UIBarButtonItem(title: self.presentationData.strings.Common_Back, style: .plain, target: nil, action: nil)
-        self.updateRightBarButtonItem()
-    }
-    
-    private func updateRightBarButtonItem() {
-        let currentContacts = self.contactsNode.currentSortedContacts.with { $0 }
-        let title: String
-        if self.contactsNode.selectionState.selectedContactIndices.count == currentContacts?.count {
-            title = self.presentationData.strings.Contacts_DeselectAll
-        } else {
-            title = self.presentationData.strings.Contacts_SelectAll
-        }
-        self.navigationItem.rightBarButtonItem = UIBarButtonItem(title: title, style: .plain, target: self, action: #selector(self.selectAllPressed))
     }
     
     override public func loadDisplayNode() {
@@ -112,11 +102,7 @@ public class InviteContactsController: ViewController, MFMessageComposeViewContr
         self.contactsNode.navigationBar = self.navigationBar
         
         self.contactsNode.loadedContacts = { [weak self] in
-            if let strongSelf = self {
-                self?.searchContentNode?.setIsEnabled(true)
-                
-                strongSelf.updateRightBarButtonItem()
-            }
+            self?.searchContentNode?.setIsEnabled(true)
         }
         
         self.contactsNode.requestDeactivateSearch = { [weak self] in
@@ -138,38 +124,40 @@ public class InviteContactsController: ViewController, MFMessageComposeViewContr
         }
         
         self.contactsNode.requestShare = { [weak self] numbers in
-            let recipients: [String] = Array(numbers.map {
-                return $0.0.phoneNumbers.map { $0.value }
-            }.joined())
-            
-            let f: () -> Void = {
-                if let strongSelf = self, MFMessageComposeViewController.canSendText() {
-                    let composer = MFMessageComposeViewController()
-                    composer.messageComposeDelegate = strongSelf
-                    composer.recipients = Array(Set(recipients))
-                    let url = strongSelf.presentationData.strings.InviteText_URL
-                    var body = strongSelf.presentationData.strings.InviteText_SingleContact(url).string
-                    if numbers.count == 1, numbers[0].1 > 0 {
-                        body = strongSelf.presentationData.strings.InviteText_ContactsCountText(numbers[0].1)
-                        body = body.replacingOccurrences(of: "{url}", with: url)
-                    }
-                    composer.body = body
-                    strongSelf.composer = composer
-                    if let window = strongSelf.view.window {
-                        window.rootViewController?.present(composer, animated: true)
-                    }
+            guard let strongSelf = self, let first = numbers.first, let phone = first.0.phoneNumbers.first?.value else {
+                return
+            }
+            // The code is bound to this number on the server (#47): only the
+            // phone the carrier delivers the SMS to can sign in with it.
+            strongSelf.mintDisposable.set((strongSelf.context.engine.contacts.mintInvitation(phone: phone)
+            |> deliverOnMainQueue).start(next: { code in
+                guard let strongSelf = self, MFMessageComposeViewController.canSendText() else {
+                    return
                 }
-            }
-            
-            if recipients.count < 100 {
-                f()
-            } else if let strongSelf = self {
-                strongSelf.present(textAlertController(context: strongSelf.context, title: nil, text: strongSelf.presentationData.strings.Invite_LargeRecipientsCountWarning, actions: [TextAlertAction(type: .genericAction, title: strongSelf.presentationData.strings.Common_Cancel, action: {}), TextAlertAction(type: .defaultAction, title: strongSelf.presentationData.strings.Common_OK, action: f)]), in: .window(.root))
-            }
-        }
-        
-        self.contactsNode.selectionChanged = { [weak self] in
-            self?.updateRightBarButtonItem()
+                let strings = strongSelf.presentationData.strings
+                let composer = MFMessageComposeViewController()
+                composer.messageComposeDelegate = strongSelf
+                composer.recipients = [phone]
+                composer.body = strings.InviteText_SingleContact(strings.InviteText_URL).string + "\n" + strings.Invite_CodeLine(code).string
+                strongSelf.composer = composer
+                if let window = strongSelf.view.window {
+                    window.rootViewController?.present(composer, animated: true)
+                }
+            }, error: { error in
+                guard let strongSelf = self else {
+                    return
+                }
+                // Said, not swallowed: an SMS without a code is useless.
+                let strings = strongSelf.presentationData.strings
+                let text: String
+                switch error {
+                case .alreadyHere:
+                    text = strings.Invite_AlreadyHere
+                case .generic:
+                    text = strings.Invite_NoCode
+                }
+                strongSelf.present(textAlertController(context: strongSelf.context, title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strings.Common_OK, action: {})]), in: .window(.root))
+            }))
         }
         
         self.contactsNode.listNode.visibleContentOffsetChanged = { [weak self] offset, _ in
@@ -220,10 +208,6 @@ public class InviteContactsController: ViewController, MFMessageComposeViewContr
                 self.contactsNode.deactivateSearch(placeholderNode: searchContentNode.placeholderNode)
             }
         }
-    }
-    
-    @objc func selectAllPressed() {
-        self.contactsNode.selectAll()
     }
     
     @objc public func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {
