@@ -165,7 +165,7 @@ func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: Pe
 /// That is a lock that never becomes a message, and it is not the same bug as
 /// two identities being created - that one is fixed below, and this one hid
 /// behind it.
-private final class MlsIdentityRegistry {
+final class MlsIdentityRegistry {
     static let shared = MlsIdentityRegistry()
     private let lock = NSLock()
     private var identities: [Int64: MlsIdentity] = [:]
@@ -190,6 +190,25 @@ private final class MlsIdentityRegistry {
         }
         identities[key] = identity
         return identity
+    }
+
+    /// The identity this process holds, without going to storage for one.
+    ///
+    /// Asked on the path every message takes, inside a database transaction,
+    /// where reading storage would wait on itself.
+    func existing(for accountPeerId: PeerId) -> MlsIdentity? {
+        lock.lock()
+        defer { lock.unlock() }
+        return identities[accountPeerId.id._internalGetInt64Value()]
+    }
+
+    /// Puts a device read back from storage in place of the one held. Whoever
+    /// still holds the old one keeps it - and `MlsStateWriter` refuses what
+    /// they export from it (#42).
+    func replace(for accountPeerId: PeerId, with identity: MlsIdentity) {
+        lock.lock()
+        defer { lock.unlock() }
+        identities[accountPeerId.id._internalGetInt64Value()] = identity
     }
 }
 
@@ -217,8 +236,9 @@ private func loadOrMakeMlsIdentity(postbox: Postbox, accountPeerId: PeerId) thro
     let done = DispatchSemaphore(value: 0)
 
     let _ = (postbox.transaction { transaction -> Void in
-        if let stored = MlsDeviceState.load(transaction: transaction)?.state,
-           let identity = try? MlsIdentity.open(state: stored) {
+        if let stored = MlsDeviceState.load(transaction: transaction),
+           let identity = try? MlsIdentity.open(state: stored.state) {
+            MlsStateWriter.instance(accountPeerId: accountPeerId).loaded(generation: stored.generation)
             result = .success(identity)
             return
         }
@@ -228,7 +248,8 @@ private func loadOrMakeMlsIdentity(postbox: Postbox, accountPeerId: PeerId) thro
             // name the person, and then two phones would look like one member.
             let name = "\(accountPeerId.id._internalGetInt64Value())/\(UInt32.random(in: 0 ... UInt32.max))"
             let identity = try MlsIdentity(name: Data(name.utf8))
-            MlsDeviceState.save(transaction: transaction, state: try identity.export())
+            MlsDeviceState.save(transaction: transaction, state: try identity.export(), generation: 1)
+            MlsStateWriter.instance(accountPeerId: accountPeerId).loaded(generation: 1)
             Logger.shared.log("Mls", "a device identity was made for this account")
             result = .success(identity)
         } catch {

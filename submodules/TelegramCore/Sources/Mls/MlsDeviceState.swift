@@ -15,9 +15,18 @@ import SwiftSignalKit
 /// which the keychain is not for, and it has to disappear with the account.
 public struct MlsDeviceState: Codable, Equatable {
     public var state: Data
+    /// Which write this is: one more than the blob it replaced.
+    ///
+    /// Two processes open this account - the app and the notification
+    /// extension (#42) - and each holds a copy of the blob in memory. Whoever
+    /// writes writes the next generation, and nobody writes over a newer one;
+    /// that rule lives in `MlsStateWriter`. A blob from before this field
+    /// reads as generation 0.
+    public var generation: Int64
 
-    public init(state: Data) {
+    public init(state: Data, generation: Int64) {
         self.state = state
+        self.generation = generation
     }
 
     // Written out by hand, with a string key and a string value.
@@ -31,11 +40,13 @@ public struct MlsDeviceState: Codable, Equatable {
         let container = try decoder.container(keyedBy: StringCodingKey.self)
         let encoded = try container.decode(String.self, forKey: "s")
         self.state = Data(base64Encoded: encoded) ?? Data()
+        self.generation = (try? container.decodeIfPresent(Int64.self, forKey: "g")) ?? 0
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: StringCodingKey.self)
         try container.encode(self.state.base64EncodedString(), forKey: "s")
+        try container.encode(self.generation, forKey: "g")
     }
 }
 
@@ -50,9 +61,9 @@ public extension MlsDeviceState {
     /// read, a member added, a conversation joined. Saving late is the same as
     /// not saving - the app can be killed at any moment, and what is lost is
     /// not a preference but the ability to read.
-    static func save(transaction: Transaction, state: Data) {
+    static func save(transaction: Transaction, state: Data, generation: Int64) {
         transaction.updatePreferencesEntry(key: PreferencesKeys.mlsDeviceState, { _ in
-            return PreferencesEntry(MlsDeviceState(state: state))
+            return PreferencesEntry(MlsDeviceState(state: state, generation: generation))
         })
     }
 }

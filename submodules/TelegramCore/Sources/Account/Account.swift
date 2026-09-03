@@ -1587,6 +1587,17 @@ public class Account {
         // before it can read anything said after them (#40).
         self.managedOperationsDisposable.add(managedMlsCommits(postbox: self.postbox, network: self.network, accountPeerId: self.peerId).start())
         MlsRuntime.instance(postbox: self.postbox, accountPeerId: self.peerId).attach(network: self.network)
+        // Each time the app comes to the front, the encryption reads back what
+        // the notification extension wrote while it was away (#42). The same
+        // signal that puts this account online.
+        self.managedOperationsDisposable.add((self.shouldKeepOnlinePresence.get()
+        |> distinctUntilChanged
+        |> filter { $0 }).start(next: { [weak self] _ in
+            guard let self = self else {
+                return
+            }
+            MlsRuntime.instance(postbox: self.postbox, accountPeerId: self.peerId).becameActive()
+        }))
         // A way back into this account, made here rather than by the server.
         self.managedOperationsDisposable.add(ensureRecoveryPhrase(postbox: self.postbox, network: self.network, accountPeerId: self.peerId).start())
     }

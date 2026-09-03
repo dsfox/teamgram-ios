@@ -318,7 +318,7 @@ public enum MlsConversations {
                 // Through the one writer, like every other change to this
                 // state: a write that goes its own way lands out of order and
                 // takes a spent secret back with it.
-                MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
+                MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state, from: identity, accountPeerId: accountPeerId)
                 // And only now asked whether this chat is ours to start.
                 //
                 // Nothing decided which conversation a chat's was, so every
@@ -423,7 +423,7 @@ public enum MlsConversations {
             // queue that writes it, in the order the moves happened. Writing it
             // here would mean opening a transaction inside one that may already
             // be open, on the path every message takes.
-            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
+            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state, from: identity, accountPeerId: accountPeerId)
 
             return ciphertextPrefix + ciphertext.base64EncodedString()
         } catch {
@@ -511,7 +511,7 @@ public enum MlsConversations {
             }
 
             let state = try identity.export()
-            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state)
+            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state, from: identity, accountPeerId: accountPeerId)
 
             if let content = Api.mls.Content.decode(plaintext) {
                 return .content(MlsMessageContent(

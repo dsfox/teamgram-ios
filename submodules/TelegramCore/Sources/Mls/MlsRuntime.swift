@@ -40,7 +40,16 @@ public final class MlsRuntime {
     private static let results = Queue(name: "MlsRuntimeResults")
     private let postbox: Postbox
     private let accountPeerId: PeerId
-    private var identity: MlsIdentity?
+    /// This process's device, as the registry holds it right now - and nil
+    /// until `reload()` has read it off disk, which happens at `attach`.
+    ///
+    /// Looked up rather than kept, because `MlsStateWriter` puts a fresh one
+    /// in the registry when the notification extension has written since this
+    /// process read (#42); a copy kept here would go on exporting the stale
+    /// device, and the writer would go on refusing it.
+    private var identity: MlsIdentity? {
+        return MlsIdentityRegistry.shared.existing(for: self.accountPeerId)
+    }
     /// Conversations being started, so that a burst of messages to somebody new
     /// starts one conversation rather than a race of several - and several
     /// would be worse than slow: each one would replace the last, and the other
@@ -520,7 +529,7 @@ public final class MlsRuntime {
         // forgets is a ratchet that moved in memory and not on disk - and what
         // is lost then is the ability to read.
         if let state = try? identity.export() {
-            MlsStateWriter.instance(accountPeerId: self.accountPeerId).write(postbox: self.postbox, state: state)
+            MlsStateWriter.instance(accountPeerId: self.accountPeerId).write(postbox: self.postbox, state: state, from: identity, accountPeerId: self.accountPeerId)
         }
         return result
     }
@@ -1322,6 +1331,27 @@ public final class MlsRuntime {
     ///
     /// It completes rather than merely starting because the caller reads
     /// messages back through these conversations as soon as it returns.
+    /// The app has come to the front. While it was away the notification
+    /// extension may have opened messages in its place and written the state
+    /// it moved (#42): read that back before anything here moves a ratchet
+    /// from a copy that is behind, and then read the conversations off disk
+    /// again - the extension may have joined one - and ask the boxes, as
+    /// coming back always does.
+    public func becameActive() {
+        let postbox = self.postbox
+        let accountPeerId = self.accountPeerId
+        let _ = (MlsStateWriter.instance(accountPeerId: accountPeerId).reloadIfBehind(postbox: postbox, accountPeerId: accountPeerId)
+        |> mapToSignal { [weak self] changed -> Signal<Void, NoError> in
+            guard let self = self, changed else {
+                return .single(Void())
+            }
+            return self.reload()
+        }
+        |> deliverOn(MlsRuntime.results)).start(next: { [weak self] _ in
+            self?.boxHasSomething()
+        })
+    }
+
     public func reload() -> Signal<Void, NoError> {
         let postbox = self.postbox
         let accountPeerId = self.accountPeerId
@@ -1335,12 +1365,14 @@ public final class MlsRuntime {
             guard let self = self else {
                 return
             }
-            let identity = try? mlsIdentity(postbox: postbox, accountPeerId: accountPeerId)
+            // Read or made here, and held by the registry from then on.
+            if (try? mlsIdentity(postbox: postbox, accountPeerId: accountPeerId)) == nil {
+                Logger.shared.log("Mls", "this device has no identity to read with")
+            }
             self.queue.lock()
             self.conversationIds = stored.groupIdByPeer
             self.rebuilt = stored.rebuiltAtByPeer
             self.learntAt = stored.learntAtByPeer
-            self.identity = identity
             MlsRuntime.publishEncrypted(stored.groupIdByPeer.keys)
             self.queue.unlock()
         }
