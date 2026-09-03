@@ -130,6 +130,17 @@ final class MlsStateWriter {
         }
     }
 
+    /// Completes after every write queued before it has landed.
+    func drained() -> Signal<Void, NoError> {
+        return Signal { subscriber in
+            self.queue.async {
+                subscriber.putNext(Void())
+                subscriber.putCompletion()
+            }
+            return EmptyDisposable
+        }
+    }
+
     /// Puts what is on disk in place of what is held. On the queue.
     @discardableResult
     private func take(_ stored: MlsDeviceState, accountPeerId: PeerId) -> Bool {

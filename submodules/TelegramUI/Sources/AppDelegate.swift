@@ -644,18 +644,25 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             isICloudEnabled: buildConfig.isICloudEnabled
         )
         
-        // Общий контейнер нужен, чтобы приложение и его расширения видели одни данные.
-        // В сборках без расширений группы может не быть (её нельзя завести через
-        // App Store Connect API), и тогда делить контейнер попросту не с кем —
-        // работаем в собственной песочнице вместо того, чтобы падать на старте.
+        // The group container is what the app and the notification extension
+        // share (#42). Every build before it had no group and kept its data in
+        // the sandbox, so the data is moved into the group once - a rename -
+        // and only when that fails, or there is no group at all, does the app
+        // stay in its own sandbox rather than fail to start.
+        guard let documentsUrl = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            self.mainWindow?.presentNative(UIAlertController(title: nil, message: "Error 2", preferredStyle: .alert))
+            return true
+        }
+        //
+        // Said into the log once there is one: the logger lives in the data
+        // root, which is what is being decided here.
+        var dataRootLines: [String] = []
         let appGroupUrl: URL
-        if let groupUrl = maybeAppGroupUrl {
+        if let groupUrl = maybeAppGroupUrl, moveDataRootIfNeeded(from: documentsUrl, to: groupUrl, log: { line in
+            dataRootLines.append(line)
+        }) {
             appGroupUrl = groupUrl
         } else {
-            guard let documentsUrl = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-                self.mainWindow?.presentNative(UIAlertController(title: nil, message: "Error 2", preferredStyle: .alert))
-                return true
-            }
             appGroupUrl = documentsUrl
         }
         
@@ -741,6 +748,9 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         let logsPath = rootPath + "/logs/app-logs"
         let _ = try? FileManager.default.createDirectory(atPath: logsPath, withIntermediateDirectories: true, attributes: nil)
         Logger.setSharedLogger(Logger(rootPath: rootPath, basePath: logsPath))
+        for line in dataRootLines {
+            Logger.shared.log("App", line)
+        }
 
         setManagedAudioSessionLogger({ s in
             Logger.shared.log("ManagedAudioSession", s)

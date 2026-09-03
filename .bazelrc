@@ -52,7 +52,6 @@ common:index_build --color=no
 # новую версию системы не наша задача.
 build --@build_bazel_rules_swift//swift:copt=-no-warnings-as-errors
 
-# Расширения (share, уведомления, виджеты, часы) не собираем: каждому нужен свой
-# App ID и профиль, а группы приложений через App Store Connect API не создаются.
-# Для переписки они не нужны, а без них подпись сводится к одному профилю.
-build --//Telegram:disableExtensions=True
+# Extensions are built: the one in Telegram/BUILD's list, the notification
+# service, which opens a message before the phone shows it (#42). Its App ID,
+# group and profiles are made by clients/asc.py.

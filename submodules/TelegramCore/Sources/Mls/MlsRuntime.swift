@@ -104,6 +104,34 @@ public final class MlsRuntime {
     /// Enough for the people somebody actually writes to, small enough that a
     /// fresh install is not a burst of requests. Everything older is rebuilt the
     /// first time a message arrives from that person, as it always was.
+    /// What a process that only reads needs: the notification extension (#42).
+    ///
+    /// The state off disk and the network to ask for a missed commit with -
+    /// and none of what `attach` starts beside that: no pass over old
+    /// unreadable messages, no rebuilding of conversations, nothing that
+    /// sends. Then the boxes, because a message that woke the phone may be
+    /// written in an epoch whose commit is still waiting to be collected.
+    /// Completes when both are done, and the poll that follows can read.
+    public func wake(network: Network) -> Signal<Void, NoError> {
+        self.queue.lock()
+        self.network = network
+        self.queue.unlock()
+        let postbox = self.postbox
+        let accountPeerId = self.accountPeerId
+        return self.reload()
+        |> then(catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId))
+    }
+
+    /// Completes once everything this process moved has been written to disk.
+    ///
+    /// The extension hands its notification over and is suspended; a write
+    /// still on the queue at that moment is a ratchet that moved in memory
+    /// and not on disk - a spent secret brought back to life at the next
+    /// launch (#42).
+    public func settled() -> Signal<Void, NoError> {
+        return MlsStateWriter.instance(accountPeerId: self.accountPeerId).drained()
+    }
+
     private static let chatsToRebuild = 20
 
     /// Starts a conversation with the people this device already has chats with,

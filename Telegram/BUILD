@@ -557,11 +557,13 @@ aps_fragment = "" if telegram_aps_environment == "" else """
 <string>{telegram_aps_environment}</string>
 """.format(telegram_aps_environment=telegram_aps_environment)
 
-# Группу приложений нельзя завести через App Store Connect API, а в сборках без
-# расширений делить контейнер не с кем. Поэтому запрашиваем её только там, где
-# она заведена в аккаунте Telegram, — иначе подпись упадёт на правах, которых
-# нет в профиле. Приложение умеет работать без группы (см. AppDelegate).
-app_groups_entitlement = "" if telegram_bundle_id not in official_bundle_ids else """
+# The app group, for every bundle id we build. Upstream's have theirs, and
+# ours - group.app.twobytes.ios - exists in the portal since 3 September 2026
+# and is attached to both our App IDs (#42); clients/asc.py refuses a profile
+# that does not carry it, so a build that reaches signing has it. Before that
+# this hung off official_bundle_ids, and the app kept its data in its own
+# sandbox; AppDelegate moves it into the group container once (#42).
+app_groups_entitlement = """
     <key>com.apple.security.application-groups</key>
     <array>
         <string>group.{telegram_bundle_id}</string>
@@ -1569,7 +1571,7 @@ ios_extension(
     minimum_os_version = minimum_os_version, # maintain the same minimum OS version across extensions
     provisioning_profile = select({
         ":disableProvisioningProfilesSetting": None,
-        "//conditions:default": "@build_configuration//provisioning:NotificationService.mobileprovision",
+        "//conditions:default": ":NotificationService_xcode_profile" if telegram_use_xcode_managed_codesigning else "@build_configuration//provisioning:NotificationService.mobileprovision",
     }),
     deps = ["//Telegram/NotificationService:NotificationServiceExtensionLib"],
     frameworks = [
@@ -1788,6 +1790,24 @@ xcode_provisioning_profile(
    provisioning_profile = ":Telegram_local_profile",
 )
 
+# The extension's pair, under the same two names with its bundle id in them -
+# made by clients/asc.py setup and appstore (#42).
+local_provisioning_profile(
+    name = "NotificationService_local_profile",
+    profile_name = (
+        "ice9 App Store: {}.NotificationService".format(telegram_bundle_id)
+        if telegram_aps_environment == "production"
+        else "iOS Team Provisioning Profile: {}.NotificationService".format(telegram_bundle_id)
+    ),
+    team_id = telegram_team_id,
+)
+
+xcode_provisioning_profile(
+   name = "NotificationService_xcode_profile",
+   managed_by_xcode = True,
+   provisioning_profile = ":NotificationService_local_profile",
+)
+
 apple_prebuilt_watchos_application(
     name = "TelegramWatchApp",
     # Watch bundle id tracks the host config ("<host>.watchkitapp"). The rule passes it
@@ -1841,15 +1861,13 @@ ios_application(
     strings = [
         ":AppStringResources",
     ],
+    # One extension: the one that opens a message before the phone shows it
+    # (#42). Each extension is an App ID and a pair of profiles of its own, and
+    # the others do nothing for a conversation.
     extensions = select({
         ":disableExtensionsSetting": [],
         "//conditions:default": [
-            ":ShareExtension",
-            ":NotificationContentExtension",
             ":NotificationServiceExtension" + notificationServiceExtensionVersion,
-            ":IntentsExtension",
-            ":WidgetExtension",
-            ":BroadcastUploadExtension",
         ],
     }),
     # Embed the in-repo tgwatch watch app (Telegram/WatchApp) under Watch/ only when

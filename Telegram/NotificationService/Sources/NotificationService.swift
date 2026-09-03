@@ -1936,7 +1936,16 @@ private final class NotificationServiceHandler {
                                         }
                                         |> restartIfError
                                         
-                                        pollSignal = signal
+                                        // The encryption first, so that the messages the
+                                        // poll stores are opened as they are stored - and
+                                        // every write it made is on disk before the
+                                        // notification is handed over and this process is
+                                        // suspended (#42).
+                                        let runtime = MlsRuntime.instance(postbox: stateManager.postbox, accountPeerId: stateManager.accountPeerId)
+                                        pollSignal = (runtime.wake(network: stateManager.network)
+                                        |> ignoreValues)
+                                        |> then(signal)
+                                        |> then(runtime.settled() |> ignoreValues)
                                     }
                                 }
 
@@ -2027,6 +2036,23 @@ private final class NotificationServiceHandler {
                                                     if !content.customEmoji.isEmpty {
                                                         content.body = messagePrefix + message.text
                                                     }
+                                                }
+                                                // Our server sends "New message" and nothing
+                                                // else: the text is encrypted for this device
+                                                // alone. Now that the poll has stored the
+                                                // message and the encryption has opened it,
+                                                // the notification says what it says and
+                                                // who said it - unless it is still held, and
+                                                // then "New message" is the truth (#42).
+                                                if !message.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }), !message.text.isEmpty, !MlsRuntime.isCiphertext(message.text) {
+                                                    var prefix = ""
+                                                    if message.id.peerId.namespace != Namespaces.Peer.CloudUser, let author = message.author {
+                                                        prefix = "\(author.debugDisplayTitle): "
+                                                    }
+                                                    content.body = prefix + message.text
+                                                }
+                                                if let peer = transaction.getPeer(message.id.peerId) {
+                                                    content.title = peer.debugDisplayTitle
                                                 }
                                             }
                                             
