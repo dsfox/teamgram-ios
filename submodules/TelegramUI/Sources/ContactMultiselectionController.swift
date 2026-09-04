@@ -36,6 +36,12 @@ class ContactMultiselectionControllerImpl: ViewController, ContactMultiselection
     
     private let titleView: CounterControllerTitleView
     
+    /// Puts the cursor in the search field with a hint: the "Invite by phone
+    /// number" row's whole job (#164).
+    public func focusSearch(placeholder: String) {
+        self.contactsNode.tokenListNode.focus(placeholder: placeholder)
+    }
+    
     private var contactsNode: ContactMultiselectionControllerNode {
         return self.displayNode as! ContactMultiselectionControllerNode
     }
@@ -82,6 +88,7 @@ class ContactMultiselectionControllerImpl: ViewController, ContactMultiselection
     private let filters: [ContactListFilter]
     private let onlyWriteable: Bool
     private let isGroupInvitation: Bool
+    private let inviteByNumber: ((String) -> Void)?
     private let limit: Int32?
 
     public var isCallVideoOptionSelected: Bool {
@@ -101,6 +108,7 @@ class ContactMultiselectionControllerImpl: ViewController, ContactMultiselection
         self.filters = params.filters
         self.onlyWriteable = params.onlyWriteable
         self.isGroupInvitation = params.isGroupInvitation
+        self.inviteByNumber = params.inviteByNumber
         self.limit = params.limit
         self.presentationData = params.updatedPresentationData?.initial ?? params.context.sharedContext.currentPresentationData.with { $0 }
         
@@ -323,7 +331,7 @@ class ContactMultiselectionControllerImpl: ViewController, ContactMultiselection
     }
     
     override func loadDisplayNode() {
-        self.displayNode = ContactMultiselectionControllerNode(navigationBar: self.navigationBar, context: self.context, presentationData: self.presentationData, updatedPresentationData: self.params.updatedPresentationData, mode: self.mode, isPeerEnabled: self.isPeerEnabled, attemptDisabledItemSelection: self.attemptDisabledItemSelection, options: self.options, filters: self.filters, onlyWriteable: self.onlyWriteable, isGroupInvitation: self.isGroupInvitation, limit: self.limit, reachedSelectionLimit: self.params.reachedLimit, present: { [weak self] c, a in
+        self.displayNode = ContactMultiselectionControllerNode(navigationBar: self.navigationBar, context: self.context, presentationData: self.presentationData, updatedPresentationData: self.params.updatedPresentationData, mode: self.mode, isPeerEnabled: self.isPeerEnabled, attemptDisabledItemSelection: self.attemptDisabledItemSelection, options: self.options, filters: self.filters, onlyWriteable: self.onlyWriteable, isGroupInvitation: self.isGroupInvitation, inviteByNumber: self.inviteByNumber, limit: self.limit, reachedSelectionLimit: self.params.reachedLimit, present: { [weak self] c, a in
             self?.present(c, in: .window(.root), with: a)
         })
         switch self.contactsNode.contentNode {

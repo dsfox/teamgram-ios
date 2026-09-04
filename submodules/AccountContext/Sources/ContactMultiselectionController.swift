@@ -110,6 +110,8 @@ public final class ContactMultiselectionControllerParams {
     public let openProfile: ((EnginePeer) -> Void)?
     public let sendMessage: ((EnginePeer) -> Void)?
     public let initialSelectedPeers: [EnginePeer]
+    /// What a typed number that nobody on ice9 holds does when tapped (#164).
+    public let inviteByNumber: ((String) -> Void)?
     
     public init(
         context: AccountContext,
@@ -127,7 +129,8 @@ public final class ContactMultiselectionControllerParams {
         reachedLimit: ((Int32) -> Void)? = nil,
         openProfile: ((EnginePeer) -> Void)? = nil,
         sendMessage: ((EnginePeer) -> Void)? = nil,
-        initialSelectedPeers: [EnginePeer] = []
+        initialSelectedPeers: [EnginePeer] = [],
+        inviteByNumber: ((String) -> Void)? = nil
     ) {
         self.context = context
         self.updatedPresentationData = updatedPresentationData
@@ -145,6 +148,7 @@ public final class ContactMultiselectionControllerParams {
         self.openProfile = openProfile
         self.sendMessage = sendMessage
         self.initialSelectedPeers = initialSelectedPeers
+        self.inviteByNumber = inviteByNumber
     }
 }
 
@@ -158,4 +162,6 @@ public protocol ContactMultiselectionController: ViewController {
     var displayProgress: Bool { get set }
     var dismissed: (() -> Void)? { get set }
     var isCallVideoOptionSelected: Bool { get }
+    /// Puts the cursor in the search field with a hint (#164).
+    func focusSearch(placeholder: String)
 }

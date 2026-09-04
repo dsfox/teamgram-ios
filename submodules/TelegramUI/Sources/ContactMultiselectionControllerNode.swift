@@ -84,12 +84,13 @@ final class ContactMultiselectionControllerNode: ASDisplayNode {
     private let isPeerEnabled: ((EnginePeer) -> Bool)?
     private let onlyWriteable: Bool
     private let isGroupInvitation: Bool
+    private let inviteByNumber: ((String) -> Void)?
 
     var isCallVideoOptionSelected: Bool {
         return self.footerPanelNode?.isCheckOptionSelected ?? false
     }
     
-    init(navigationBar: NavigationBar?, context: AccountContext, presentationData: PresentationData, updatedPresentationData: (initial: PresentationData, signal: Signal<PresentationData, NoError>)?, mode: ContactMultiselectionControllerMode, isPeerEnabled: ((EnginePeer) -> Bool)?, attemptDisabledItemSelection: ((EnginePeer, ChatListDisabledPeerReason) -> Void)?, options: Signal<[ContactListAdditionalOption], NoError>, filters: [ContactListFilter], onlyWriteable: Bool, isGroupInvitation: Bool, limit: Int32?, reachedSelectionLimit: ((Int32) -> Void)?, present: @escaping (ViewController, Any?) -> Void) {
+    init(navigationBar: NavigationBar?, context: AccountContext, presentationData: PresentationData, updatedPresentationData: (initial: PresentationData, signal: Signal<PresentationData, NoError>)?, mode: ContactMultiselectionControllerMode, isPeerEnabled: ((EnginePeer) -> Bool)?, attemptDisabledItemSelection: ((EnginePeer, ChatListDisabledPeerReason) -> Void)?, options: Signal<[ContactListAdditionalOption], NoError>, filters: [ContactListFilter], onlyWriteable: Bool, isGroupInvitation: Bool, inviteByNumber: ((String) -> Void)?, limit: Int32?, reachedSelectionLimit: ((Int32) -> Void)?, present: @escaping (ViewController, Any?) -> Void) {
         self.navigationBar = navigationBar
         
         self.context = context
@@ -102,6 +103,7 @@ final class ContactMultiselectionControllerNode: ASDisplayNode {
         self.isPeerEnabled = isPeerEnabled
         self.onlyWriteable = onlyWriteable
         self.isGroupInvitation = isGroupInvitation
+        self.inviteByNumber = inviteByNumber
         
         var proceedImpl: (() -> Void)?
         
@@ -393,7 +395,8 @@ final class ContactMultiselectionControllerNode: ASDisplayNode {
                                 searchGroups: searchGroups,
                                 searchChannels: searchChannels,
                                 globalSearch: globalSearch,
-                                displaySavedMessages: displaySavedMessages
+                                displaySavedMessages: displaySavedMessages,
+                                inviteByNumber: strongSelf.inviteByNumber
                         ))), filters: filters, onlyWriteable: strongSelf.onlyWriteable, isGroupInvitation: strongSelf.isGroupInvitation, isPeerEnabled: strongSelf.isPeerEnabled, selectionState: selectionState, isSearch: true)
                         searchResultsNode.openPeer = { peer, _, _, _ in
                             self?.tokenListNode.setText("")

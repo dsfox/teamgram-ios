@@ -196,6 +196,13 @@ private final class TokenNode: ASDisplayNode {
 }
 
 public final class EditableTokenListNode: ASDisplayNode, UITextFieldDelegate {
+    /// The cursor into the field, with a new hint: what the "Invite by phone
+    /// number" row does (#164).
+    public func focus(placeholder: String) {
+        self.placeholderNode.attributedText = NSAttributedString(string: placeholder, font: Font.regular(15.0), textColor: self.theme.list.itemPlaceholderTextColor)
+        self.textFieldNode.textField.becomeFirstResponder()
+    }
+
     private let context: AccountContext
     private let theme: PresentationTheme
     

@@ -5,6 +5,7 @@ import AccountContext
 import TelegramPresentationData
 import SwiftSignalKit
 import TelegramCore
+import InvitationComposer
 import InviteLinksUI
 import SendInviteLinkScreen
 import UndoUI
@@ -57,7 +58,27 @@ public func presentAddMembersImpl(context: AccountContext, updatedPresentationDa
             }, clearHighlightAutomatically: true))
         }
         
-        let contactsController = context.sharedContext.makeContactMultiselectionController(ContactMultiselectionControllerParams(context: context, updatedPresentationData: updatedPresentationData, mode: .peerSelection(searchChatList: false, searchGroups: false, searchChannels: false), options: .single(options), filters: [.excludeSelf, .disable(recentIds)], onlyWriteable: true, isGroupInvitation: true))
+        var focusSearchImpl: (() -> Void)?
+        // An invitation is an SMS with a code, and the number is typed into
+        // the search field; this row only puts the cursor there (#164).
+        options.append(ContactListAdditionalOption(title: presentationData.strings.Invite_ByPhoneNumber, icon: .generic(UIImage(bundleImageName: "Contact List/AddMemberIcon")!), action: {
+            focusSearchImpl?()
+        }, clearHighlightAutomatically: true))
+        var inviteImpl: ((String) -> Void)?
+        let contactsController = context.sharedContext.makeContactMultiselectionController(ContactMultiselectionControllerParams(context: context, updatedPresentationData: updatedPresentationData, mode: .peerSelection(searchChatList: false, searchGroups: false, searchChannels: false), options: .single(options), filters: [.excludeSelf, .disable(recentIds)], onlyWriteable: true, isGroupInvitation: true, inviteByNumber: { phone in
+            inviteImpl?(phone)
+        }))
+        focusSearchImpl = { [weak contactsController] in
+            contactsController?.focusSearch(placeholder: presentationData.strings.Invite_ByPhoneHint)
+        }
+        inviteImpl = { [weak contactsController] phone in
+            guard let contactsController else {
+                return
+            }
+            // The code leads into this group: the server puts the person into
+            // it when they sign up (#164).
+            InvitationComposer.invite(context: context, phone: phone, chat: groupPeer.id.id._internalGetInt64Value(), from: contactsController)
+        }
             contactsController.navigationPresentation = .modal
         
         confirmationImpl = { [weak contactsController] peerId in
