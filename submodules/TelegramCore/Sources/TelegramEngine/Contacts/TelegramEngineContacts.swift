@@ -48,8 +48,8 @@ public extension TelegramEngine {
             return _internal_importContact(account: self.account, firstName: firstName, lastName: lastName, phoneNumber: phoneNumber, noteText: noteText, noteEntities: noteEntities)
         }
 
-        public func mintInvitation(phone: String) -> Signal<String, MintInvitationError> {
-            return _internal_mintInvitation(network: self.account.network, phone: phone)
+        public func mintInvitation(phone: String, chat: Int64? = nil) -> Signal<String, MintInvitationError> {
+            return _internal_mintInvitation(network: self.account.network, phone: phone, chat: chat)
         }
 
         public func addContactInteractively(peerId: PeerId, firstName: String, lastName: String, phoneNumber: String, noteText: String, noteEntities: [MessageTextEntity], addToPrivacyExceptions: Bool) -> Signal<Never, AddContactError> {

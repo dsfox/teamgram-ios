@@ -2912,6 +2912,11 @@ Unused sets are archived when you add more.";
 "Invite.AlreadyHere" = "This person is already on ice9 — just write to them.";
 "Invite.NoCode" = "Could not get an invitation code. Try again later.";
 "Invite.CodeHint" = "The code is in the SMS from whoever invited you.";
+"Invite.ByPhoneNumber" = "Invite by phone number";
+"Invite.NumberBySms" = "Invite %@ by SMS";
+"Invite.AlreadyHereAdd" = "This person is already on ice9 — just add them.";
+"Invite.NotInGroup" = "You are not in this group.";
+"Invite.ByPhoneHint" = "+7 …";
 
 
 "Contacts.InviteSearchLabel" = "Search for contacts";

@@ -39,11 +39,14 @@ public final class InvitationComposer: NSObject, MFMessageComposeViewControllerD
     /// Mints a code for the number and opens the SMS app to it, on the window
     /// of the screen that asked. A refusal is shown on that screen; onSent
     /// runs once the SMS has actually gone.
-    public static func invite(context: AccountContext, phone: String, from controller: ViewController, onSent: @escaping () -> Void = {}) {
+    /// `chat`, when given, is the group the number was typed into the picker
+    /// of: the code leads into it, and the server puts the person into the
+    /// group when they sign up (#164).
+    public static func invite(context: AccountContext, phone: String, chat: Int64? = nil, from controller: ViewController, onSent: @escaping () -> Void = {}) {
         let strings = context.sharedContext.currentPresentationData.with { $0 }.strings
         let one = InvitationComposer(onSent: onSent)
         open.append(one)
-        one.disposable.set((context.engine.contacts.mintInvitation(phone: phone)
+        one.disposable.set((context.engine.contacts.mintInvitation(phone: phone, chat: chat)
         |> deliverOnMainQueue).start(next: { [weak controller] code in
             guard let controller, let window = controller.view.window, MFMessageComposeViewController.canSendText() else {
                 one.done()
@@ -63,7 +66,9 @@ public final class InvitationComposer: NSObject, MFMessageComposeViewControllerD
             let text: String
             switch error {
             case .alreadyHere:
-                text = strings.Invite_AlreadyHere
+                text = chat != nil ? strings.Invite_AlreadyHereAdd : strings.Invite_AlreadyHere
+            case .notInGroup:
+                text = strings.Invite_NotInGroup
             case .generic:
                 text = strings.Invite_NoCode
             }
