@@ -19,6 +19,21 @@ public extension Api.functions {
                 return Api.invite.Minted.parse(reader)
             })
         }
+
+        /// invite.mintForChat chat_id:long phone:string = invite.Minted;
+        ///
+        /// The same code, minted from a group: the server puts whoever signs
+        /// up with it into the group (#164).
+        public static func mintForChat(chatId: Int64, phone: String) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.invite.Minted>) {
+            let buffer = Buffer()
+            buffer.appendInt32(-1620708375)
+            buffer.appendInt64(chatId)
+            serializeString(phone, buffer: buffer, boxed: false)
+            return (FunctionDescription(name: "invite.mintForChat", parameters: [("chatId", ConstructorParameterDescription(chatId)), ("phone", ConstructorParameterDescription(phone))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.invite.Minted? in
+                let reader = BufferReader(buffer)
+                return Api.invite.Minted.parse(reader)
+            })
+        }
     }
 }
 
