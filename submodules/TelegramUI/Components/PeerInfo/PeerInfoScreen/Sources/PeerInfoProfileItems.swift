@@ -1153,9 +1153,12 @@ func editingItems(data: PeerInfoScreenData?, boostStatus: ChannelBoostStatus?, s
                     } else {
                         invitesText = ""
                     }
-                    items[.peerSettings]!.append(PeerInfoScreenDisclosureItem(id: ItemInviteLinks, label: .text(invitesText), text: presentationData.strings.GroupInfo_InviteLinks, icon: PresentationResourcesSettings.links, action: {
-                        interaction.editingOpenInviteLinksSetup()
-                    }))
+                    // See Offered: the link is not how anybody gets in.
+                    if Offered.groupInviteLinks {
+                        items[.peerSettings]!.append(PeerInfoScreenDisclosureItem(id: ItemInviteLinks, label: .text(invitesText), text: presentationData.strings.GroupInfo_InviteLinks, icon: PresentationResourcesSettings.links, action: {
+                            interaction.editingOpenInviteLinksSetup()
+                        }))
+                    }
                 }
                 
                 if isCreator || (channel.adminRights?.rights.contains(.canChangeInfo) == true) {
@@ -1467,9 +1470,12 @@ func editingItems(data: PeerInfoScreenData?, boostStatus: ChannelBoostStatus?, s
                             invitesText = ""
                         }
                         
-                        items[.peerDataSettings]!.append(PeerInfoScreenDisclosureItem(id: ItemInviteLinks, label: .text(invitesText), text: presentationData.strings.GroupInfo_InviteLinks, icon: PresentationResourcesSettings.links, action: {
-                            interaction.editingOpenInviteLinksSetup()
-                        }))
+                        // See Offered: the link is not how anybody gets in.
+                        if Offered.groupInviteLinks {
+                            items[.peerDataSettings]!.append(PeerInfoScreenDisclosureItem(id: ItemInviteLinks, label: .text(invitesText), text: presentationData.strings.GroupInfo_InviteLinks, icon: PresentationResourcesSettings.links, action: {
+                                interaction.editingOpenInviteLinksSetup()
+                            }))
+                        }
                     }
                             
                     if (isCreator || (channel.adminRights != nil && channel.hasPermission(.pinMessages))) && cachedData.peerGeoLocation == nil {
@@ -1704,9 +1710,12 @@ func editingItems(data: PeerInfoScreenData?, boostStatus: ChannelBoostStatus?, s
                         invitesText = ""
                     }
                     
-                    items[.peerPublicSettings]!.append(PeerInfoScreenDisclosureItem(id: ItemInviteLinks, label: .text(invitesText), text: presentationData.strings.GroupInfo_InviteLinks, icon: PresentationResourcesSettings.links, action: {
-                        interaction.editingOpenInviteLinksSetup()
-                    }))
+                    // See Offered: the link is not how anybody gets in.
+                    if Offered.groupInviteLinks {
+                        items[.peerPublicSettings]!.append(PeerInfoScreenDisclosureItem(id: ItemInviteLinks, label: .text(invitesText), text: presentationData.strings.GroupInfo_InviteLinks, icon: PresentationResourcesSettings.links, action: {
+                            interaction.editingOpenInviteLinksSetup()
+                        }))
+                    }
                 }
                                 
                 items[.peerPublicSettings]!.append(PeerInfoScreenDisclosureItem(id: ItemPreHistory, label: .text(presentationData.strings.GroupInfo_GroupHistoryHidden), text: presentationData.strings.GroupInfo_GroupHistoryShort, icon: PresentationResourcesSettings.chatHistory, action: {
@@ -1784,9 +1793,12 @@ func editingItems(data: PeerInfoScreenData?, boostStatus: ChannelBoostStatus?, s
                         invitesText = ""
                     }
                     
-                    items[.peerSettings]!.append(PeerInfoScreenDisclosureItem(id: ItemInviteLinks, label: .text(invitesText), text: presentationData.strings.GroupInfo_InviteLinks, icon: PresentationResourcesSettings.links, action: {
-                        interaction.editingOpenInviteLinksSetup()
-                    }))
+                    // See Offered: the link is not how anybody gets in.
+                    if Offered.groupInviteLinks {
+                        items[.peerSettings]!.append(PeerInfoScreenDisclosureItem(id: ItemInviteLinks, label: .text(invitesText), text: presentationData.strings.GroupInfo_InviteLinks, icon: PresentationResourcesSettings.links, action: {
+                            interaction.editingOpenInviteLinksSetup()
+                        }))
+                    }
                 }
                 
                 canViewAdminsAndBanned = true

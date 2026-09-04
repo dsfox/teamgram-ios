@@ -49,7 +49,9 @@ public func presentAddMembersImpl(context: AccountContext, updatedPresentationDa
             }
         }
         
-        if canCreateInviteLink {
+        // An invitation is an SMS with a code, and a member is added from
+        // contacts; the link would admit anyone holding it. See Offered.
+        if canCreateInviteLink && Offered.groupInviteLinks {
             options.append(ContactListAdditionalOption(title: presentationData.strings.GroupInfo_InviteByLink, icon: .generic(UIImage(bundleImageName: "Contact List/LinkActionIcon")!), action: {
                 createInviteLinkImpl?()
             }, clearHighlightAutomatically: true))
@@ -203,7 +205,7 @@ public func presentAddMembersImpl(context: AccountContext, updatedPresentationDa
                             }
                         }
                         
-                        if !failedPeers.isEmpty, let contactsController, let navigationController = contactsController.navigationController as? NavigationController {
+                        if Offered.groupInviteLinks, !failedPeers.isEmpty, let contactsController, let navigationController = contactsController.navigationController as? NavigationController {
                             var viewControllers = navigationController.viewControllers
                             if let index = viewControllers.firstIndex(where: { $0 === contactsController }) {
                                 let inviteScreen = SendInviteLinkScreen(context: context, subject: .chat(peer: groupPeer, link: exportedInvitation?.link), peers: failedPeers)
