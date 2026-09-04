@@ -15,7 +15,12 @@ func openAddContactImpl(context: AccountContext, peer: EnginePeer?, firstName: S
     |> take(1)
     |> deliverOnMainQueue).startStandalone(next: { value in
         switch value {
-        case .allowed:
+        case .notDetermined:
+            DeviceAccess.authorizeAccess(to: .contacts)
+        default:
+            // Allowed, denied or restricted alike: the screen takes a typed
+            // number and reads nothing from the book (#164). Saving to the
+            // book is its own toggle, off when the book is not ours to write.
             let controller = context.sharedContext.makeNewContactScreen(
                 context: context,
                 peer: peer,
@@ -35,13 +40,6 @@ func openAddContactImpl(context: AccountContext, peer: EnginePeer?, firstName: S
                 }
             )
             pushController(controller)
-        case .notDetermined:
-            DeviceAccess.authorizeAccess(to: .contacts)
-        default:
-            let presentationData = context.sharedContext.currentPresentationData.with { $0 }
-            present(textAlertController(context: context, title: presentationData.strings.AccessDenied_Title, text: presentationData.strings.Contacts_AccessDeniedError, actions: [TextAlertAction(type: .genericAction, title: presentationData.strings.Common_NotNow, action: {}), TextAlertAction(type: .defaultAction, title: presentationData.strings.AccessDenied_Settings, action: {
-                context.sharedContext.applicationBindings.openSettings()
-            })]), nil)
         }
     })
 }

@@ -937,8 +937,12 @@ public enum ContactListPresentation {
         public var searchChannels: Bool
         public var globalSearch: Bool
         public var displaySavedMessages: Bool
+        /// A typed number that nobody on ice9 holds becomes one row, and this
+        /// is what the row does with it: the composer, from the picker that
+        /// knows its group (#164). Nil means no such row.
+        public var inviteByNumber: ((String) -> Void)?
         
-        public init(signal: Signal<String, NoError>, searchChatList: Bool, searchDeviceContacts: Bool, searchGroups: Bool, searchChannels: Bool, globalSearch: Bool, displaySavedMessages: Bool) {
+        public init(signal: Signal<String, NoError>, searchChatList: Bool, searchDeviceContacts: Bool, searchGroups: Bool, searchChannels: Bool, globalSearch: Bool, displaySavedMessages: Bool, inviteByNumber: ((String) -> Void)? = nil) {
             self.signal = signal
             self.searchChatList = searchChatList
             self.searchDeviceContacts = searchDeviceContacts
@@ -946,6 +950,7 @@ public enum ContactListPresentation {
             self.searchChannels = searchChannels
             self.globalSearch = globalSearch
             self.displaySavedMessages = displaySavedMessages
+            self.inviteByNumber = inviteByNumber
         }
     }
     
@@ -1526,6 +1531,20 @@ public final class ContactListNode: ASDisplayNode {
                             |> delay(0.2, queue: Queue.concurrentDefaultQueue())
                         )
                     }
+                    // A typed number: the person behind it, if there is one on
+                    // ice9 - contacts.search is by name and would find nobody (#164).
+                    if search.inviteByNumber != nil, isViablePhoneNumber(query) {
+                        foundRemoteContacts = foundRemoteContacts
+                        |> then(
+                            context.engine.peers.resolvePeerByPhone(phone: query)
+                            |> map { peer -> ([FoundPeer], [FoundPeer]) in
+                                if let peer {
+                                    return ([FoundPeer(peer: peer, subscribers: nil)], [])
+                                }
+                                return ([], [])
+                            }
+                        )
+                    }
                     let foundDeviceContacts: Signal<[DeviceContactStableId: (DeviceContactBasicData, EnginePeer.Id?)], NoError>
                     if searchDeviceContacts {
                         foundDeviceContacts = context.sharedContext.contactDataManager?.search(query: query) ?? .single([:])
@@ -1752,7 +1771,7 @@ public final class ContactListNode: ASDisplayNode {
                                 peers.append(.deviceContact(stableId, contact.0))
                             }
                             
-                            let entries = contactListNodeEntries(
+                            var entries = contactListNodeEntries(
                                 listStyle: listStyle,
                                 accountPeer: nil,
                                 peers: peers,
@@ -1777,6 +1796,23 @@ public final class ContactListNode: ASDisplayNode {
                                 isPeerEnabled: isPeerEnabled,
                                 interaction: interaction
                             )
+                            if let inviteByNumber = search.inviteByNumber, isViablePhoneNumber(query) {
+                                let digits = query.filter { $0.isNumber }
+                                let taken = peers.contains { found in
+                                    if case let .peer(peer, _, _) = found, case let .user(user) = peer, let phone = user.phone {
+                                        return phone.filter { $0.isNumber } == digits
+                                    }
+                                    return false
+                                }
+                                if !taken {
+                                    // Nobody on ice9 holds it: one row, and the
+                                    // composer behind it (#164).
+                                    let title = presentationData.strings.Invite_NumberBySms(formatPhoneNumber(context: context, number: query)).string
+                                    entries.insert(.option(0, ContactListAdditionalOption(title: title, icon: .generic(UIImage(bundleImageName: "Contact List/AddMemberIcon")!), action: {
+                                        inviteByNumber(query)
+                                    }, clearHighlightAutomatically: true), nil, presentationData.theme, presentationData.strings), at: 0)
+                                }
+                            }
                             let previous = previousEntries.swap(entries)
                             return .single(preparedContactListNodeTransition(context: context, presentationData: presentationData, from: previous ?? [], to: entries, interaction: interaction, firstTime: previous == nil, isEmpty: false, hasOptions: false, generateIndexSections: generateSections, animation: .none, isSearch: isSearch, listStyle: listStyle))
                         }

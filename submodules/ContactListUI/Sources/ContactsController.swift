@@ -25,6 +25,8 @@ import TelegramIntents
 import UndoUI
 import ShareController
 import SearchBarNode
+import InvitationComposer
+import PhoneNumberFormat
 
 private final class HeaderContextReferenceContentSource: ContextReferenceContentSource {
     private let controller: ViewController
@@ -363,16 +365,29 @@ public class ContactsController: ViewController {
         }
         
         self.contactsNode.requestAddContact = { [weak self] phoneNumber in
-            if let strongSelf = self {
-                strongSelf.view.endEditing(true)
-                strongSelf.context.sharedContext.openAddContact(context: strongSelf.context, peer: nil, firstName: "", lastName: "", phoneNumber: phoneNumber, label: defaultContactLabel, present: { [weak self] controller, arguments in
-                    self?.present(controller, in: .window(.root), with: arguments)
-                }, pushController: { [weak self] controller in
-                    (self?.navigationController as? NavigationController)?.pushViewController(controller)
-                }, completed: {
-                    self?.deactivateSearch(animated: false)
-                })
+            guard let strongSelf = self else {
+                return
             }
+            strongSelf.view.endEditing(true)
+            // A typed number: somebody on ice9 opens, anybody else is invited
+            // by SMS with a code. The address book plays no part (#164).
+            let _ = (strongSelf.context.engine.peers.resolvePeerByPhone(phone: phoneNumber)
+            |> deliverOnMainQueue).startStandalone(next: { peer in
+                guard let strongSelf = self else {
+                    return
+                }
+                if let peer {
+                    strongSelf.deactivateSearch(animated: false)
+                    openPeer(.peer(peer: peer, isGlobal: false, participantCount: nil), false)
+                } else {
+                    InvitationComposer.invite(context: strongSelf.context, phone: phoneNumber, from: strongSelf)
+                }
+            })
+        }
+        
+        self.contactsNode.openInviteByNumber = { [weak self] in
+            // The search bar takes the number; the row it produces does the rest.
+            self?.activateSearch(isFromTabBar: false)
         }
         
         self.contactsNode.openInvite = { [weak self] in
@@ -716,7 +731,11 @@ public class ContactsController: ViewController {
             }
             
             switch status {
-                case .allowed:
+                case .notDetermined:
+                    DeviceAccess.authorizeAccess(to: .contacts)
+                default:
+                    // Allowed, denied or restricted alike: the screen takes a
+                    // typed number and reads nothing from the book (#164).
                     if let navigationController = strongSelf.context.sharedContext.mainWindow?.viewController as? NavigationController {
                         let controller = strongSelf.context.sharedContext.makeNewContactScreen(
                             context: strongSelf.context,
@@ -745,15 +764,6 @@ public class ContactsController: ViewController {
                             }
                         )
                         navigationController.pushViewController(controller)
-                    }
-                case .notDetermined:
-                    DeviceAccess.authorizeAccess(to: .contacts)
-                default:
-                    let presentationData = strongSelf.presentationData
-                    if let navigationController = strongSelf.context.sharedContext.mainWindow?.viewController as? NavigationController, let topController = navigationController.topViewController as? ViewController {
-                        topController.present(textAlertController(context: strongSelf.context, title: presentationData.strings.AccessDenied_Title, text: presentationData.strings.Contacts_AccessDeniedError, actions: [TextAlertAction(type: .genericAction, title: presentationData.strings.Common_NotNow, action: {}), TextAlertAction(type: .defaultAction, title: presentationData.strings.AccessDenied_Settings, action: {
-                            self?.context.sharedContext.applicationBindings.openSettings()
-                        })]), in: .window(.root))
                     }
             }
         })

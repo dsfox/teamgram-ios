@@ -65,6 +65,8 @@ final class ContactsControllerNode: ASDisplayNode, ASGestureRecognizerDelegate {
     var requestOpenDisabledPeerFromSearch: ((EnginePeer, ChatListDisabledPeerReason) -> Void)?
     var requestAddContact: ((String) -> Void)?
     var openInvite: (() -> Void)?
+    /// The cursor into the search: a number typed there is a person or an invitation (#164).
+    var openInviteByNumber: (() -> Void)?
     var openQrScan: (() -> Void)?
     var openStories: ((EnginePeer, ASDisplayNode) -> Void)?
     
@@ -96,11 +98,14 @@ final class ContactsControllerNode: ASDisplayNode, ASGestureRecognizerDelegate {
         self.stringsPromise.set(.single(self.presentationData.strings))
         
         var inviteImpl: (() -> Void)?
+        var inviteByNumberImpl: (() -> Void)?
         
         let presentation = combineLatest(sortOrder, self.stringsPromise.get())
         |> map { sortOrder, strings -> ContactListPresentation in
             let options = [ContactListAdditionalOption(title: strings.Contacts_InviteFriends, icon: .generic(UIImage(bundleImageName: "Contact List/AddMemberIcon")!), action: {
                 inviteImpl?()
+            }), ContactListAdditionalOption(title: strings.Invite_ByPhoneNumber, icon: .generic(UIImage(bundleImageName: "Contact List/AddMemberIcon")!), action: {
+                inviteByNumberImpl?()
             })]
             switch sortOrder {
                 case .presence:
@@ -147,6 +152,9 @@ final class ContactsControllerNode: ASDisplayNode, ASGestureRecognizerDelegate {
             }
         }).strict()
                 
+        inviteByNumberImpl = { [weak self] in
+            self?.openInviteByNumber?()
+        }
         inviteImpl = { [weak self] in
             if let strongSelf = self {
                 strongSelf.openInvite?()

@@ -132,7 +132,9 @@ private enum ContactListSearchEntry: Comparable, Identifiable {
     func item(context: AccountContext, presentationData: PresentationData, nameSortOrder: PresentationPersonNameOrder, nameDisplayOrder: PresentationPersonNameOrder, timeFormat: PresentationDateTimeFormat, isPeerEnabled: @escaping (ContactListPeer) -> Bool, addContact: ((String) -> Void)?, openPeer: @escaping (ContactListPeer, ContactsSearchContainerNode.OpenPeerAction) -> Void, openDisabledPeer: @escaping (EnginePeer, ChatListDisabledPeerReason) -> Void, contextAction: ((EnginePeer, ASDisplayNode, ContextGesture?, CGPoint?) -> Void)?) -> ListViewItem {
         switch self {
             case let .addContact(theme, strings, phoneNumber):
-                return ContactsAddItem(context: context, theme: theme, strings: strings, phoneNumber: phoneNumber, header: ChatListSearchItemHeader(type: .phoneNumber, theme: theme, strings: strings, actionTitle: nil, action: nil), action: {
+                // A typed number is somebody to invite by SMS, or a person on
+                // ice9 - the tap finds out which; the address book plays no part (#164).
+                return ContactsAddItem(context: context, theme: theme, strings: strings, phoneNumber: phoneNumber, title: strings.Invite_NumberBySms(formatPhoneNumber(context: context, number: phoneNumber)).string, header: ChatListSearchItemHeader(type: .phoneNumber, theme: theme, strings: strings, actionTitle: nil, action: nil), action: {
                     addContact?(phoneNumber)
                 })
             case let .peer(_, theme, strings, peer, presence, group, enabled, requiresPremiumForMessaging, displayCallIcons):

@@ -195,7 +195,11 @@ public class ComposeControllerImpl: ViewController, ComposeController {
                 }
                 
                 switch status {
-                case .allowed:
+                case .notDetermined:
+                    DeviceAccess.authorizeAccess(to: .contacts)
+                default:
+                    // Allowed, denied or restricted alike: the screen takes a
+                    // typed number and reads nothing from the book (#164).
                     let controller = strongSelf.context.sharedContext.makeNewContactScreen(
                         context: strongSelf.context,
                         peer: nil,
@@ -219,13 +223,6 @@ public class ComposeControllerImpl: ViewController, ComposeController {
                         }
                     )
                     (strongSelf.navigationController as? NavigationController)?.pushViewController(controller)
-                case .notDetermined:
-                    DeviceAccess.authorizeAccess(to: .contacts)
-                default:
-                    let presentationData = strongSelf.presentationData
-                    strongSelf.present(textAlertController(context: strongSelf.context, title: presentationData.strings.AccessDenied_Title, text: presentationData.strings.Contacts_AccessDeniedError, actions: [TextAlertAction(type: .genericAction, title: presentationData.strings.Common_NotNow, action: {}), TextAlertAction(type: .defaultAction, title: presentationData.strings.AccessDenied_Settings, action: {
-                        self?.context.sharedContext.applicationBindings.openSettings()
-                    })]), in: .window(.root))
                 }
             })
         }

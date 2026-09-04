@@ -27,6 +27,7 @@ import PhoneNumberFormat
 import QrCodeUI
 import InvitationComposer
 import AvatarNode
+import Contacts
 
 final class NewContactScreenComponent: Component {
     typealias EnvironmentType = ViewControllerComponentContainer.Environment
@@ -95,7 +96,9 @@ final class NewContactScreenComponent: Component {
         
         private var updateFocusTag: Any?
         
-        private var syncContactToPhone = true
+        // Off when the address book is not ours to write: the screen opens
+        // without the permission and never reads the book (#164).
+        private var syncContactToPhone = CNContactStore.authorizationStatus(for: .contacts) == .authorized
         private var addToPrivacyExceptions = false
         
         private var cachedChevronImage: (UIImage, PresentationTheme)?
