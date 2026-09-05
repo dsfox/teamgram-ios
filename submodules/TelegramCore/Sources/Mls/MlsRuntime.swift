@@ -118,7 +118,19 @@ public final class MlsRuntime {
         self.queue.unlock()
         let postbox = self.postbox
         let accountPeerId = self.accountPeerId
-        return self.reload()
+        // The device first, off disk, if the copy in memory is behind. This
+        // process serves many notifications and keeps the device between
+        // them, while the app moves the ratchet - a group made, members added
+        // - and a copy that is behind reads nothing written after that: the
+        // banner said "Nomad: New message" on the phone that did the adding,
+        // and read fine on the one that only joined (#166).
+        return (MlsStateWriter.instance(accountPeerId: accountPeerId).reloadIfBehind(postbox: postbox, accountPeerId: accountPeerId)
+        |> mapToSignal { [weak self] _ -> Signal<Void, NoError> in
+            guard let self = self else {
+                return .single(Void())
+            }
+            return self.reload()
+        })
         |> then(catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId))
     }
 
