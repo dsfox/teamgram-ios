@@ -1375,6 +1375,24 @@ public final class MlsRuntime {
             }
             return self.reload()
         }
+        |> mapToSignal { [weak self] _ -> Signal<Void, NoError> in
+            // And read back whatever is still held. The extension may have put
+            // a message aside that this process can open, and a message put
+            // aside is retried at a cold start and nowhere else - so a lock
+            // that stayed until the next launch is what that was (#166).
+            guard let self = self else {
+                return .single(Void())
+            }
+            self.queue.lock()
+            let peers = self.conversationIds.keys.map { PeerId.fromMlsKey($0) }
+            self.queue.unlock()
+            Logger.shared.log("Mls", "on coming to the front: \(peers.count) conversation(s) to read back")
+            if peers.isEmpty {
+                return .single(Void())
+            }
+            return combineLatest(peers.map { repairUnreadableMessages(postbox: postbox, runtime: self, peerId: $0) })
+            |> map { _ -> Void in }
+        }
         |> deliverOn(MlsRuntime.results)).start(next: { [weak self] _ in
             self?.boxHasSomething()
         })

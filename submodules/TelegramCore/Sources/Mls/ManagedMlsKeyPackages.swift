@@ -212,6 +212,16 @@ final class MlsIdentityRegistry {
     }
 }
 
+/// Why this process has no device identity to offer (#166).
+enum MlsIdentityUnavailable: Error {
+    /// A state is stored and did not open. Making another device over it
+    /// would put a stranger in every conversation this account has.
+    case stateDidNotOpen
+    /// Nothing is stored and this is an extension, which makes no device:
+    /// the message is left to the app.
+    case notInAnExtension
+}
+
 func mlsIdentity(postbox: Postbox, accountPeerId: PeerId) throws -> MlsIdentity {
     return try MlsIdentityRegistry.shared.identity(for: accountPeerId, make: {
         return try loadOrMakeMlsIdentity(postbox: postbox, accountPeerId: accountPeerId)
@@ -236,10 +246,25 @@ private func loadOrMakeMlsIdentity(postbox: Postbox, accountPeerId: PeerId) thro
     let done = DispatchSemaphore(value: 0)
 
     let _ = (postbox.transaction { transaction -> Void in
-        if let stored = MlsDeviceState.load(transaction: transaction),
-           let identity = try? MlsIdentity.open(state: stored.state) {
-            MlsStateWriter.instance(accountPeerId: accountPeerId).loaded(generation: stored.generation)
-            result = .success(identity)
+        if let stored = MlsDeviceState.load(transaction: transaction) {
+            if let identity = try? MlsIdentity.open(state: stored.state) {
+                MlsStateWriter.instance(accountPeerId: accountPeerId).loaded(generation: stored.generation)
+                result = .success(identity)
+            } else {
+                // A state that is there and will not open is not a reason to
+                // make another device: this one is in every conversation the
+                // account has, and replacing it would lock them all (#166).
+                Logger.shared.log("Mls", "the device state at generation \(stored.generation) did not open; keeping it")
+                result = .failure(MlsIdentityUnavailable.stateDidNotOpen)
+            }
+            return
+        }
+        if Bundle.main.bundleURL.pathExtension == "appex" {
+            // Only the app makes a device. An extension that finds nothing
+            // leaves the message to the app rather than becoming a second
+            // device nobody let in (#166).
+            Logger.shared.log("Mls", "no device state in this process, and an extension makes none")
+            result = .failure(MlsIdentityUnavailable.notInAnExtension)
             return
         }
 

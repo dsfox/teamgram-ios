@@ -2044,12 +2044,16 @@ private final class NotificationServiceHandler {
                                                 // the notification says what it says and
                                                 // who said it - unless it is still held, and
                                                 // then "New message" is the truth (#42).
+                                                var prefix = ""
+                                                if message.id.peerId.namespace != Namespaces.Peer.CloudUser, let author = message.author {
+                                                    prefix = "\(author.debugDisplayTitle): "
+                                                }
                                                 if !message.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }), !message.text.isEmpty, !MlsRuntime.isCiphertext(message.text) {
-                                                    var prefix = ""
-                                                    if message.id.peerId.namespace != Namespaces.Peer.CloudUser, let author = message.author {
-                                                        prefix = "\(author.debugDisplayTitle): "
-                                                    }
                                                     content.body = prefix + message.text
+                                                } else if !prefix.isEmpty {
+                                                    // Still held: the words are not ours to show
+                                                    // yet, but who wrote is (#166).
+                                                    content.body = prefix + (content.body ?? "")
                                                 }
                                                 if let peer = transaction.getPeer(message.id.peerId) {
                                                     content.title = peer.debugDisplayTitle

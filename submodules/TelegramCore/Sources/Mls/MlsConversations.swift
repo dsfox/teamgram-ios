@@ -537,7 +537,14 @@ public enum MlsConversations {
             // this conversation and was written where this device cannot go -
             // there is nothing to repair and nothing to rebuild.
             if "\(error)".contains("SecretTreeError") {
-                Logger.shared.log("Mls", "a message at epoch \(group.epoch) was written before this device could read it: \(error)")
+                if "\(error)".contains("SecretReuseError") {
+                    // Opened by this device already, in another process: the
+                    // extension, or the app while the extension ran (#166). The
+                    // text is in the row that process wrote; nothing to do here.
+                    Logger.shared.log("Mls", "a message at epoch \(group.epoch) was opened by this device already: \(error)")
+                } else {
+                    Logger.shared.log("Mls", "a message at epoch \(group.epoch) was written before this device could read it: \(error)")
+                }
                 return .writtenBeforeThisDeviceCouldRead
             }
             // With the epoch this device is at, because the commonest reason a
