@@ -35,7 +35,7 @@ public struct MlsRecoveryState: Codable, Equatable {
     /// down that it has. Nothing on paper stops working.
     public var derivation: Int32
 
-    public static let currentDerivation: Int32 = 2
+    public static let currentDerivation: Int32 = 3
 
     public init(phrase: String, shown: Bool, derivation: Int32 = MlsRecoveryState.currentDerivation) {
         self.phrase = phrase
