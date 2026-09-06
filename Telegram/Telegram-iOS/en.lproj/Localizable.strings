@@ -1922,10 +1922,10 @@
 
 "Privacy.GroupsAndChannels" = "Groups";
 "Privacy.GroupsAndChannels.WhoCanAddMe" = "WHO CAN ADD ME TO GROUP CHATS";
-"Privacy.GroupsAndChannels.CustomHelp" = "You can restrict who can add you to groups and channels with granular precision.";
+"Privacy.GroupsAndChannels.CustomHelp" = "You can restrict who can add you to groups with granular precision.";
 "Privacy.GroupsAndChannels.AlwaysAllow" = "Always Allow";
 "Privacy.GroupsAndChannels.NeverAllow" = "Never Allow";
-"Privacy.GroupsAndChannels.CustomShareHelp" = "These users will or will not be able to add you to groups and channels regardless of the settings above.";
+"Privacy.GroupsAndChannels.CustomShareHelp" = "These users will or will not be able to add you to groups regardless of the settings above.";
 
 "Privacy.GroupsAndChannels.AlwaysAllow.Title" = "Always Allow";
 "Privacy.GroupsAndChannels.AlwaysAllow.Placeholder" = "Always allow...";
@@ -1948,7 +1948,7 @@
 
 "PrivacyLastSeenSettings.WhoCanSeeMyTimestamp" = "WHO CAN SEE MY TIMESTAMP";
 
-"PrivacyLastSeenSettings.GroupsAndChannelsHelp" = "Change who can add you to groups and channels.";
+"PrivacyLastSeenSettings.GroupsAndChannelsHelp" = "Change who can add you to groups.";
 "MusicPlayer.VoiceNote" = "Voice Message";
 
 "Watch.Microphone.Access" = "Allow ice9 to access the microphone on your phone";

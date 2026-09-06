@@ -850,10 +850,31 @@
                                     [_context updatePasswordInputRequiredForDatacenterWithId:mtProto.datacenterId required:true];
                                 }
                             } else {
+                                // Signed out only for the 401s that mean the
+                                // authorization is gone, which are the ones
+                                // Telegram's own server sends. Any other 401
+                                // text is a server fault, and an account is
+                                // not the price of one (ice9 #174).
+                                static NSArray<NSString *> *signOutReasons = nil;
+                                static dispatch_once_t signOutOnce;
+                                dispatch_once(&signOutOnce, ^{
+                                    signOutReasons = @[@"AUTH_KEY_UNREGISTERED", @"AUTH_KEY_INVALID", @"AUTH_KEY_PERM_EMPTY", @"USER_DEACTIVATED", @"SESSION_REVOKED", @"SESSION_EXPIRED"];
+                                });
+                                bool authorizationGone = false;
+                                for (NSString *reason in signOutReasons) {
+                                    if ([rpcError.errorDescription rangeOfString:reason].location != NSNotFound) {
+                                        authorizationGone = true;
+                                        break;
+                                    }
+                                }
                                 id<MTRequestMessageServiceDelegate> delegate = _delegate;
-                                if ([delegate respondsToSelector:@selector(requestMessageServiceAuthorizationRequired:)])
+                                if (authorizationGone && [delegate respondsToSelector:@selector(requestMessageServiceAuthorizationRequired:)])
                                 {
                                     [delegate requestMessageServiceAuthorizationRequired:self];
+                                }
+                                else if (!authorizationGone && MTLogEnabled())
+                                {
+                                    MTLog(@"[MTRequestMessageService#%p 401 %@: not signing out over it]", self, rpcError.errorDescription);
                                 }
                                 
                                 MTProto *mtProto = _mtProto;

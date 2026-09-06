@@ -56,6 +56,9 @@ private let notOfferedSearchItems: [String: String] = [
     "privacy/calls/ios-integration": "#14",
     "data/less-data-calls": "#14", "data/proxy/use-for-calls": "#14",
 
+    // A desktop to link by QR: there is none. #107.
+    "devices/link-desktop": "#107",
+
     // Channels: none of it is built, here or on the server. #16.
     "edit/channel": "#16",
     "notifications/channels": "#16", "notifications/channels/edit": "#16",

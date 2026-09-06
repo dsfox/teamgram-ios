@@ -512,7 +512,11 @@ private struct RecentSessionsControllerState: Equatable {
 private func recentSessionsControllerEntries(presentationData: PresentationData, state: RecentSessionsControllerState, sessionsState: ActiveSessionsContextState, connectedBot: TelegramAccountConnectedBot?, connectedBotPeer: EnginePeer?, enableQRLogin: Bool) -> [RecentSessionsEntry] {
     var entries: [RecentSessionsEntry] = []
     
-    entries.append(.header(SortIndex(section: 0, item: 0), presentationData.strings.AuthSessions_HeaderInfo))
+    // The "Link Desktop Device" button and its text: there is no desktop to
+    // link. See Offered.
+    if Offered.desktop {
+        entries.append(.header(SortIndex(section: 0, item: 0), presentationData.strings.AuthSessions_HeaderInfo))
+    }
     
     if !sessionsState.sessions.isEmpty {
         var existingSessionIds = Set<Int64>()

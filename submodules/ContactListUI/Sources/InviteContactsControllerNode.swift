@@ -172,10 +172,11 @@ struct InviteContactsGroupSelectionState: Equatable {
 private func inviteContactsEntries(accountPeer: EnginePeer?, sortedContacts: [(DeviceContactStableId, DeviceContactBasicData, Int32)]?, selectionState: InviteContactsGroupSelectionState, theme: PresentationTheme, strings: PresentationStrings, nameSortOrder: PresentationPersonNameOrder, nameDisplayOrder: PresentationPersonNameOrder, interaction: InviteContactsInteraction) -> [InviteContactsEntry] {
     var entries: [InviteContactsEntry] = []
         
-    entries.append(.option(0, ContactListAdditionalOption(title: strings.Contacts_ShareTelegram, icon: .generic(UIImage(bundleImageName: "Contact List/InviteActionIcon")!), action: {
-        interaction.shareTelegram()
-    }), theme, strings))
-    
+    // No "Share ice9" row: it handed the invite text with no code to the
+    // share sheet, and an invitation without a code opens nothing (#47).
+    // Inviting is by number, through the composer, from the rows below and
+    // from the Contacts search (#164). Issue #174.
+
     var index = 0
     if let sortedContacts = sortedContacts {
         for (id, contact, count) in sortedContacts {

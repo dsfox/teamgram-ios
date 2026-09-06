@@ -2589,6 +2589,12 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
                         ]
                     )
                     authContext.rootController.currentWindow?.present(alertController, on: .root, blockInteraction: false, completion: {})
+                } else {
+                    // Any other link while signed out - a person's, a group's -
+                    // used to be dropped without a word. Kept instead, and
+                    // opened the moment an account is signed in (#174).
+                    Logger.shared.log("App", "a link arrived while signed out; keeping it for after sign-in")
+                    self.openUrlWhenReady(url: url, external: true)
                 }
             }
         })
