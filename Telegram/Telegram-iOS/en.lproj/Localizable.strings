@@ -2907,7 +2907,7 @@ Unused sets are archived when you add more.";
 "SocksProxySetup.UseForCallsHelp" = "Proxy servers may degrade the quality of your calls.";
 
 "InviteText.URL" = "https://ice9.app";
-"InviteText.SingleContact" = "Hey, I'm using ice9 to chat. Join me! Download it here: %@";
+"InviteText.SingleContact" = "Hi! Get ice9: %@\nI left you a message there.";
 "Invite.CodeLine" = "Your invitation code: %@";
 "Invite.AlreadyHere" = "This person is already on ice9 — just write to them.";
 "Invite.NoCode" = "Could not get an invitation code. Try again later.";

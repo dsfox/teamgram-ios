@@ -55,7 +55,11 @@ public final class InvitationComposer: NSObject, MFMessageComposeViewControllerD
             let composer = MFMessageComposeViewController()
             composer.messageComposeDelegate = one
             composer.recipients = [phone]
-            composer.body = strings.InviteText_SingleContact(strings.InviteText_URL).string + "\n" + strings.Invite_CodeLine(code).string
+            // A +7 number is usually on a Russian network that cannot reach
+            // ice9.app (Cloudflare); ice9.ru is served from our own machine and
+            // opens there (#178). Everyone else keeps the CDN-backed link.
+            let inviteURL = phone.replacingOccurrences(of: " ", with: "").hasPrefix("+7") ? "https://ice9.ru" : strings.InviteText_URL
+            composer.body = strings.InviteText_SingleContact(inviteURL).string + "\n" + strings.Invite_CodeLine(code).string
             one.composer = composer
             window.rootViewController?.present(composer, animated: true)
         }, error: { [weak controller] error in
