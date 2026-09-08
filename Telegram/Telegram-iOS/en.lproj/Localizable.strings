@@ -402,22 +402,22 @@
 
 // Tour
 "Tour.Title1" = "ice9";
-"Tour.Text1" = "Lightweight, simple and secure opensource messenger for teams and businesses.";
+"Tour.Text1" = "A messenger that just carries your messages.";
 
-"Tour.Title2" = "Fast";
-"Tour.Text2" = "**ice9** delivers messages\nfaster than any other application.";
+"Tour.Title2" = "Private";
+"Tour.Text2" = "Every chat is end-to-end encrypted.\nNot even the server can read it.";
 
-"Tour.Title3" = "Powerful";
-"Tour.Text3" = "**ice9** has no limits on\nthe size of your media and chats.";
+"Tour.Title3" = "Invite-only";
+"Tour.Text3" = "You join by invitation.\nNo public directory, no strangers.";
 
-"Tour.Title4" = "Secure";
-"Tour.Text4" = "**ice9** keeps your messages\nsafe from hacker attacks.";
+"Tour.Title4" = "Lightweight";
+"Tour.Text4" = "Fast and simple.\nNothing you don't need.";
 
-"Tour.Title5" = "Cloud-Based";
-"Tour.Text5" = "**ice9** lets you access your\nmessages from multiple devices.";
+"Tour.Title5" = "Open";
+"Tour.Text5" = "The encryption is open source.\nAnyone can check it.";
 
-"Tour.Title6" = "Free";
-"Tour.Text6" = "**ice9** provides free unlimited\ncloud storage for chats and media.";
+"Tour.Title6" = "Your own server";
+"Tour.Text6" = "Run ice9 on your own machine,\nif you want to.";
 
 "Tour.StartButton" = "Start Messaging";
 
