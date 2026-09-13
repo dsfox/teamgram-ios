@@ -46,10 +46,12 @@ public enum Offered {
     /// Video chats. Nothing behind them. Issue #28.
     public static let videoChats = false
 
-    /// Voice and video calls between people. Nothing places or receives one.
-    /// Issue #14 - which is not #28 above, though the rows for both were once
-    /// hidden by the same switch.
-    public static let calls = false
+    /// Voice and video calls between people (#14). The server matches the two
+    /// phones and hands out STUN; the media goes device to device. This
+    /// switch shows the rows around calls - who may call, call data saving;
+    /// the call button itself follows the server's phone_calls_available.
+    /// Not #28 above, though the rows for both were once hidden by one switch.
+    public static let calls = true
 
     /// Stories. Nothing behind them, and a private messenger for a few people
     /// is not where they belong first.

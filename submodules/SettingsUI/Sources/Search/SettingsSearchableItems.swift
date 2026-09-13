@@ -48,14 +48,25 @@ import DeviceModel
 /// appended instead, further down.
 ///
 /// Each id says what is missing, in the same words as Offered.
-private let notOfferedSearchItems: [String: String] = [
-    // Calls: nothing places or receives one. #14.
+private let notOfferedSearchItems: [String: String] = {
+    var table = alwaysNotOfferedSearchItems
+    // Calls follow their switch (#14): the rows come back on the screens with
+    // Offered.calls, and search has to find them the same day.
+    if !Offered.calls {
+        table.merge(callSearchItemsWhileCallsAreOff) { current, _ in current }
+    }
+    return table
+}()
+
+private let callSearchItemsWhileCallsAreOff: [String: String] = [
     "privacy/calls": "#14", "privacy/calls/never": "#14",
     "privacy/calls/always": "#14", "privacy/calls/p2p": "#14",
     "privacy/calls/p2p/never": "#14", "privacy/calls/p2p/always": "#14",
     "privacy/calls/ios-integration": "#14",
     "data/less-data-calls": "#14", "data/proxy/use-for-calls": "#14",
+]
 
+private let alwaysNotOfferedSearchItems: [String: String] = [
     // A desktop to link by QR: there is none. #107.
     "devices/link-desktop": "#107",
 
@@ -4554,9 +4565,9 @@ func settingsSearchableItems(
         let devicesItems = devicesSearchableItems(context: context, activeSessionsContext: activeSessionsContext, webSessionsContext: activeWebSessionsContext)
         allItems.append(contentsOf: devicesItems)
         
-        // Calls are hidden until they work (task #14). Leaving them in search
-        // means a result that opens a screen the rest of the app pretends does
-        // not exist - the one place a hidden feature leaks back out.
+        // The calls screen (the recent-calls list) stays out of search while
+        // its tab stays hidden - CallListSettings.showTab (#14). The rows around
+        // calls on the privacy and data screens follow Offered.calls above.
         // let callItems = callSearchableItems(context: context)
         // allItems.append(contentsOf: callItems)
         
