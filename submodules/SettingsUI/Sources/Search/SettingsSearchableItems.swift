@@ -4565,11 +4565,10 @@ func settingsSearchableItems(
         let devicesItems = devicesSearchableItems(context: context, activeSessionsContext: activeSessionsContext, webSessionsContext: activeWebSessionsContext)
         allItems.append(contentsOf: devicesItems)
         
-        // The calls screen (the recent-calls list) stays out of search while
-        // its tab stays hidden - CallListSettings.showTab (#14). The rows around
-        // calls on the privacy and data screens follow Offered.calls above.
-        // let callItems = callSearchableItems(context: context)
-        // allItems.append(contentsOf: callItems)
+        // Calls (#14): the recent-calls screen and its rows, as upstream has
+        // them; the tab is shown again, and search finds what the tab opens.
+        let callItems = callSearchableItems(context: context)
+        allItems.append(contentsOf: callItems)
         
         // Chat folders: reading them answers with an empty list and creating one
         // has no handler at all, so the screen offers a folder that cannot be
