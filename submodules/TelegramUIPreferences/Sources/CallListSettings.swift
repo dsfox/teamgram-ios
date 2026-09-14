@@ -14,9 +14,9 @@ public struct CallListSettings: Codable, Equatable {
             if let value = self._showTab {
                 return value
             } else {
-                // Calls are not implemented, so the tab would open an empty list
-                // with no way to start anything. Hidden until they exist.
-                return false
+                // Upstream's default: the tab is there until the person hides
+                // it. It was hidden while calls did not exist (#14); they do.
+                return true
             }
         } set {
             self._showTab = newValue
