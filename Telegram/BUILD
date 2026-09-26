@@ -1808,6 +1808,36 @@ xcode_provisioning_profile(
    provisioning_profile = ":NotificationService_local_profile",
 )
 
+# ice9 #183: the UIScene lifecycle, which the iOS 27 SDK requires at launch. One
+# scene, whose delegate (TelegramUI/Sources/Ice9SceneDelegate.swift) attaches the
+# window AppDelegate made and forwards the scene's events to it. A fragment of
+# its own rather than keys inside TelegramInfoPlist, so upstream's template
+# stays theirs; when upstream adopts scenes, take theirs and drop this.
+plist_fragment(
+    name = "SceneManifestInfoPlist",
+    extension = "plist",
+    template =
+    """
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+        <key>UIApplicationSupportsMultipleScenes</key>
+        <false/>
+        <key>UISceneConfigurations</key>
+        <dict>
+            <key>UIWindowSceneSessionRoleApplication</key>
+            <array>
+                <dict>
+                    <key>UISceneConfigurationName</key>
+                    <string>Default</string>
+                    <key>UISceneDelegateClassName</key>
+                    <string>Ice9SceneDelegate</string>
+                </dict>
+            </array>
+        </dict>
+    </dict>
+    """
+)
+
 apple_prebuilt_watchos_application(
     name = "TelegramWatchApp",
     # Watch bundle id tracks the host config ("<host>.watchkitapp"). The rule passes it
@@ -1839,6 +1869,7 @@ ios_application(
         ":VersionInfoPlist",
         ":RequiredDeviceCapabilitiesPlist",
         ":UrlTypesInfoPlist",
+        ":SceneManifestInfoPlist",
     ],
     app_icons = [":AppIconSet"],
     alternate_icons = [

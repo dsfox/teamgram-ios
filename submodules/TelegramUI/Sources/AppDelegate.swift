@@ -87,10 +87,15 @@ private func isKeyboardViewContainer(view: NSObject) -> Bool {
 }
 
 private class ApplicationStatusBarHost: StatusBarHost {
-    private weak var scene: UIWindowScene?
+    // ice9 #183: read when asked. Under UIScene the window is made before its
+    // scene connects, so a scene taken at construction would be nil for good.
+    private weak var window: UIWindow?
+    private var scene: UIWindowScene? {
+        return self.window?.windowScene
+    }
     
-    init(scene: UIWindowScene?) {
-        self.scene = scene
+    init(window: UIWindow) {
+        self.window = window
     }
     
     var isApplicationInForeground: Bool {
@@ -119,6 +124,19 @@ private class ApplicationStatusBarHost: StatusBarHost {
     }
     
     var keyboardWindow: UIWindow? {
+        // ice9 #183: no scene yet, no keyboard. And on iOS 27 the private lookup
+        // by screen traps under the scene lifecycle - at launch and again on the
+        // first rotation - while the keyboard is no longer in any window of the
+        // app's (measured on the 27.0 simulator: the one scene holds our window
+        // and a UITextEffectsWindow with no keyboard in it). So on 27 there is
+        // none to hand out, and moving the keyboard with an interactive
+        // transition is skipped there.
+        guard let scene = self.scene else {
+            return nil
+        }
+        if #available(iOS 27.0, *) {
+            return scene.windows.first(where: { isKeyboardWindow(window: $0) })
+        }
         if #available(iOS 16.0, *) {
             return UIApplication.shared.internalGetKeyboard()
         }
@@ -398,7 +416,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         }
         
         let (window, hostView) = nativeWindowHostView()
-        let statusBarHost = ApplicationStatusBarHost(scene: window.windowScene)
+        let statusBarHost = ApplicationStatusBarHost(window: window)
         self.mainWindow = Window1(hostView: hostView, statusBarHost: statusBarHost)
         if let traitCollection = window.rootViewController?.traitCollection {
             if #available(iOS 13.0, *) {
