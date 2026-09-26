@@ -251,22 +251,6 @@ public final class MlsGroup {
         return (commit: commit, welcome: welcome)
     }
 
-    public func addMember(identity: MlsIdentity, keyPackage: Data) throws -> (commit: Data, welcome: Data) {
-        var commitBuffer = MlsBuffer(ptr: nil, len: 0)
-        let welcomeBuffer = keyPackage.withUnsafeBytes { raw -> MlsBuffer in
-            mls_group_add_member(
-                self.handle,
-                identity.handle,
-                raw.bindMemory(to: UInt8.self).baseAddress,
-                UInt(keyPackage.count),
-                &commitBuffer
-            )
-        }
-        let welcome = try take(welcomeBuffer, "the member was not added")
-        let commit = try take(commitBuffer, "no commit was produced")
-        return (commit: commit, welcome: welcome)
-    }
-
     /// Removes every device whose name begins with one of these prefixes, and
     /// gives back the commit the rest have to apply.
     ///
@@ -439,42 +423,6 @@ public final class MlsGroup {
     }
 }
 
-/// Proves on the device that the whole path works: two identities, a group, a
-/// message that survives the trip, and a ciphertext that does not contain the
-/// plaintext. Called from a smoke test rather than from the app.
-public func mlsSelfCheck() -> String {
-    do {
-        let alice = try MlsIdentity(name: Data("alice/phone".utf8))
-        let bob = try MlsIdentity(name: Data("bob/phone".utf8))
-
-        let group = try MlsGroup.create(identity: alice)
-        let invitation = try group.addMember(identity: alice, keyPackage: try bob.keyPackage())
-        // Nobody to race with here, so the answer is known at once.
-        try group.acceptCommit(identity: alice)
-        let bobGroup = try MlsGroup.join(identity: bob, welcome: invitation.welcome)
-
-        let secret = Data("the server is not supposed to read this".utf8)
-        let ciphertext = try group.encrypt(identity: alice, plaintext: secret)
-        guard ciphertext.range(of: Data("server".utf8)) == nil else {
-            return "FAIL: the plaintext is visible in the ciphertext"
-        }
-
-        guard let read = try bobGroup.decrypt(identity: bob, ciphertext: ciphertext) else {
-            return "FAIL: that was read as a handshake, not a message"
-        }
-        guard read == secret else {
-            return "FAIL: the message did not survive"
-        }
-        guard bobGroup.memberCount == 2 else {
-            return "FAIL: the group holds \(bobGroup.memberCount) devices, expected 2"
-        }
-
-        return "ok: two devices, epoch \(group.epoch), \(ciphertext.count) bytes of ciphertext"
-    } catch {
-        return "FAIL: \(error)"
-    }
-}
-
 /// The words that get an account back, and what they stand for.
 ///
 /// Made here, on the device. The server is told only `authSecret` - enough to
@@ -513,6 +461,7 @@ public enum MlsRecovery {
     }
 
     /// The key the history backup is encrypted with. It never leaves here.
+    /// Nothing calls it yet: it is groundwork for the history backup (#43).
     public static func backupKey(phrase: String) throws -> Data {
         let bytes = [UInt8](phrase.utf8)
         return try take(bytes.withUnsafeBufferPointer {
