@@ -504,6 +504,14 @@ public enum MlsRecovery {
         return text
     }
 
+    /// Which derivation `authSecret` makes. The core's number rather than one
+    /// of ours, so a new derivation cannot ship under an old number: iOS once
+    /// raised its own to 3 for Argon2id while the library it linked still made
+    /// HKDF, and every phone wrote down 3 beside the old secret (#69).
+    public static var derivation: Int32 {
+        return Int32(mls_recovery_derivation())
+    }
+
     /// The key the history backup is encrypted with. It never leaves here.
     public static func backupKey(phrase: String) throws -> Data {
         let bytes = [UInt8](phrase.utf8)

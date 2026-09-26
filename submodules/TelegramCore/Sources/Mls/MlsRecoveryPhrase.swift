@@ -35,7 +35,11 @@ public struct MlsRecoveryState: Codable, Equatable {
     /// down that it has. Nothing on paper stops working.
     public var derivation: Int32
 
-    public static let currentDerivation: Int32 = 3
+    /// What the linked core makes now; it says so itself, beside the
+    /// derivation it implements.
+    public static var currentDerivation: Int32 {
+        return MlsRecovery.derivation
+    }
 
     public init(phrase: String, shown: Bool, derivation: Int32 = MlsRecoveryState.currentDerivation) {
         self.phrase = phrase
@@ -114,7 +118,7 @@ private func registerSecret(postbox: Postbox, network: Network, phrase: String) 
             state.derivation = MlsRecoveryState.currentDerivation
             MlsRecoveryState.save(transaction: transaction, phrase: state.phrase,
                                   shown: state.shown, derivation: state.derivation)
-            Logger.shared.log("Mls", "the recovery phrase was registered again after the rename")
+            Logger.shared.log("Mls", "the recovery phrase was registered again, derivation \(state.derivation)")
         }
     }
 }
