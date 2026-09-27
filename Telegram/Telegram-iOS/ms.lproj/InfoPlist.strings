@@ -1,6 +1,5 @@
 /* Localized versions of Info.plist keys */
 
-"NSContactsUsageDescription" = "ice9 akan sentiasa muat naik kenalan anda ke pelayan awan yang berenkripsi tinggi agar anda boleh berhubung dengan rakan anda di semua peranti anda.";
 "NSLocationWhenInUseUsageDescription" = "Bila anda hantar lokasi anda kepada rakan anda, ice9 perlukan akses untuk tunjuk peta.";
 "NSLocationAlwaysAndWhenInUseUsageDescription" = "Bila anda pilih untuk kongsi Lokasi Langsung anda dengan rakan dalam chat, ice9 perlu akses latar belakang ke lokasi anda agar lokasi anda sentiasa dikemaskini ketika perkongsian.";
 "NSLocationAlwaysUsageDescription" = "Bila anda pilih untuk kongsi lokasi langsung anda dengan rakan dalam chat, ice9 perlu akses latar belakang agar lokasi anda sentiasa dikemaskini. Anda juga harus hantar lokasi anda ke Jam Apple.";

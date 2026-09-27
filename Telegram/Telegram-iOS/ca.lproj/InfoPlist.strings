@@ -1,6 +1,5 @@
 /* Localized versions of Info.plist keys */
 
-"NSContactsUsageDescription" = "ice9 pujarà automàticament els vostres contactes als seus servidors xifrats, perquè pugueu connectar-vos amb els amics des de qualsevol dispositiu.";
 "NSLocationWhenInUseUsageDescription" = "Si envieu la vostra ubicació als amics, ice9 requereix accés per a mostra-los un mapa.";
 "NSLocationAlwaysAndWhenInUseUsageDescription" = "Si trieu de compartir la vostra ubicació en directe amb amics en un xat, ice9 requereix accés en segon pla a la vostra ubicació per a actualitzar-la durant la compartició en directe.";
 "NSLocationAlwaysUsageDescription" = "Si trieu de compartir la vostra ubicació en directe amb amics en un xat, ice9 requereix de tenir accés en segon pla a la vostra ubicació per a actualitzar-la durant la compartició en directe. També necessiteu això per a enviar ubicacions des d'un Apple Watch.";

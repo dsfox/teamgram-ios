@@ -1,6 +1,5 @@
 /* Localized versions of Info.plist keys */
 
-"NSContactsUsageDescription" = "ice9 barcha qurilmalaringizdan doʻstlaringiz bilan bogʻlana olishingiz uchun muntazam ravishda kontaktlaringizni kuchli shifrlanadigan bulut serverlariga yuklaydi.";
 "NSLocationWhenInUseUsageDescription" = "Joylashuvingizni doʻstlaringizga yuborganingizda ice9 ularga xaritani koʻrsatishi uchun ruxsat kerak boʻladi.";
 "NSLocationAlwaysAndWhenInUseUsageDescription" = "Chatda doʻstlarga Jonli joylashuvingizni ulashishni tanlaganingizda, ice9 joylashuvingizni jonli ulashish davomida yangilab turishi uchun undan fonda foydalanishi kerak.";
 "NSLocationAlwaysUsageDescription" = "Chatda doʻstlarga Jonli joylashuvingizni ulashishni tanlaganingizda, ice9 joylashuvingizni jonli ulashish davomida yangilab turishi uchun undan fonda foydalanishi kerak. Sizga bu Apple Watchdan joylashuvlarni yuborish uchun ham kerak.";

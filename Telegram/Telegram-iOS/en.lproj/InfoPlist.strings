@@ -1,6 +1,6 @@
 /* Localized versions of Info.plist keys */
 
-"NSContactsUsageDescription" = "ice9 will continuously upload your contacts to its heavily encrypted cloud servers to let you connect with your friends across all your devices.";
+"NSContactsUsageDescription" = "ice9 sends the numbers and names in your contacts to its server to show you who is already on ice9. Numbers of people who are not on ice9 are not kept.";
 "NSLocationWhenInUseUsageDescription" = "When you send your location to your friends, ice9 needs access to show them a map.";
 "NSLocationAlwaysAndWhenInUseUsageDescription" = "When you choose to share your Live Location with friends in a chat, ice9 needs background access to your location to keep them updated for the duration of the live sharing.";
 "NSLocationAlwaysUsageDescription" = "When you choose to share your live location with friends in a chat, ice9 needs background access to your location to keep them updated for the duration of the live sharing. You also need this to send locations from an Apple Watch.";

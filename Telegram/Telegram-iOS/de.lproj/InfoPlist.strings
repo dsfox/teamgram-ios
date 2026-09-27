@@ -1,6 +1,5 @@
 /* Localized versions of Info.plist keys */
 
-"NSContactsUsageDescription" = "ice9 lädt deine Kontakte durchgehend auf die stark verschlüsselten Cloud Server, damit du dich mit deinen Freunden auf all deinen Geräten verbinden kannst.";
 "NSLocationWhenInUseUsageDescription" = "Wenn du Freunden deinen Standort mitteilen willst, musst du ice9 den Zugriff darauf erlauben.";
 "NSLocationAlwaysAndWhenInUseUsageDescription" = "Wenn du deinen Live-Standort mit Freunden im Chat teilen möchtest, benötigt ice9 so lange im Hintergrund Zugriff auf deinen Standort, bis du ihn nicht mehr teilen willst.";
 "NSLocationAlwaysUsageDescription" = "Wenn du Freunden deinen Standort mitteilen willst, musst du ice9 den Zugriff darauf erlauben. Diese Bereichtigung wird auch für die Apple Watch benötigt.";

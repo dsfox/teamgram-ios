@@ -1661,7 +1661,7 @@ plist_fragment(
     <key>NSCameraUsageDescription</key>
     <string>We need this so that you can take and share photos and videos.</string>
     <key>NSContactsUsageDescription</key>
-    <string>ice9 stores your contacts heavily encrypted in the cloud to let you connect with your friends across all your devices.</string>
+    <string>ice9 sends the numbers and names in your contacts to its server to show you who is already on ice9. Numbers of people who are not on ice9 are not kept.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>You can use Face ID to unlock the app.</string>
     <key>NSLocationAlwaysUsageDescription</key>

@@ -1,6 +1,5 @@
 /* Localized versions of Info.plist keys */
 
-"NSContactsUsageDescription" = "ice9 akan terus mengunggah kontak Anda ke penyimpanan awan yang dienkripsi penuh, sehingga Anda dapat terhubung dengan teman Anda di semua perangkat Anda.";
 "NSLocationWhenInUseUsageDescription" = "Ketika Anda mengirim lokasi untuk teman, ice9 membutuhkan akses untuk berbagi peta.";
 "NSLocationAlwaysAndWhenInUseUsageDescription" = "Jika Anda memilih untuk membagikan Live Location dengan teman dalam obrolan, ice9 memerlukan akses latar belakang ke lokasi Anda agar lokasi tetap diperbarui selama lokasi langsung dibagikan.";
 "NSLocationAlwaysUsageDescription" = "Jika Anda ingin berbagi Live Location dengan teman dalam chat, ice9 perlu akses latar belakang ke lokasi Anda agar lokasi tetap diperbarui selama lokasi langsung dibagikan. Hal yang sama perlu dilakukan untuk berbagi lokasi dari Apple Watch.";
