@@ -405,7 +405,7 @@
 "Tour.Text1" = "A messenger that just carries your messages.";
 
 "Tour.Title2" = "Private";
-"Tour.Text2" = "Every chat is end-to-end encrypted.\nNot even the server can read it.";
+"Tour.Text2" = "Chats are end-to-end encrypted.\nNot even the server can read them.";
 
 "Tour.Title3" = "Invite-only";
 "Tour.Text3" = "You join by invitation.\nNo public directory, no strangers.";
