@@ -709,6 +709,12 @@ private func compareWithTheList(
         // A channel is broadcasting rather than a conversation (#16).
         return .complete()
     }
+    // The comparison goes on after taking dead leaves out, so it can come round
+    // again; three times, like every other change here, then it stops.
+    guard attempt <= commitAttempts else {
+        Logger.shared.log("Mls", "gave up comparing \(peerId) after \(commitAttempts) attempts")
+        return .complete()
+    }
 
     return postbox.transaction { transaction -> (Data, [PeerId])? in
         let ids = MlsConversationIds.load(transaction: transaction)
@@ -845,11 +851,19 @@ private func compareWithTheList(
                         && !String(decoding: $0, as: UTF8.self).hasPrefix(ours) }
                 if !dead.isEmpty {
                     Logger.shared.log("Mls", "\(dead.count) leaf/leaves in \(mlsShortId(groupId)) belong to devices that are gone")
+                    // And then the rest of this comparison, before it ends: a
+                    // message waiting on it went as soon as the dead leaves
+                    // were out, to a conversation that did not hold the live
+                    // phone of the person they belonged to yet (#212).
                     return offer(
                         postbox: postbox, accountPeerId: accountPeerId, network: network,
                         peerId: peerId, groupId: groupId,
                         audience: members, change: .drop(leaves: dead, what: "leaf(es) whose device is gone"),
                         named: named, attempt: attempt)
+                    |> then(compareWithTheList(
+                        postbox: postbox, accountPeerId: accountPeerId, network: network,
+                        peerId: peerId, listIsFromTheServer: listIsFromTheServer,
+                        named: named, attempt: attempt + 1))
                 }
 
                 // Who the server says has a phone this group has never met.

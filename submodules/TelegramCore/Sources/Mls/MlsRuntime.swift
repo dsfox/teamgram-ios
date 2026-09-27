@@ -415,10 +415,12 @@ public final class MlsRuntime {
     private static let compareNotBefore: Double = 5.0
 
     /// How long a message may wait for that comparison before it goes anyway.
-    /// One round trip and at most one commit, so half the handshake's ten
-    /// seconds; past it the message goes as it would have, because a message
-    /// that never leaves is worse than one somebody cannot open.
-    private static let comparisonWait: Double = 5.0
+    /// The handshake's ten seconds, not half of them: a comparison that claims
+    /// packages and commits took 4.9 s on 26 September, five ran out with the
+    /// commit still in flight, and the message went out beside it (#212). Past
+    /// it the message goes as it would have, because a message that never
+    /// leaves is worse than one somebody cannot open.
+    private static let comparisonWait: Double = 10.0
 
     /// The comparison in flight for each conversation, so a second message
     /// within the interval waits for the first one's rather than going ahead
