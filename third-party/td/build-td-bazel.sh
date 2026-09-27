@@ -22,7 +22,10 @@ cd "$BUILD_DIR"
 # Generate source files
 mkdir native-build
 cd native-build
-cmake -DTD_GENERATE_SOURCE_FILES=ON ../td
+# ice9: the generators run on this Mac, so they are built against its macOS SDK,
+# asked for by name. Left alone, xcrun can answer with a Command Line Tools SDK
+# newer than the selected Xcode's linker reads ("tapi error: malformed file").
+cmake -DTD_GENERATE_SOURCE_FILES=ON -DCMAKE_OSX_SYSROOT="$(xcrun --sdk macosx --show-sdk-path)" ../td
 cmake --build . -- -j$(sysctl -n hw.ncpu)
 cd ..
 
