@@ -1200,6 +1200,10 @@ public final class ContactListNode: ASDisplayNode {
     private let presentationDataPromise: Promise<PresentationData>
     
     private var authorizationNode: PermissionContentNode
+    // ice9: where the list's rows end when it is at rest, and how far it is
+    // pulled from rest now. See followListWithAuthorizationNode.
+    private var authorizationRowsBottom: CGFloat?
+    private var authorizationShift: CGFloat = 0.0
     private let displayPermissionPlaceholder: Bool
     private var authorizationDisposable: Disposable?
     public var authorizationUpdated: ((AccessType) -> Void)?
@@ -2165,6 +2169,7 @@ public final class ContactListNode: ASDisplayNode {
         self.listNode.visibleContentOffsetChanged = { [weak self] offset, _ in
             if let strongSelf = self {
                 strongSelf.contentOffsetChanged?(offset)
+                strongSelf.followListWithAuthorizationNode()
             }
         }
         
@@ -2268,15 +2273,7 @@ public final class ContactListNode: ASDisplayNode {
             self.indexNode.update(size: indexNodeFrame.size, color: self.presentationData.theme.list.itemAccentColor, sections: indexSections, transition: transition)
         }
         
-        if self.multipleSelection {
-            let permissionSize = CGSize(width: layout.size.width, height: layout.size.height - 160.0)
-            var permissionInsets = insets
-            permissionInsets.bottom += 100.0
-            self.authorizationNode.updateLayout(size: permissionSize, insets: permissionInsets, transition: transition)
-        } else {
-            self.authorizationNode.updateLayout(size: layout.size, insets: insets, transition: transition)
-        }
-        transition.updateFrame(node: self.authorizationNode, frame: self.bounds)
+        self.layoutAuthorizationNode(layout: layout, insets: insets, transition: transition)
             
         if !hadValidLayout {
             self.dequeueTransitions()
@@ -2344,15 +2341,75 @@ public final class ContactListNode: ASDisplayNode {
                             strongSelf.didSetReady = true
                             strongSelf._ready.set(true)
                         }
+                        strongSelf.followListWithAuthorizationNode()
                     }
                 })
                 
                 self.listNode.isHidden = self.displayPermissionPlaceholder && (transition.isEmpty && !transition.hasOptions)
                 self.authorizationNode.isHidden = !transition.isEmpty || !self.displayPermissionPlaceholder
+                self.followListWithAuthorizationNode()
             }
         }
     }
     
+    private func layoutAuthorizationNode(layout: ContainerViewLayout, insets: UIEdgeInsets, transition: ContainedViewLayoutTransition) {
+        // ice9: below the rows rather than as if there were none. With the two
+        // invite rows (#164) the second one met the icon, and a short screen
+        // would draw it across.
+        var insets = insets
+        if let rowsBottom = self.authorizationRowsBottom {
+            insets.top = max(insets.top, rowsBottom)
+        }
+        if self.multipleSelection {
+            let permissionSize = CGSize(width: layout.size.width, height: layout.size.height - 160.0)
+            var permissionInsets = insets
+            permissionInsets.bottom += 100.0
+            self.authorizationNode.updateLayout(size: permissionSize, insets: permissionInsets, transition: transition)
+        } else {
+            self.authorizationNode.updateLayout(size: layout.size, insets: insets, transition: transition)
+        }
+        transition.updateFrame(node: self.authorizationNode, frame: self.bounds.offsetBy(dx: 0.0, dy: self.authorizationShift))
+    }
+
+    /// ice9: the permission block is a node of its own over the list, so it
+    /// stayed where it was while the rows above it were pulled down across it.
+    /// It follows them now: laid out below where they end at rest, and moved
+    /// by as much as they are pulled.
+    private func followListWithAuthorizationNode() {
+        guard case let .known(offset) = self.listNode.visibleContentOffset() else {
+            return
+        }
+        var bottom: CGFloat?
+        self.listNode.forEachItemNode { itemNode in
+            bottom = max(bottom ?? 0.0, itemNode.frame.maxY)
+        }
+        // The offset is how far the list is scrolled past rest: negative when
+        // it is pulled down, so a row now at `bottom` sits at `bottom + offset`
+        // at rest.
+        let rowsBottom = bottom.flatMap { $0 + offset }
+        self.authorizationShift = -offset
+        // Laid out again only when the rows themselves change, not on every
+        // frame of a pull whose arithmetic lands a fraction apart.
+        let moved: Bool
+        switch (rowsBottom, self.authorizationRowsBottom) {
+        case let (now?, before?):
+            moved = abs(now - before) > 0.5
+        case (nil, nil):
+            moved = false
+        default:
+            moved = true
+        }
+        if moved, let (layout, _, _) = self.validLayout {
+            self.authorizationRowsBottom = rowsBottom
+            var insets = layout.insets(options: [.input])
+            insets.left = layout.safeInsets.left
+            insets.right = layout.safeInsets.right
+            self.layoutAuthorizationNode(layout: layout, insets: insets, transition: .immediate)
+        } else {
+            self.authorizationNode.frame = self.bounds.offsetBy(dx: 0.0, dy: self.authorizationShift)
+        }
+    }
+
     public func scrollToTop() {
         self.listNode.transaction(deleteIndices: [], insertIndicesAndItems: [], updateIndicesAndItems: [], options: [.Synchronous, .LowLatency], scrollToItem: ListViewScrollToItem(index: 0, position: .top(0.0), animated: true, curve: .Default(duration: nil), directionHint: .Up), updateSizeAndInsets: nil, stationaryItemRange: nil, updateOpaqueState: nil, completion: { _ in })
     }
