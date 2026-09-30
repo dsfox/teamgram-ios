@@ -1124,6 +1124,19 @@ func multipartFetch(
     continueInBackground: Bool = false,
     useMainConnection: Bool = false
 ) -> Signal<MediaResourceDataFetchResult, MediaResourceDataFetchError> {
+    // A file from an encrypted conversation is only ever wanted opened, and it
+    // carries its own key and sizes. Taken from it here rather than trusted to
+    // every caller: the notification extension fetches any cloud file with no
+    // key and no size, and stored this one's ciphertext as the finished picture,
+    // which the app then never fetched again (#217).
+    var size = size
+    var encryptionKey = encryptionKey
+    var decryptedSize = decryptedSize
+    if let mlsResource = resource as? MlsEncryptedFileResource {
+        size = mlsResource.containerSize
+        encryptionKey = mlsResource.key
+        decryptedSize = mlsResource.decryptedSize
+    }
     if network.useExperimentalFeatures, let _ = resource as? TelegramCloudMediaResource {
         return multipartFetchV2(
             accountPeerId: accountPeerId,

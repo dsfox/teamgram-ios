@@ -69,8 +69,13 @@ public final class MlsEncryptedFileResource: TelegramMediaResource {
 
     /// Named by the document it is, not by the key it carries: the same file
     /// downloaded twice is the same file, and the key is not what identifies it.
+    ///
+    /// Renamed from "mls-file-" on 30 September. Until then the notification
+    /// extension stored the ciphertext under that name as the finished picture
+    /// (#217), and the app, finding it complete, never asked again. A new name
+    /// is what sends every phone back to the server for the real one.
     public var id: MediaResourceId {
-        return MediaResourceId("mls-file-\(self.datacenterId)-\(self.fileId)")
+        return MediaResourceId("mls-opened-\(self.datacenterId)-\(self.fileId)")
     }
 
     public func isEqual(to: MediaResource) -> Bool {

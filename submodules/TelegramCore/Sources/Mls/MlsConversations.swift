@@ -608,6 +608,9 @@ public struct MlsRepair {
 /// back, so trying would only waste the walk.
 public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peerId: PeerId) -> Signal<MlsRepair, NoError> {
     return postbox.transaction { transaction -> MlsRepair in
+        // Not a read-back, but it runs at the same moments and for the same
+        // conversations, and it is cheap when there is nothing to do.
+        let retagged = mlsRetagSentFiles(transaction: transaction, peerId: peerId)
         var unreadable: [MessageId] = []
         var examined = 0
         transaction.withAllMessages(peerId: peerId, { message in
@@ -693,9 +696,44 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
         // this waited for `repaired > 0`, "the repair never ran" and "it ran and
         // the message was not there to find" printed the same thing - nothing -
         // and telling those two apart is the whole of #144.
-        Logger.shared.log("Mls", "repair of \(peerId.id._internalGetInt64Value()): looked at \(examined) message(s), \(unreadable.count) unreadable, read back \(repaired)")
+        Logger.shared.log("Mls", "repair of \(peerId.id._internalGetInt64Value()): looked at \(examined) message(s), \(unreadable.count) unreadable, read back \(repaired), retagged \(retagged) sent file(s)")
         return MlsRepair(repaired: repaired, inTheSendersConversation: inTheSendersConversation)
     }
+}
+
+/// Puts right the tags of the files this device sent before 30 September.
+///
+/// A sent photo kept its picture when the server's copy came back, but took
+/// that copy's tags - the tags of a file, which is what the server is holding -
+/// and the gallery, which finds a message by its tags, opened on nothing: a
+/// black screen (#217). The picture was here all along; only the index was
+/// wrong. Scanned by the file tag, which every such message carries, so a
+/// conversation without files costs nothing. Only the tags that say what kind
+/// of media this is are touched.
+func mlsRetagSentFiles(transaction: Transaction, peerId: PeerId) -> Int {
+    let kinds: MessageTags = [.photoOrVideo, .photo, .video, .file, .voiceOrInstantVideo, .music, .gif]
+    var wrong: [(MessageId, MessageTags)] = []
+    transaction.scanMessages(peerId: peerId, namespace: Namespaces.Message.Cloud, tag: .file, { message in
+        if !message.flags.contains(.Incoming) {
+            let entities = (message.attributes.first(where: { $0 is TextEntitiesMessageAttribute }) as? TextEntitiesMessageAttribute)?.entities
+            let (computed, _) = tagsForStoreMessage(incoming: false, attributes: message.attributes, media: message.media, textEntities: entities, isPinned: message.tags.contains(.pinned))
+            let wanted = message.tags.subtracting(kinds).union(computed.intersection(kinds))
+            if wanted != message.tags {
+                wrong.append((message.id, wanted))
+            }
+        }
+        return true
+    })
+    for (id, tags) in wrong {
+        transaction.updateMessage(id, update: { currentMessage in
+            var storeForwardInfo: StoreMessageForwardInfo?
+            if let forwardInfo = currentMessage.forwardInfo {
+                storeForwardInfo = StoreMessageForwardInfo(authorId: forwardInfo.author?.id, sourceId: forwardInfo.source?.id, sourceMessageId: forwardInfo.sourceMessageId, date: forwardInfo.date, authorSignature: forwardInfo.authorSignature, psaType: forwardInfo.psaType, flags: forwardInfo.flags)
+            }
+            return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: currentMessage.text, attributes: currentMessage.attributes, media: currentMessage.media))
+        })
+    }
+    return wrong.count
 }
 
 /// Keeps what this device can already read.
@@ -730,14 +768,25 @@ func mlsKeepingWhatIsReadable(_ messages: [StoreMessage], transaction: Transacti
         var attributes = message.attributes.filter {
             !($0 is MlsCiphertextMessageAttribute) && !($0 is TextEntitiesMessageAttribute)
         }
-        if let entities = existing.attributes.first(where: { $0 is TextEntitiesMessageAttribute }) {
+        let entities = existing.attributes.first(where: { $0 is TextEntitiesMessageAttribute }) as? TextEntitiesMessageAttribute
+        if let entities {
             attributes.append(entities)
         }
+        // And the file. What comes back is the blob the server is holding;
+        // the real picture is the one already here, and this device is the
+        // one that made it.
+        let media = existing.media.isEmpty ? message.media : existing.media
+        // Tagged by what is kept, not by what arrived. The gallery finds a
+        // message by its tags, and a photo tagged as the blob - a file - opened
+        // a gallery with nothing in it: a black screen for the sender (#217).
+        let (tags, globalTags) = tagsForStoreMessage(
+            incoming: message.flags.contains(.Incoming), attributes: attributes, media: media,
+            textEntities: entities?.entities, isPinned: message.tags.contains(.pinned))
         result[index] = StoreMessage(
             id: message.id, customStableId: message.customStableId,
             globallyUniqueId: message.globallyUniqueId, groupingKey: message.groupingKey,
             threadId: message.threadId, timestamp: message.timestamp, flags: message.flags,
-            tags: message.tags, globalTags: message.globalTags, localTags: message.localTags,
+            tags: tags, globalTags: globalTags, localTags: message.localTags,
             // The attribution is local too: a forward into an encrypted chat
             // travels as an ordinary message, so the copy coming back from the
             // server carries none and taking it would turn somebody else's
@@ -748,10 +797,7 @@ func mlsKeepingWhatIsReadable(_ messages: [StoreMessage], transaction: Transacti
             authorId: message.authorId,
             text: existing.text,
             attributes: attributes,
-            // And the file. What comes back is the blob the server is holding;
-            // the real picture is the one already here, and this device is the
-            // one that made it.
-            media: existing.media.isEmpty ? message.media : existing.media)
+            media: media)
     }
     return result
 }
