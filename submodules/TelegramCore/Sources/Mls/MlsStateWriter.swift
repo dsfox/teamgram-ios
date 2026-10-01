@@ -85,10 +85,25 @@ final class MlsStateWriter {
             // Waited for on this queue and only on this queue, so the next
             // write cannot start before this one has landed. That ordering is
             // the entire purpose of the class.
-            _ = done.wait(timeout: .now() + 10.0)
+            //
+            // For as long as it takes. It used to give up after ten seconds and
+            // count the write as made, and a process suspended in the middle of
+            // one wakes with the ten seconds long gone: it held an old device at
+            // the generation on disk, saw nothing to read back, and its next
+            // write put the old device over the one the extension had joined a
+            // conversation in. The app then sent in the clear and could not read
+            // the other side again (#219).
+            MlsStateWriter.waitFor(done, what: "state write at generation \(next)")
             if let stored = behind {
                 Logger.shared.log("Mls", "not writing state held at generation \(self.generation) over generation \(stored.generation)")
-                self.take(stored, accountPeerId: accountPeerId)
+                // And the conversations with it. The device just taken may be
+                // in a conversation the one held was not - the extension joins
+                // them while the app sleeps - and the app coming to the front
+                // then finds nothing behind and reads nothing again, so a chat
+                // went on without the conversation it had (#219).
+                if self.take(stored, accountPeerId: accountPeerId) {
+                    let _ = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).reload().start()
+                }
             } else {
                 self.generation = next
             }
@@ -118,7 +133,7 @@ final class MlsStateWriter {
                 }).start(completed: {
                     done.signal()
                 })
-                _ = done.wait(timeout: .now() + 10.0)
+                MlsStateWriter.waitFor(done, what: "state read")
                 var changed = false
                 if let stored = stored, stored.generation > self.generation {
                     changed = self.take(stored, accountPeerId: accountPeerId)
@@ -138,6 +153,18 @@ final class MlsStateWriter {
                 subscriber.putCompletion()
             }
             return EmptyDisposable
+        }
+    }
+
+    /// Waits for a transaction on this queue for however long it takes, and
+    /// says so every ten seconds: a wait that ends on its own would let a write
+    /// that never happened count as made, and a wait that says nothing looks
+    /// exactly like a hung queue.
+    private static func waitFor(_ done: DispatchSemaphore, what: String) {
+        var waited = 0
+        while done.wait(timeout: .now() + 10.0) == .timedOut {
+            waited += 10
+            Logger.shared.log("Mls", "still waiting for the \(what) after \(waited) s")
         }
     }
 

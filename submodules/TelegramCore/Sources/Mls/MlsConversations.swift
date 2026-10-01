@@ -919,13 +919,25 @@ func joinPendingWelcomes(postbox: Postbox, network: Network, accountPeerId: Peer
                 runtime.adopt(peerId: peer, groupId: groupId)
             }
 
-            return network.request(Api.functions.mls.confirmWelcomes(ids: opened))
-            |> map { _ -> [PeerId] in joined }
-            |> `catch` { _ -> Signal<[PeerId], NoError> in
-                // The conversations are open here either way, so the messages
-                // waiting in them are worth reading back even when the server
-                // was not told.
-                return .single(joined)
+            // Confirmed only once the joining is on disk: the device that
+            // joined, through the writer, and which chat it belongs to, through
+            // the transaction adopt() queued - an empty transaction runs after
+            // it. A confirmed welcome is gone from the server, so a join that
+            // was confirmed and then lost with the extension's process could
+            // never be made again (#219).
+            return MlsStateWriter.instance(accountPeerId: accountPeerId).drained()
+            |> mapToSignal { _ -> Signal<Void, NoError> in
+                return postbox.transaction { _ -> Void in }
+            }
+            |> mapToSignal { _ -> Signal<[PeerId], NoError> in
+                return network.request(Api.functions.mls.confirmWelcomes(ids: opened))
+                |> map { _ -> [PeerId] in joined }
+                |> `catch` { _ -> Signal<[PeerId], NoError> in
+                    // The conversations are open here either way, so the
+                    // messages waiting in them are worth reading back even
+                    // when the server was not told.
+                    return .single(joined)
+                }
             }
         }).start(next: { peers in
             subscriber.putNext(peers)
