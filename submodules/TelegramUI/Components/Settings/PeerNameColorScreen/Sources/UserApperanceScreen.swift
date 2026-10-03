@@ -1363,7 +1363,9 @@ final class UserAppearanceScreenComponent: Component {
                                 },
                                 tag: addIconsTag
                             )))
-                        ],
+                        // ice9: the add-icons row (id 1) opens an empty picker while
+                        // colour icons are off (#222). See Offered.
+                        ].filter { Offered.colourIcons || $0.id != AnyHashable(1) },
                         displaySeparators: true,
                         extendsItemHighlightToSection: false
                     )),
@@ -1699,7 +1701,9 @@ final class UserAppearanceScreenComponent: Component {
                                 },
                                 tag: addIconsTag
                             )))
-                        ],
+                        // ice9: the add-icons row (id 1) opens an empty picker while
+                        // colour icons are off (#222). See Offered.
+                        ].filter { Offered.colourIcons || $0.id != AnyHashable(1) },
                         displaySeparators: true,
                         extendsItemHighlightToSection: false
                     )),

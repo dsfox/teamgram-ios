@@ -51,6 +51,10 @@ public enum Offered {
     /// A photo of one's own behind a chat. The server keeps no wallpaper. #23.
     public static let chatWallpapers = false
 
+    /// Icons behind a name or profile colour. They are custom emoji from
+    /// packs, and there are none (#20), so the picker opens empty. #222.
+    public static let colourIcons = false
+
     /// Video chats. Nothing behind them. Issue #28.
     public static let videoChats = false
 

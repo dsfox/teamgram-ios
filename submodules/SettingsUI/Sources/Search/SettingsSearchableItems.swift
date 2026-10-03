@@ -65,8 +65,15 @@ private let notOfferedSearchItems: [String: String] = {
     if !Offered.cloudThemes {
         table.merge(cloudThemeSearchItemsWhileOff) { current, _ in current }
     }
+    if !Offered.colourIcons {
+        table.merge(colourIconSearchItemsWhileOff) { current, _ in current }
+    }
     return table
 }()
+
+private let colourIconSearchItemsWhileOff: [String: String] = [
+    "profile-color/profile/add-icons": "#222", "profile-color/name/add-icons": "#222",
+]
 
 private let nameColourSearchItemsWhileOff: [String: String] = [
     "edit/your-color": "#24", "profile-color": "#24",
@@ -136,9 +143,8 @@ private let alwaysNotOfferedSearchItems: [String: String] = [
     "language/show-button": "#27", "language/translate-chats": "#27",
     "language/do-not-translate": "#27",
 
-    // A colour's icons come from emoji packs (#20), and a gift colour from
-    // gifts, neither of which is offered. The colours themselves are (#24).
-    "profile-color/profile/add-icons": "#20", "profile-color/name/add-icons": "#20",
+    // A gift colour comes from gifts, which are not offered. The colours
+    // themselves are (#24).
     "profile-color/profile/use-gift": "gifts", "profile-color/name/use-gift": "gifts",
 
     // Gifts: the catalogue is empty and nothing can be bought or sent.

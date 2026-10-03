@@ -517,7 +517,9 @@ final class PeerInfoScreenData {
         self.threadNotificationSettings = threadNotificationSettings
         self.globalNotificationSettings = globalNotificationSettings
         self._isContact = isContact
-        self.availablePanes = availablePanes
+        // ice9: stories are not offered (#224), so no profile carries their
+        // panes - every way of building the panes ends here. See Offered.
+        self.availablePanes = Offered.stories ? availablePanes : availablePanes.filter { $0 != .stories && $0 != .storyArchive }
         self.groupsInCommon = groupsInCommon
         self.linkedDiscussionPeer = linkedDiscussionPeer
         self.linkedMonoforumPeer = linkedMonoforumPeer
