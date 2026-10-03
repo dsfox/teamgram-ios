@@ -1297,6 +1297,15 @@ public final class ReactionButtonAsyncNode: ContextControllerSourceView {
             }
         }
         
+        // ice9: read aloud as what it shows, the emoji and how many, and
+        // whether it is the reader's own. VoiceOver had nothing to say about
+        // it, and the walks read the screen through the same label (#18).
+        if case let .builtin(emoji) = layout.spec.component.reaction.value {
+            self.isAccessibilityElement = true
+            self.accessibilityLabel = "\(emoji) \(layout.spec.component.count)"
+            self.accessibilityTraits = layout.spec.component.chosenOrder != nil ? [.button, .selected] : .button
+        }
+        
         self.layout = layout
     }
     

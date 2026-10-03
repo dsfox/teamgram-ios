@@ -69,9 +69,14 @@ public enum Offered {
     /// packs.
     public static let emojiAvatar = false
 
-    /// Reactions. The server keeps none, so one appears for a moment on the
-    /// phone that tapped it and is gone by the next sync.
-    public static let reactions = false
+    /// Reactions: the owner's nine emoji, one per person per message, kept by
+    /// the server and told to everybody in the conversation (#18).
+    public static let reactions = true
+
+    /// Notifications for reactions. The server tells a phone of a reaction
+    /// only while it is connected, and nothing wakes one for it, so a switch
+    /// here would promise a notification that never comes.
+    public static let reactionNotifications = false
 
     /// Sticker packs. messages.getAllStickers is answered with an empty list
     /// and installing one has no handler (#20), so every list of packs opens

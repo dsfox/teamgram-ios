@@ -55,8 +55,19 @@ private let notOfferedSearchItems: [String: String] = {
     if !Offered.calls {
         table.merge(callSearchItemsWhileCallsAreOff) { current, _ in current }
     }
+    // Reactions are offered (#18); notifications for them are not.
+    if !Offered.reactionNotifications {
+        table.merge(reactionNotificationSearchItemsWhileOff) { current, _ in current }
+    }
     return table
 }()
+
+private let reactionNotificationSearchItemsWhileOff: [String: String] = [
+    "notifications/reactions": "#18", "notifications/reactions/messages": "#18",
+    "notifications/reactions/stories": "#18",
+    "notifications/reactions/show-sender": "#18",
+    "notifications/reactions/sound": "#18",
+]
 
 private let callSearchItemsWhileCallsAreOff: [String: String] = [
     "privacy/calls": "#14", "privacy/calls/never": "#14",
@@ -94,14 +105,6 @@ private let alwaysNotOfferedSearchItems: [String: String] = [
     "notifications/stories/delete-exceptions": "#17",
     "data/auto-download/mobile/stories": "#17",
     "data/auto-download/wifi/stories": "#17",
-
-    // Reactions: the server keeps none, so one is gone by the next sync. #18.
-    "notifications/reactions": "#18", "notifications/reactions/messages": "#18",
-    "notifications/reactions/stories": "#18",
-    "notifications/reactions/show-sender": "#18",
-    "notifications/reactions/sound": "#18",
-    "appearance/stickers-and-emoji/emoji/quick-reaction": "#18",
-    "appearance/stickers-and-emoji/emoji/quick-reaction/choose": "#18",
 
     // Sticker packs: every list of them opens empty. #20.
     "appearance/stickers-and-emoji/trending": "#20",

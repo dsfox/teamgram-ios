@@ -609,10 +609,11 @@ private func notificationsAndSoundsEntries(authorizationStatus: AccessType, warn
         hasReactionNotifications = true
         reactionsValue.append(presentationData.strings.Notifications_Reactions_SubtitleStories)
     }
-    // No implementation on our server at all - not a stub with an
-    // empty answer, no handler whatsoever. A switch here promises a
-    // notification that can never arrive.
-    // entries.append(.reactions(presentationData.theme, presentationData.strings.Notifications_Reactions, reactionsValue, hasReactionNotifications ? presentationData.strings.Notifications_On : presentationData.strings.Notifications_Off))
+    // Reactions exist (#18), but nothing wakes a phone for one, so a switch
+    // here would promise a notification that never comes. See Offered.
+    if Offered.reactionNotifications {
+        entries.append(.reactions(presentationData.theme, presentationData.strings.Notifications_Reactions, reactionsValue, hasReactionNotifications ? presentationData.strings.Notifications_On : presentationData.strings.Notifications_Off))
+    }
     
     entries.append(.inAppHeader(presentationData.theme, presentationData.strings.Notifications_InAppNotifications.uppercased()))
     entries.append(.inAppSounds(presentationData.theme, presentationData.strings.Notifications_InAppNotificationsSounds, inAppSettings.playSounds))
