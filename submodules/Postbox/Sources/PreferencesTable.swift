@@ -56,6 +56,12 @@ final class PreferencesTable: Table {
     
     override func clearMemoryCache() {
         assert(self.updatedEntryKeys.isEmpty)
+        // Called when another process has committed since this one last looked
+        // (Postbox.afterBegin). Kept, the cache answered with what this process
+        // last read or wrote, for ever: the app and its notification extension
+        // each saw only their own encryption state, and each wrote over the
+        // other's (#219).
+        self.cachedEntries.removeAll()
     }
     
     override func beforeCommit() {
