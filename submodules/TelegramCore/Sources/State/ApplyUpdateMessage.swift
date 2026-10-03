@@ -246,9 +246,10 @@ func applyUpdateMessage(postbox: Postbox, stateManager: AccountStateManager, mes
             
             if let apiMessage = apiMessage, let apiMessagePeerId = apiMessage.peerId, let updatedMessage = StoreMessage(apiMessage: apiMessage, accountPeerId: accountPeerId, peerIsForum: transaction.getPeer(apiMessagePeerId)?.isForumOrMonoForum ?? false, namespace: namespace) {
                 // The file too: what comes back is the blob of ciphertext the
-                // server is holding, and the picture itself is already here.
+                // server is holding, and the picture itself is already here -
+                // kept on a resource nothing remakes (#225).
                 if updatedMessage.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }), !currentMessage.media.isEmpty {
-                    media = currentMessage.media
+                    media = mlsSteadySentMedia(currentMessage.media, mediaBox: postbox.mediaBox)
                 } else {
                     media = updatedMessage.media
                 }
@@ -641,7 +642,7 @@ func applyUpdateGroupMessages(postbox: Postbox, stateManager: AccountStateManage
                 let text: String
 
                 if updatedMessage.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }), !currentMessage.media.isEmpty {
-                    media = currentMessage.media
+                    media = mlsSteadySentMedia(currentMessage.media, mediaBox: postbox.mediaBox)
                 } else {
                     media = updatedMessage.media
                 }

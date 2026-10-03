@@ -611,6 +611,7 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
         // Not a read-back, but it runs at the same moments and for the same
         // conversations, and it is cheap when there is nothing to do.
         let retagged = mlsRetagSentFiles(transaction: transaction, peerId: peerId)
+        let steadied = mlsSteadySentFiles(transaction: transaction, mediaBox: postbox.mediaBox, peerId: peerId)
         var unreadable: [MessageId] = []
         var examined = 0
         transaction.withAllMessages(peerId: peerId, { message in
@@ -696,7 +697,7 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
         // this waited for `repaired > 0`, "the repair never ran" and "it ran and
         // the message was not there to find" printed the same thing - nothing -
         // and telling those two apart is the whole of #144.
-        Logger.shared.log("Mls", "repair of \(peerId.id._internalGetInt64Value()): looked at \(examined) message(s), \(unreadable.count) unreadable, read back \(repaired), retagged \(retagged) sent file(s)")
+        Logger.shared.log("Mls", "repair of \(peerId.id._internalGetInt64Value()): looked at \(examined) message(s), \(unreadable.count) unreadable, read back \(repaired), retagged \(retagged) and steadied \(steadied) sent file(s)")
         return MlsRepair(repaired: repaired, inTheSendersConversation: inTheSendersConversation)
     }
 }
@@ -734,6 +735,42 @@ func mlsRetagSentFiles(transaction: Transaction, peerId: PeerId) -> Int {
         })
     }
     return wrong.count
+}
+
+/// The files this device sent before #225, moved onto resources nothing
+/// remakes - see `mlsSteadySentMedia`. The newest messages only, as the
+/// read-back looks at: this runs for every conversation at startup.
+func mlsSteadySentFiles(transaction: Transaction, mediaBox: MediaBox, peerId: PeerId) -> Int {
+    var unsteady: [MessageId] = []
+    var examined = 0
+    transaction.withAllMessages(peerId: peerId, namespace: Namespaces.Message.Cloud, { message in
+        if !message.flags.contains(.Incoming), message.media.contains(where: { media in
+            (media as? TelegramMediaFile).map { mlsIsRemadeOnDemand($0.resource) } ?? false
+        }) {
+            unsteady.append(message.id)
+        }
+        examined += 1
+        return examined < 500
+    })
+    var steadied = 0
+    for id in unsteady {
+        transaction.updateMessage(id, update: { currentMessage in
+            let media = mlsSteadySentMedia(currentMessage.media, mediaBox: mediaBox)
+            let moved = zip(media, currentMessage.media).contains(where: { updated, current in
+                ((updated as? TelegramMediaFile)?.resource.id) != ((current as? TelegramMediaFile)?.resource.id)
+            })
+            if !moved {
+                return .skip
+            }
+            steadied += 1
+            var storeForwardInfo: StoreMessageForwardInfo?
+            if let forwardInfo = currentMessage.forwardInfo {
+                storeForwardInfo = StoreMessageForwardInfo(authorId: forwardInfo.author?.id, sourceId: forwardInfo.source?.id, sourceMessageId: forwardInfo.sourceMessageId, date: forwardInfo.date, authorSignature: forwardInfo.authorSignature, psaType: forwardInfo.psaType, flags: forwardInfo.flags)
+            }
+            return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: currentMessage.text, attributes: currentMessage.attributes, media: media))
+        })
+    }
+    return steadied
 }
 
 /// Keeps what this device can already read.

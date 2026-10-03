@@ -222,3 +222,42 @@ func mlsUploadedMediaContent(network: Network, postbox: Postbox, peerId: PeerId,
     }
     }
 }
+
+/// The files this device sent into an encrypted conversation, moved onto
+/// resources that are simply there.
+///
+/// The sender keeps its own copy of what it sent, since the copy coming back is
+/// ciphertext. For a video chosen from the library that copy is a reference to
+/// the library asset, made again by its converter whenever anything asks for
+/// it - and the converter begins by emptying the resource, whose complete file
+/// is the very file being rewritten. A player that opened the video meanwhile
+/// had nothing to play: it played once after the app started and then showed
+/// only its preview (#225). The bytes are copied once, here, to a local file
+/// that nothing remakes.
+func mlsSteadySentMedia(_ media: [Media], mediaBox: MediaBox) -> [Media] {
+    return media.map { item in
+        guard let file = item as? TelegramMediaFile, mlsIsRemadeOnDemand(file.resource) else {
+            return item
+        }
+        guard let source = mediaBox.completedResourcePath(file.resource), mlsFileSize(source) > 0 else {
+            Logger.shared.log("Mls", "a sent file stays on \(file.resource.id.stringRepresentation): its bytes are not here to copy")
+            return item
+        }
+        let steady = LocalFileMediaResource(fileId: Int64.random(in: Int64.min ... Int64.max), size: mlsFileSize(source))
+        mediaBox.copyResourceData(steady.id, fromTempPath: source)
+        Logger.shared.log("Mls", "a sent file moved off \(file.resource.id.stringRepresentation) onto \(steady.id.stringRepresentation)")
+        return file.withUpdatedResource(steady)
+    }
+}
+
+/// Made by a converter outside this module whenever asked - a library video,
+/// a recorded one - rather than held as it is.
+func mlsIsRemadeOnDemand(_ resource: MediaResource) -> Bool {
+    return !(resource is LocalFileMediaResource || resource is MlsEncryptedFileResource
+        || resource is SecretFileMediaResource || resource is TelegramCloudMediaResource)
+}
+
+private func mlsFileSize(_ path: String) -> Int64 {
+    return ((try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? NSNumber)?.int64Value ?? 0
+}
+
