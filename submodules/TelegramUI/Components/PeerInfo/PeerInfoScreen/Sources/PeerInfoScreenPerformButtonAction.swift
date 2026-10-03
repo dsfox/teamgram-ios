@@ -477,8 +477,7 @@ extension PeerInfoScreenNode {
                 }
                 
                 if case let .user(user) = peer {
-                    // Chat themes are not offered - the sheet the entry opens
-                    // has nothing to draw. See Offered.
+                    // Chat themes follow their switch (#23). See Offered.
                     if Offered.chatThemes && user.botInfo == nil && strongSelf.data?.encryptionKeyFingerprint == nil && !user.isDeleted {
                         items.append(.action(ContextMenuActionItem(text: presentationData.strings.UserInfo_ChangeWallpaper, icon: { theme in
                             generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/ApplyTheme"), color: theme.contextMenu.primaryColor)

@@ -427,7 +427,12 @@ private final class ThemeSettingsThemeItemIconNode : ListViewItemNode {
             let (textLayout, textApply) = makeTextLayout(TextNodeLayoutArguments(attributedString: text, backgroundColor: nil, maximumNumberOfLines: 2, truncationType: .end, constrainedSize: CGSize(width: params.width, height: CGFloat.greatestFiniteMagnitude), alignment: .center, cutout: nil, insets: UIEdgeInsets()))
             
             let emoticon: String
-            if let _ = item.chatTheme {
+            if case let .emoticon(value) = item.chatTheme, item.emojiFile == nil {
+                // ice9: drawn as text when the animated emoji set has none for
+                // it - ours offers no sticker sets, and a tile with no emoji is
+                // a colour nobody can name (#23).
+                emoticon = value
+            } else if let _ = item.chatTheme {
                 emoticon = ""
             } else {
                 emoticon = "❌"
@@ -439,6 +444,17 @@ private final class ThemeSettingsThemeItemIconNode : ListViewItemNode {
             return (itemLayout, { animated in
                 if let strongSelf = self {
                     strongSelf.item = item
+                    
+                    // ice9: read aloud as the theme it is - its emoji, or "No
+                    // theme" - and whether it is the chosen one. VoiceOver had
+                    // nothing to say, and the walks find a tile by this (#23).
+                    strongSelf.isAccessibilityElement = true
+                    if case let .emoticon(value) = item.chatTheme {
+                        strongSelf.accessibilityLabel = value
+                    } else {
+                        strongSelf.accessibilityLabel = item.strings.Conversation_Theme_NoTheme
+                    }
+                    strongSelf.accessibilityTraits = item.selected ? [.button, .selected] : .button
                         
                     if updatedThemeReference || updatedWallpaper || updatedNightMode {
                         if let themeReference = item.themeReference {
@@ -466,7 +482,10 @@ private final class ThemeSettingsThemeItemIconNode : ListViewItemNode {
                     }
                     
                     strongSelf.textNode.frame = CGRect(origin: CGPoint(x: floorToScreenPixels((90.0 - textLayout.size.width) / 2.0), y: 24.0), size: textLayout.size)
-                    strongSelf.textNode.isHidden = emoticon.isEmpty
+                    // ice9: "No Theme" is the label of the tile without a theme.
+                    // Upstream read that off an empty emoji label, which a theme
+                    // tile no longer has when its emoji is drawn as text (#23).
+                    strongSelf.textNode.isHidden = item.chatTheme != nil
                     
                     strongSelf.containerNode.transform = CATransform3DMakeRotation(CGFloat.pi / 2.0, 0.0, 0.0, 1.0)
                     strongSelf.containerNode.frame = CGRect(origin: CGPoint(x: 15.0, y: -15.0), size: CGSize(width: 90.0, height: 120.0))
@@ -1207,6 +1226,10 @@ private final class ChatThemeSheetContentComponent: Component {
         private func primaryButtonTitle(strings: PresentationStrings) -> String {
             switch self.primaryAction() {
             case .chooseWallpaper:
+                // ice9: a wallpaper of one's own is not offered (#23). See Offered.
+                if !Offered.chatWallpapers {
+                    return strings.Common_Close
+                }
                 if self.component?.canResetWallpaper == true {
                     return strings.Conversation_Theme_SetNewPhotoWallpaper
                 } else {
@@ -1437,7 +1460,11 @@ private final class ChatThemeSheetContentComponent: Component {
         private func primaryPressed() {
             switch self.primaryAction() {
             case .chooseWallpaper:
-                self.component?.changeWallpaper()
+                if Offered.chatWallpapers {
+                    self.component?.changeWallpaper()
+                } else {
+                    self.component?.cancel()
+                }
             case .resetTheme, .apply:
                 self.complete()
             }

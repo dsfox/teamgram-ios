@@ -480,12 +480,9 @@ func settingsEditingItems(data: PeerInfoScreenData?, state: PeerInfoState, conte
         }
         let colorImage = generateSettingsMenuPeerColorsLabelIcon(colors: colors)
 
-        // The colour picker opens on nothing: help.getPeerColors answers "not
-        // modified" with no palette behind it (#24). Android has hidden this
-        // row since the sweep; this client went on drawing it, which is the
-        // one thing Offered exists to prevent - the two must hide the same
-        // things or a person moving between their own phones finds a different
-        // messenger on each. See Offered.
+        // Name and profile colours follow their switch on both clients (#24):
+        // the two must offer the same things, or a person moving between
+        // their own phones finds a different messenger on each. See Offered.
         if Offered.nameColours {
         items[.info]!.append(PeerInfoScreenDisclosureItem(id: ItemPeerColor, label: .image(colorImage, colorImage.size), text: presentationData.strings.Settings_YourColor, icon: PresentationResourcesSettings.yourColor, action: {
             interaction.editingOpenNameColorSetup()

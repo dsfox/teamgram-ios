@@ -725,7 +725,7 @@ final class UserAppearanceScreenComponent: Component {
             if resolvedState.changes.isEmpty {
                 self.environment?.controller()?.dismiss()
                 return
-            } else if !component.context.isPremium {
+            } else if !component.context.isPremium && !Offered.nameColours {
                 HapticFeedback().impact(.light)
                 
                 let toastController = UndoOverlayController(
@@ -1534,6 +1534,9 @@ final class UserAppearanceScreenComponent: Component {
                     forceUpdate: forceGiftsUpdate,
                     containerSize: CGSize(width: availableSize.width - sideInset * 2.0, height: .greatestFiniteMagnitude)
                 )
+                // ice9: gifts are not offered, and the section is a way into
+                // buying them (#24). See Offered.
+                if Offered.gifts {
                 let giftsSectionFrame = CGRect(origin: CGPoint(x: sideInset, y: contentHeight), size: giftsSectionSize)
                 if let giftsSectionView = self.profileGiftsSection.view {
                     if giftsSectionView.superview == nil {
@@ -1543,6 +1546,7 @@ final class UserAppearanceScreenComponent: Component {
                 }
                 contentHeight += giftsSectionSize.height
                 contentHeight += sectionSpacing
+                }
             case .name:
                 var transition = transition
                 if self.namePreview.view == nil {
@@ -1785,6 +1789,9 @@ final class UserAppearanceScreenComponent: Component {
                     forceUpdate: forceGiftsUpdate,
                     containerSize: CGSize(width: availableSize.width - sideInset * 2.0, height: .greatestFiniteMagnitude)
                 )
+                // ice9: gifts are not offered, and the section is a way into
+                // buying them (#24). See Offered.
+                if Offered.gifts {
                 let giftsSectionFrame = CGRect(origin: CGPoint(x: sideInset, y: contentHeight), size: giftsSectionSize)
                 if let giftsSectionView = self.nameGiftsSection.view {
                     if giftsSectionView.superview == nil {
@@ -1794,6 +1801,7 @@ final class UserAppearanceScreenComponent: Component {
                 }
                 contentHeight += giftsSectionSize.height
                 contentHeight += sectionSpacing
+                }
             }
                     
             contentHeight += bottomContentInset

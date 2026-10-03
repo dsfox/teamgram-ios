@@ -39,9 +39,17 @@ public enum Offered {
     /// Chat folders. Reading returns nothing, creating has no handler. #22.
     public static let folders = false
 
-    /// Chat themes and name colours: both pickers would open empty. #23, #24.
-    public static let chatThemes = false
-    public static let nameColours = false
+    /// Chat themes - colours only, the server's list - and name and profile
+    /// colours, which save without Premium. #23, #24.
+    public static let chatThemes = true
+    public static let nameColours = true
+
+    /// Cloud themes: whole app themes shared and made as files. The server
+    /// keeps no such file. #23.
+    public static let cloudThemes = false
+
+    /// A photo of one's own behind a chat. The server keeps no wallpaper. #23.
+    public static let chatWallpapers = false
 
     /// Video chats. Nothing behind them. Issue #28.
     public static let videoChats = false

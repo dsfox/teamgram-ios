@@ -436,9 +436,11 @@ private func themeSettingsControllerEntries(
     entries.append(.chatPreview(presentationData.theme, presentationData.chatWallpaper, presentationData.chatFontSize, presentationData.chatBubbleCorners, presentationData.strings, presentationData.dateTimeFormat, presentationData.nameDisplayOrder, [ChatPreviewMessageItem(outgoing: false, reply: (authorName, presentationData.strings.Appearance_PreviewReplyText), text: presentationData.strings.Appearance_PreviewIncomingText, nameColor: nameColor, backgroundEmojiId: accountPeer?.backgroundEmojiId), ChatPreviewMessageItem(outgoing: true, reply: nil, text: presentationData.strings.Appearance_PreviewOutgoingText, nameColor: .preset(.blue), backgroundEmojiId: nil)]))
     
     entries.append(.themes(presentationData.theme, presentationData.strings, chatThemes, themeReference, presentationThemeSettings.automaticThemeSwitchSetting.force || presentationData.autoNightModeTriggered, animatedEmojiStickers, presentationThemeSettings.themeSpecificAccentColors, presentationThemeSettings.themeSpecificChatWallpapers))
-    // Chat themes and name colours come from the server, and both answer with
-    // nothing here: the pickers open empty. Tasks #23 and #24.
-    // entries.append(.chatTheme(presentationData.theme, strings.Settings_ChatThemes))
+    // Cloud themes, which this row opens, are files the server does not keep.
+    // The themes of a chat are chosen in the chat. #23. See Offered.
+    if Offered.cloudThemes {
+        entries.append(.chatTheme(presentationData.theme, strings.Settings_ChatThemes))
+    }
     entries.append(.wallpaper(presentationData.theme, strings.Settings_ChatBackground))
     
     let colors: PeerNameColors.Colors
@@ -449,7 +451,10 @@ private func themeSettingsControllerEntries(
         colors = collectibleColor.peerNameColors(dark: presentationData.theme.overallDarkAppearance)
     }
     let profileColors = profileColor.flatMap { nameColors.getProfile($0, dark: presentationData.theme.overallDarkAppearance, subject: .palette) }
-    // entries.append(.nameColor(presentationData.theme, presentationData.strings.Settings_YourColor, accountPeer?.compactDisplayTitle ?? "", colors, profileColors))
+    // #24. See Offered.
+    if Offered.nameColours {
+        entries.append(.nameColor(presentationData.theme, presentationData.strings.Settings_YourColor, accountPeer?.compactDisplayTitle ?? "", colors, profileColors))
+    }
     
     entries.append(.autoNight(presentationData.theme, strings.Appearance_NightTheme, presentationThemeSettings.automaticThemeSwitchSetting.force, !presentationData.autoNightModeTriggered || presentationThemeSettings.automaticThemeSwitchSetting.force))
     let autoNightMode: String

@@ -59,8 +59,24 @@ private let notOfferedSearchItems: [String: String] = {
     if !Offered.reactionNotifications {
         table.merge(reactionNotificationSearchItemsWhileOff) { current, _ in current }
     }
+    if !Offered.nameColours {
+        table.merge(nameColourSearchItemsWhileOff) { current, _ in current }
+    }
+    if !Offered.cloudThemes {
+        table.merge(cloudThemeSearchItemsWhileOff) { current, _ in current }
+    }
     return table
 }()
+
+private let nameColourSearchItemsWhileOff: [String: String] = [
+    "edit/your-color": "#24", "profile-color": "#24",
+    "profile-color/profile": "#24", "profile-color/name": "#24",
+]
+
+private let cloudThemeSearchItemsWhileOff: [String: String] = [
+    "appearance/themes": "#23", "appearance/themes/edit": "#23",
+    "appearance/themes/create": "#23",
+]
 
 private let reactionNotificationSearchItemsWhileOff: [String: String] = [
     "notifications/reactions": "#18", "notifications/reactions/messages": "#18",
@@ -120,11 +136,10 @@ private let alwaysNotOfferedSearchItems: [String: String] = [
     "language/show-button": "#27", "language/translate-chats": "#27",
     "language/do-not-translate": "#27",
 
-    // Name colours: the picker would open empty. #24.
-    "edit/your-color": "#24", "profile-color": "#24",
-    "profile-color/profile": "#24", "profile-color/profile/add-icons": "#24",
-    "profile-color/profile/use-gift": "#24", "profile-color/name": "#24",
-    "profile-color/name/add-icons": "#24", "profile-color/name/use-gift": "#24",
+    // A colour's icons come from emoji packs (#20), and a gift colour from
+    // gifts, neither of which is offered. The colours themselves are (#24).
+    "profile-color/profile/add-icons": "#20", "profile-color/name/add-icons": "#20",
+    "profile-color/profile/use-gift": "gifts", "profile-color/name/use-gift": "gifts",
 
     // Gifts: the catalogue is empty and nothing can be bought or sent.
     "my-profile/gifts": "gifts", "privacy/gifts": "gifts",
