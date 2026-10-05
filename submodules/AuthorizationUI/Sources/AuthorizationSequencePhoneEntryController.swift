@@ -144,7 +144,9 @@ public final class AuthorizationSequencePhoneEntryController: ViewController, MF
     
     override public func loadDisplayNode() {
         self.displayNode = AuthorizationSequencePhoneEntryControllerNode(sharedContext: self.sharedContext, account: self.account, strings: self.presentationData.strings, theme: self.presentationData.theme, debugAction: { [weak self] in
-            guard let strongSelf = self else {
+            // ice9: ten taps on the title opened the debug menu before sign-in,
+            // in a store build too (2.3.1(a), #181).
+            guard let strongSelf = self, !GlobalExperimentalSettings.isAppStoreBuild else {
                 return
             }
             strongSelf.view.endEditing(true)

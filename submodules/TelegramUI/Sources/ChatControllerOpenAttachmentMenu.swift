@@ -373,7 +373,10 @@ extension ChatControllerImpl {
                 if !premiumGiftOptions.isEmpty {
                     buttons.insert(.gift, at: 1)
                 }
-                buttons.insert(.richText, at: 1)   // rich text is default-on (legacy is the opt-out)
+                // ice9: an article goes nowhere - the server blocks it (#181). See Offered.
+                if Offered.articles {
+                    buttons.insert(.richText, at: 1)   // rich text is default-on (legacy is the opt-out)
+                }
                 
                 guard let initialButton = initialButton else {
                     if case let .bot(botId, botPayload, botJustInstalled) = subject {

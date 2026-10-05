@@ -231,7 +231,9 @@ public final class TelegramRootController: NavigationController, TelegramRootCon
         
         let accountSettingsController = PeerInfoScreenImpl(context: self.context, updatedPresentationData: nil, peerId: self.context.account.peerId, avatarInitiallyExpanded: false, isOpenedFromChat: false, reactionSourceMessageId: nil, callMessages: [], isSettings: true)
         accountSettingsController.tabBarItemDebugTapAction = { [weak self] in
-            guard let strongSelf = self else {
+            // ice9: ten taps on the Settings tab opened the debug menu in a
+            // store build too - a hidden feature to App Review (2.3.1(a), #181).
+            guard let strongSelf = self, !GlobalExperimentalSettings.isAppStoreBuild else {
                 return
             }
             strongSelf.pushViewController(debugController(sharedContext: strongSelf.context.sharedContext, context: strongSelf.context))

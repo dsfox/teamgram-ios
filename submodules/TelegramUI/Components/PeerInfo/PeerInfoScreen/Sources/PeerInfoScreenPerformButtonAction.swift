@@ -550,7 +550,9 @@ extension PeerInfoScreenNode {
                         }
                     }
                     
-                    if strongSelf.peerId.namespace == Namespaces.Peer.CloudUser && user.botInfo == nil && !user.flags.contains(.isSupport) {
+                    // ice9: Telegram's secret chats have no server here, and every
+                    // chat is already end-to-end encrypted (#181). See Offered.
+                    if Offered.secretChats && strongSelf.peerId.namespace == Namespaces.Peer.CloudUser && user.botInfo == nil && !user.flags.contains(.isSupport) {
                         if let cachedUserData = strongSelf.data?.cachedData as? CachedUserData, let _ = cachedUserData.sendPaidMessageStars {
                             
                         } else {

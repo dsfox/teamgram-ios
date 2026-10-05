@@ -61,6 +61,31 @@ private func defaultNavigationForPeerId(_ peerId: PeerId?, navigation: ChatContr
     }
 }
 
+private func ice9OffersWhatTheLinkOpens(_ resolvedUrl: ResolvedUrl) -> Bool {
+    switch resolvedUrl {
+    case .premiumOffer, .premiumMultiGift, .starsTopup, .stars, .ton, .invoice, .textStyle:
+        return false
+    case .story, .shareStory, .storyFolder:
+        return Offered.stories
+    case .boost, .compose(.channel):
+        return Offered.channels
+    case .premiumGiftCode, .auction, .giftCollection, .sendGift:
+        return Offered.gifts
+    case .botStart, .groupBotStart, .gameStart, .startAttach, .createBot:
+        return Offered.bots
+    case .stickerPack, .importStickers:
+        return Offered.stickerPacks
+    case .chatFolder:
+        return Offered.folders
+    case .joinVoiceChat, .joinCall:
+        return Offered.videoChats
+    case .settings(.legacy(.enableLog)):
+        return !GlobalExperimentalSettings.isAppStoreBuild
+    default:
+        return true
+    }
+}
+
 func openResolvedUrlImpl(
     _ resolvedUrl: ResolvedUrl,
     context: AccountContext,
@@ -87,6 +112,13 @@ func openResolvedUrlImpl(
         updatedPresentationData = nil
     }
     let presentationData = updatedPresentationData?.initial ?? context.sharedContext.currentPresentationData.with { $0 }
+    // ice9: a link is a way in like any other, and these led to what nothing
+    // on screen offers - App Review rejected 12.9.2 under 2.3.1(a), hidden
+    // features (5 October). See Offered.
+    if !ice9OffersWhatTheLinkOpens(resolvedUrl) {
+        completion?()
+        return
+    }
     switch resolvedUrl {
         case let .externalUrl(url):
             context.sharedContext.openExternalUrl(context: context, urlContext: urlContext, url: url, forceExternal: forceExternal, presentationData: context.sharedContext.currentPresentationData.with { $0 }, navigationController: navigationController, dismissInput: dismissInput)

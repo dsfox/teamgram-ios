@@ -8,6 +8,7 @@ import ItemListUI
 import PresentationDataUtils
 import AccountContext
 import AlertUI
+import DebugSettingsUI
 
 /// The wording for the server row and the screen behind it (ice9 #65).
 ///
@@ -49,19 +50,36 @@ func serverSettingsConfirmAction(_ strings: PresentationStrings) -> String {
     return serverSettingsIsRussian(strings) ? "Сменить и выйти" : "Change and sign out"
 }
 
+func serverSettingsSendLogs(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings) ? "Отправить журнал приложения" : "Send app logs"
+}
+
+/// The one way to the app's own log, said where it is: App Review rejected
+/// 12.9.2 under 2.3.1(a) for hidden features (#181), and the debug menu that
+/// used to send it was reached by ten taps on a tab.
+func serverSettingsSendLogsInfo(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings)
+        ? "Журнал работы приложения на этом телефоне — для того, кто помогает разобраться с проблемой. Он уходит файлом в чат, который вы выберете, и никуда больше. Если журнал не вёлся, он включится с этого нажатия."
+        : "The app's own record of its work on this phone, for whoever is helping you with a problem. It goes as a file to the chat you pick, and nowhere else. If the app was not keeping one, it starts with this tap."
+}
+
 private struct ServerSettingsArguments {
     let change: () -> Void
+    let sendLogs: () -> Void
 }
 
 private enum ServerSettingsSection: Int32 {
     case current
     case change
+    case logs
 }
 
 private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
     case current(PresentationTheme, String)
     case change(PresentationTheme, String)
     case changeInfo(PresentationTheme, String)
+    case sendLogs(PresentationTheme, String)
+    case sendLogsInfo(PresentationTheme, String)
 
     var section: ItemListSectionId {
         switch self {
@@ -69,6 +87,8 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
             return ServerSettingsSection.current.rawValue
         case .change, .changeInfo:
             return ServerSettingsSection.change.rawValue
+        case .sendLogs, .sendLogsInfo:
+            return ServerSettingsSection.logs.rawValue
         }
     }
 
@@ -80,6 +100,10 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
             return 2
         case .changeInfo:
             return 3
+        case .sendLogs:
+            return 4
+        case .sendLogsInfo:
+            return 5
         }
     }
 
@@ -102,6 +126,12 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
             })
         case let .changeInfo(_, text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+        case let .sendLogs(_, title):
+            return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: title, kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
+                arguments.sendLogs()
+            })
+        case let .sendLogsInfo(_, text):
+            return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         }
     }
 }
@@ -111,6 +141,8 @@ private func serverSettingsEntries(presentationData: PresentationData, address: 
         .current(presentationData.theme, address.described),
         .change(presentationData.theme, serverSettingsChange(presentationData.strings)),
         .changeInfo(presentationData.theme, serverSettingsChangeInfo(presentationData.strings)),
+        .sendLogs(presentationData.theme, serverSettingsSendLogs(presentationData.strings)),
+        .sendLogsInfo(presentationData.theme, serverSettingsSendLogsInfo(presentationData.strings)),
     ]
 }
 
@@ -124,6 +156,7 @@ private func serverSettingsEntries(presentationData: PresentationData, address: 
 /// feature exists to prevent.
 public func serverSettingsController(context: AccountContext) -> ViewController {
     var presentControllerImpl: ((ViewController, Any?) -> Void)?
+    var pushControllerImpl: ((ViewController) -> Void)?
     var dismissImpl: (() -> Void)?
 
     let store = ServerAddressStore(rootPath: context.sharedContext.basePath)
@@ -144,6 +177,13 @@ public func serverSettingsController(context: AccountContext) -> ViewController 
                 dismissImpl?()
             })
         ]), nil)
+    }, sendLogs: {
+        let _ = updateLoggingSettings(accountManager: context.sharedContext.accountManager, {
+            $0.withUpdatedLogToFile(true)
+        }).startStandalone()
+        triggerDebugSendLogsUI(context: context, pushController: { controller in
+            pushControllerImpl?(controller)
+        })
     })
 
     let signal = context.sharedContext.presentationData
@@ -156,6 +196,9 @@ public func serverSettingsController(context: AccountContext) -> ViewController 
     let controller = ItemListController(context: context, state: signal)
     presentControllerImpl = { [weak controller] c, a in
         controller?.present(c, in: .window(.root), with: a)
+    }
+    pushControllerImpl = { [weak controller] c in
+        controller?.push(c)
     }
     dismissImpl = { [weak controller] in
         controller?.dismiss()

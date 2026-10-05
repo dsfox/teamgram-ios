@@ -117,7 +117,8 @@ func contactContextMenuItems(context: AccountContext, peerId: EnginePeer.Id, con
             })
         })))
         
-        var canStartSecretChat = true
+        // ice9: Telegram's secret chats have no server here (#181). See Offered.
+        var canStartSecretChat = Offered.secretChats
         if case let .user(user) = peer, user.flags.contains(.isSupport) {
             canStartSecretChat = false
         }

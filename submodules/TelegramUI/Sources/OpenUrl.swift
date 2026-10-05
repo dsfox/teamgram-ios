@@ -866,6 +866,11 @@ func openExternalUrlImpl(context: AccountContext, urlContext: OpenURLContext, ur
                 case "premium_offer":
                     handleResolvedUrl(.premiumOffer(reference: nil))
                 case "restore_purchases":
+                    // ice9: there is nothing to restore - no purchases - and with
+                    // no purchase manager the spinner below never went away.
+                    guard context.inAppPurchaseManager != nil else {
+                        break
+                    }
                     let statusController = OverlayStatusController(theme: presentationData.theme, type: .loading(cancelled: nil))
                     context.sharedContext.presentGlobalController(statusController, nil)
                     

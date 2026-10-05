@@ -51,6 +51,17 @@ public enum Offered {
     /// A photo of one's own behind a chat. The server keeps no wallpaper. #23.
     public static let chatWallpapers = false
 
+    /// "Article" in the attachment menu: Telegram's rich-text composer. The
+    /// server blocks messages.getRichMessage, so an article goes nowhere, and
+    /// App Review counts a way into nothing as a hidden feature (2.3.1(a),
+    /// 5 October; #181).
+    public static let articles = false
+
+    /// Telegram's own secret chats ("Start Secret Chat" on a profile). The
+    /// server has no messages.requestEncryption; every chat here is already
+    /// end-to-end encrypted with MLS. #181.
+    public static let secretChats = false
+
     /// Icons behind a name or profile colour. They are custom emoji from
     /// packs, and there are none (#20), so the picker opens empty. #222.
     public static let colourIcons = false
