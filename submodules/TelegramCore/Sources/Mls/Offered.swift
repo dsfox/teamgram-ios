@@ -62,6 +62,11 @@ public enum Offered {
     /// end-to-end encrypted with MLS. #181.
     public static let secretChats = false
 
+    /// The AI button in the message field and in captions. Nothing on this
+    /// server answers it; the server's ios_disable_ai_chat hides it as well,
+    /// and this holds even against a server that does not say so. #227.
+    public static let aiEditor = false
+
     /// Icons behind a name or profile colour. They are custom emoji from
     /// packs, and there are none (#20), so the picker opens empty. #222.
     public static let colourIcons = false

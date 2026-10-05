@@ -944,7 +944,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         }
         self.textInputPanelNode?.formulaRenderer = chatInputFormulaRenderResult
         if let data = self.context.currentAppConfiguration.with({ $0 }).data, let value = data["ios_disable_ai_chat"] as? Double, value == 1.0 {
-        } else if let peerId = self.chatPresentationInterfaceState.chatLocation.peerId, peerId.namespace != Namespaces.Peer.SecretChat {
+        } else if Offered.aiEditor, let peerId = self.chatPresentationInterfaceState.chatLocation.peerId, peerId.namespace != Namespaces.Peer.SecretChat {
             self.textInputPanelNode?.isAIEnabled = true
         }
         self.textInputPanelNode?.textInputAccessoryPanel = textInputAccessoryPanel

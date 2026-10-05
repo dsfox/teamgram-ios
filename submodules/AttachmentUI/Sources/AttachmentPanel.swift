@@ -2252,7 +2252,7 @@ final class AttachmentPanel: ASDisplayNode, ASScrollViewDelegate, ASGestureRecog
                 return self?.getNavigationController()
             })
             if let data = self.context.currentAppConfiguration.with({ $0 }).data, let value = data["ios_disable_ai_chat"] as? Double, value == 1.0 {
-            } else if let peerId = self.presentationInterfaceState.chatLocation.peerId, peerId.namespace != Namespaces.Peer.SecretChat {
+            } else if Offered.aiEditor, let peerId = self.presentationInterfaceState.chatLocation.peerId, peerId.namespace != Namespaces.Peer.SecretChat {
                 textInputPanelNode.isAIEnabled = true
             }
             textInputPanelNode.interfaceInteraction = self.interfaceInteraction
