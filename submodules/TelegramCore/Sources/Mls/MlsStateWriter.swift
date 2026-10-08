@@ -37,14 +37,98 @@ final class MlsStateWriter {
 
     private let queue = Queue(name: "org.ice9.mls.state", qos: .default)
     /// The generation of the blob the identity this process holds was read
-    /// from or last written as. Touched on the queue only.
-    private var generation: Int64 = 0
+    /// from or last written as. Written on the queue, and by `writeNow` from
+    /// inside a sending transaction, so it is behind a lock of its own.
+    private var heldGeneration: Int64 = 0
+    private let generationLock = NSLock()
+    private var generation: Int64 {
+        get {
+            self.generationLock.lock()
+            defer { self.generationLock.unlock() }
+            return self.heldGeneration
+        }
+        set {
+            self.generationLock.lock()
+            self.heldGeneration = newValue
+            self.generationLock.unlock()
+        }
+    }
+
+    /// Each snapshot is numbered as it is handed in, which is the order it was
+    /// exported in: the queue keeps that order among its own writes, and
+    /// `writeNow` does not wait for the queue. A snapshot the queue still held
+    /// when a send wrote its own would otherwise land after it, one generation
+    /// up, and put back the key the send had just spent.
+    private var handedIn: UInt64 = 0
+    private var newestSaved: UInt64 = 0
+    private let numberLock = NSLock()
+
+    private func handIn() -> UInt64 {
+        self.numberLock.lock()
+        defer { self.numberLock.unlock() }
+        self.handedIn += 1
+        return self.handedIn
+    }
+
+    /// The one place the blob is saved, inside the caller's transaction, and
+    /// only when nothing handed in after it has been saved already. Answers
+    /// whether it saved.
+    private func save(transaction: Transaction, state: Data, number: UInt64, generation: Int64) -> Bool {
+        self.numberLock.lock()
+        defer { self.numberLock.unlock() }
+        if number < self.newestSaved {
+            return false
+        }
+        MlsDeviceState.save(transaction: transaction, state: state, generation: generation)
+        self.newestSaved = number
+        return true
+    }
 
     /// Told by whoever read the blob off disk which generation it was.
     func loaded(generation: Int64) {
         self.queue.async {
             self.generation = generation
             Logger.shared.log("Mls", "state loaded at generation \(generation)")
+        }
+    }
+
+    /// Sending, as one step no other process can come between.
+    ///
+    /// A message is encrypted inside the transaction it is sent in, and a
+    /// write transaction is SQLite's to give to one process at a time - the
+    /// app, the notification extension, the share extension. So the device is
+    /// read back here if another process moved it since this one read it, and
+    /// written back here, in the same transaction, once the ratchet has moved:
+    /// two processes can then never send with the same key. Writing through
+    /// the queue instead lands after the message has gone, and a process whose
+    /// copy was stale would already have spent a key the other had spent too.
+    ///
+    /// Answers whether the device was read back, so the caller can read the
+    /// conversations again as well.
+    @discardableResult
+    func takeIfBehind(transaction: Transaction, accountPeerId: PeerId) -> Bool {
+        guard MlsIdentityRegistry.shared.existing(for: accountPeerId) != nil,
+              let stored = MlsDeviceState.load(transaction: transaction),
+              stored.generation > self.generation else {
+            return false
+        }
+        return self.take(stored, accountPeerId: accountPeerId)
+    }
+
+    /// Writes the state in the transaction the caller holds. See
+    /// `takeIfBehind`: the generation on disk is the one counted from, read in
+    /// this same transaction.
+    func writeNow(transaction: Transaction, state: Data, from identity: MlsIdentity, accountPeerId: PeerId) {
+        let number = self.handIn()
+        guard MlsIdentityRegistry.shared.existing(for: accountPeerId) === identity else {
+            Logger.shared.log("Mls", "not writing state exported from a device since replaced")
+            return
+        }
+        let next = max(self.generation, MlsDeviceState.load(transaction: transaction)?.generation ?? 0) + 1
+        if self.save(transaction: transaction, state: state, number: number, generation: next) {
+            self.generation = next
+        } else {
+            Logger.shared.log("Mls", "not writing state older than the state already written")
         }
     }
 
@@ -65,6 +149,7 @@ final class MlsStateWriter {
     /// the old one is kept only where it already landed: a message it opened
     /// is text in the database by now.
     func write(postbox: Postbox, state: Data, from identity: MlsIdentity, accountPeerId: PeerId) {
+        let number = self.handIn()
         self.queue.async {
             guard MlsIdentityRegistry.shared.existing(for: accountPeerId) === identity else {
                 Logger.shared.log("Mls", "not writing state exported from a device since replaced")
@@ -73,12 +158,13 @@ final class MlsStateWriter {
             let next = self.generation + 1
             let done = DispatchSemaphore(value: 0)
             var behind: MlsDeviceState?
+            var saved = false
             let _ = (postbox.transaction { transaction -> Void in
                 if let stored = MlsDeviceState.load(transaction: transaction), stored.generation >= next {
                     behind = stored
                     return
                 }
-                MlsDeviceState.save(transaction: transaction, state: state, generation: next)
+                saved = self.save(transaction: transaction, state: state, number: number, generation: next)
             }).start(completed: {
                 done.signal()
             })
@@ -104,8 +190,10 @@ final class MlsStateWriter {
                 if self.take(stored, accountPeerId: accountPeerId) {
                     let _ = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).reload().start()
                 }
-            } else {
+            } else if saved {
                 self.generation = next
+            } else {
+                Logger.shared.log("Mls", "not writing state older than the state already written")
             }
         }
     }
@@ -168,7 +256,8 @@ final class MlsStateWriter {
         }
     }
 
-    /// Puts what is on disk in place of what is held. On the queue.
+    /// Puts what is on disk in place of what is held. On the queue, or inside
+    /// a sending transaction (`takeIfBehind`).
     @discardableResult
     private func take(_ stored: MlsDeviceState, accountPeerId: PeerId) -> Bool {
         guard let identity = try? MlsIdentity.open(state: stored.state) else {

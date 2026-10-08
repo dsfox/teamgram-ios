@@ -235,6 +235,8 @@ public final class PendingMessageManager {
     
     private var messageContexts: [MessageId: PendingMessageContext] = [:]
     private var pendingMessageIds = Set<MessageId>()
+    private var unsentMessageIds = Set<MessageId>()
+    private var ownMessageIds = Set<MessageId>()
     private var liveTypingDraftKeys: Set<PeerAndThreadId> = []
     private let allTypingDraftsDisposable = MetaDisposable()
     private var forwardSendGateGroups: [PeerAndThreadId: [[(PendingMessageContext, Message, ForwardSourceInfoAttribute)]]] = [:]
@@ -406,10 +408,15 @@ public final class PendingMessageManager {
         self._pendingMediaUploads.set(pendingMediaUploads)
     }
     
-    func updatePendingMessageIds(_ messageIds: Set<MessageId>) {
-        Logger.shared.log("PendingMessageManager", "update on postboxQueue: \(messageIds)")
+    func updatePendingMessageIds(_ allMessageIds: Set<MessageId>) {
+        Logger.shared.log("PendingMessageManager", "update on postboxQueue: \(allMessageIds)")
 
         self.queue.async {
+            self.unsentMessageIds = allMessageIds
+            // ice9: every process that holds the account sees the same unsent
+            // messages, and the share extension would send the app's whole
+            // queue beside its own. An extension sends what it enqueued (#230).
+            let messageIds = MlsRuntime.inAnExtension ? allMessageIds.intersection(self.ownMessageIds) : allMessageIds
             Logger.shared.log("PendingMessageManager", "update: \(messageIds)")
             
             let addedMessageIds = messageIds.subtracting(self.pendingMessageIds)
@@ -533,6 +540,15 @@ public final class PendingMessageManager {
         }
     }
     
+    /// What an extension may send: the messages it enqueued itself (#230).
+    /// Ignored in the app, which sends everything unsent.
+    public func sendOwn(_ messageIds: [MessageId]) {
+        self.queue.async {
+            self.ownMessageIds.formUnion(messageIds)
+            self.updatePendingMessageIds(self.unsentMessageIds)
+        }
+    }
+
     public func pendingMessageStatus(_ id: MessageId) -> Signal<(PendingMessageStatus?, PendingMessageFailureReason?), NoError> {
         return Signal { subscriber in
             let disposable = MetaDisposable()
@@ -1404,9 +1420,12 @@ public final class PendingMessageManager {
                                     // a picture message the server could read.
                                     var outgoingText = text
                                     if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                                        .encrypt(peerId: message.id.peerId, text: text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message), media: content.mlsMedia) {
+                                        .encrypt(peerId: message.id.peerId, text: text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message), media: content.mlsMedia, transaction: transaction) {
                                         outgoingText = ciphertext
                                         messageEntities = nil
+                                    } else if MlsRuntime.inAnExtension {
+                                        // An extension sends nothing in the clear (#230).
+                                        return failMessages(postbox: postbox, ids: group.map { $0.0 })
                                     }
 
                                     var singleFlags: Int32 = 0
@@ -1973,7 +1992,7 @@ public final class PendingMessageManager {
                         // rather than stopping.
                         var outgoingText = message.text
                         if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                            .encrypt(peerId: messageId.peerId, text: message.text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message)) {
+                            .encrypt(peerId: messageId.peerId, text: message.text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message), transaction: transaction) {
                             outgoingText = ciphertext
                             // Bold, links, mentions are offsets into the text,
                             // so they went inside the ciphertext with it. What
@@ -1981,6 +2000,9 @@ public final class PendingMessageManager {
                             // other side reads back.
                             messageEntities = nil
                             flags &= ~Int32(1 << 3)
+                        } else if MlsRuntime.inAnExtension {
+                            // An extension sends nothing in the clear (#230).
+                            return failMessages(postbox: postbox, ids: [messageId])
                         }
                         sendMessageRequest = network.requestWithAdditionalInfo(Api.functions.messages.sendMessage(flags: flags, peer: inputPeer, replyTo: replyTo, message: outgoingText, randomId: uniqueId, replyMarkup: nil, entities: messageEntities, scheduleDate: scheduleTime, scheduleRepeatPeriod: scheduleRepeatPeriod, sendAs: sendAsInputPeer, quickReplyShortcut: quickReplyShortcut, effect: messageEffectId, allowPaidStars: allowPaidStars, suggestedPost: suggestedPost, richMessage: apiRichMessage), info: .acknowledgement, tag: dependencyTag)
                     case let .media(inputMedia, text):
@@ -2096,10 +2118,15 @@ public final class PendingMessageManager {
                         // what somebody wrote under it now is.
                         var outgoingText = text
                         if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                            .encrypt(peerId: messageId.peerId, text: text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message), media: content.mlsMedia) {
+                            .encrypt(peerId: messageId.peerId, text: text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message), media: content.mlsMedia, transaction: transaction) {
                             outgoingText = ciphertext
                             messageEntities = nil
                             flags &= ~Int32(1 << 3)
+                        } else if MlsRuntime.inAnExtension {
+                            // An extension sends nothing in the clear, the
+                            // picture included: a file whose key is not inside
+                            // a ciphertext went up readable (#230).
+                            return failMessages(postbox: postbox, ids: [messageId])
                         }
                         sendMessageRequest = network.request(Api.functions.messages.sendMedia(flags: flags, peer: inputPeer, replyTo: replyTo, media: inputMedia, message: outgoingText, randomId: uniqueId, replyMarkup: nil, entities: messageEntities, scheduleDate: scheduleTime, scheduleRepeatPeriod: scheduleRepeatPeriod, sendAs: sendAsInputPeer, quickReplyShortcut: quickReplyShortcut, effect: messageEffectId, allowPaidStars: allowPaidStars, suggestedPost: suggestedPost), tag: dependencyTag)
                         |> map(NetworkRequestResult.result)

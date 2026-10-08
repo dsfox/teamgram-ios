@@ -50,12 +50,56 @@ public enum PreparedShareItemError {
     case fileTooBig(Int64)
 }
 
+// ice9: nothing is uploaded here (#230). Upstream's standalone uploads put the
+// file on the server as it is - readable - before anything else happened. What
+// is shared is kept as a local file instead, and the app's own sending path
+// uploads it encrypted, the way it uploads a photo picked in a chat.
+private func localUploadedImage(postbox: Postbox, network: Network, peerId: PeerId, text: String, source: MultipartUploadSource, thumbnailData: Data? = nil, dimensions: PixelDimensions) -> Signal<StandaloneUploadMediaEvent, StandaloneUploadMediaError> {
+    guard let (resource, _) = localSharedResource(postbox: postbox, source: source) else {
+        return .fail(.generic)
+    }
+    let image = TelegramMediaImage(imageId: MediaId(namespace: Namespaces.Media.LocalImage, id: Int64.random(in: Int64.min ... Int64.max)), representations: [TelegramMediaImageRepresentation(dimensions: dimensions, resource: resource, progressiveSizes: [], immediateThumbnailData: nil, hasVideo: false, isPersonal: false)], immediateThumbnailData: nil, reference: nil, partialReference: nil, flags: [])
+    return .single(.result(.media(.standalone(media: image))))
+}
+
+private func localUploadedFile(postbox: Postbox, network: Network, peerId: PeerId, text: String, source: MultipartUploadSource, thumbnailData: Data? = nil, mimeType: String, attributes: [TelegramMediaFileAttribute], hintFileIsLarge: Bool) -> Signal<StandaloneUploadMediaEvent, StandaloneUploadMediaError> {
+    guard let (resource, size) = localSharedResource(postbox: postbox, source: source) else {
+        return .fail(.generic)
+    }
+    var previews: [TelegramMediaImageRepresentation] = []
+    if let thumbnailData = thumbnailData, let thumbnail = UIImage(data: thumbnailData) {
+        let thumbnailResource = LocalFileMediaResource(fileId: Int64.random(in: Int64.min ... Int64.max), size: Int64(thumbnailData.count))
+        postbox.mediaBox.storeResourceData(thumbnailResource.id, data: thumbnailData, synchronous: true)
+        previews.append(TelegramMediaImageRepresentation(dimensions: PixelDimensions(width: Int32(thumbnail.size.width * thumbnail.scale), height: Int32(thumbnail.size.height * thumbnail.scale)), resource: thumbnailResource, progressiveSizes: [], immediateThumbnailData: nil, hasVideo: false, isPersonal: false))
+    }
+    let file = TelegramMediaFile(fileId: MediaId(namespace: Namespaces.Media.LocalFile, id: Int64.random(in: Int64.min ... Int64.max)), partialReference: nil, resource: resource, previewRepresentations: previews, videoThumbnails: [], immediateThumbnailData: nil, mimeType: mimeType, size: size, attributes: attributes, alternativeRepresentations: [])
+    return .single(.result(.media(.standalone(media: file))))
+}
+
+/// The bytes put into this account's media box, or the resource already made
+/// for them (a video still to be converted keeps its own).
+private func localSharedResource(postbox: Postbox, source: MultipartUploadSource) -> (TelegramMediaResource, Int64?)? {
+    switch source {
+    case let .data(data):
+        let resource = LocalFileMediaResource(fileId: Int64.random(in: Int64.min ... Int64.max), size: Int64(data.count))
+        postbox.mediaBox.storeResourceData(resource.id, data: data, synchronous: true)
+        return (resource, Int64(data.count))
+    case let .resource(reference):
+        guard let resource = reference.resource as? TelegramMediaResource else {
+            return nil
+        }
+        return (resource, nil)
+    default:
+        return nil
+    }
+}
+
 private func preparedShareItem(postbox: Postbox, network: Network, to peerId: PeerId, value: [String: Any]) -> Signal<PreparedShareItem, PreparedShareItemError> {
     if let imageData = value["scaledImageData"] as? Data, let dimensions = value["scaledImageDimensions"] as? NSValue {
         let diminsionsSize = dimensions.cgSizeValue
         return .single(.preparing(false))
         |> then(
-            standaloneUploadedImage(postbox: postbox, network: network, peerId: peerId, text: "", source: .data(imageData), dimensions: PixelDimensions(width: Int32(diminsionsSize.width), height: Int32(diminsionsSize.height)))
+            localUploadedImage(postbox: postbox, network: network, peerId: peerId, text: "", source: .data(imageData), dimensions: PixelDimensions(width: Int32(diminsionsSize.width), height: Int32(diminsionsSize.height)))
             |> mapError { _ -> PreparedShareItemError in
                 return .generic
             }
@@ -74,7 +118,7 @@ private func preparedShareItem(postbox: Postbox, network: Network, to peerId: Pe
         if let scaledImage = scalePhotoImage(image, dimensions: dimensions), let imageData = scaledImage.jpegData(compressionQuality: 0.52) {
             return .single(.preparing(false))
             |> then(
-                standaloneUploadedImage(postbox: postbox, network: network, peerId: peerId, text: "", source: .data(imageData), dimensions: PixelDimensions(width: Int32(dimensions.width), height: Int32(dimensions.height)))
+                localUploadedImage(postbox: postbox, network: network, peerId: peerId, text: "", source: .data(imageData), dimensions: PixelDimensions(width: Int32(dimensions.width), height: Int32(dimensions.height)))
                 |> mapError { _ -> PreparedShareItemError in
                     return .generic
                 }
@@ -167,7 +211,7 @@ private func preparedShareItem(postbox: Postbox, network: Network, to peerId: Pe
                     let thumbnailData = thumbnail?.jpegData(compressionQuality: 0.6)
                     
                     let resource = LocalFileVideoMediaResource(randomId: Int64.random(in: Int64.min ... Int64.max), path: asset.url.path, adjustments: resourceAdjustments)
-                    return standaloneUploadedFile(postbox: postbox, network: network, peerId: peerId, text: "", source: .resource(.standalone(resource: resource)), thumbnailData: thumbnailData, mimeType: "video/mp4", attributes: [.Video(duration: finalDuration, size: PixelDimensions(width: Int32(finalDimensions.width), height: Int32(finalDimensions.height)), flags: flags, preloadSize: nil, coverTime: 0.0, videoCodec: nil)], hintFileIsLarge: estimatedSize > 10 * 1024 * 1024)
+                    return localUploadedFile(postbox: postbox, network: network, peerId: peerId, text: "", source: .resource(.standalone(resource: resource)), thumbnailData: thumbnailData, mimeType: "video/mp4", attributes: [.Video(duration: finalDuration, size: PixelDimensions(width: Int32(finalDimensions.width), height: Int32(finalDimensions.height)), flags: flags, preloadSize: nil, coverTime: 0.0, videoCodec: nil)], hintFileIsLarge: estimatedSize > 10 * 1024 * 1024)
                     |> mapError { _ -> PreparedShareItemError in
                         return .generic
                     }
@@ -246,7 +290,7 @@ private func preparedShareItem(postbox: Postbox, network: Network, to peerId: Pe
                             mimeType = "animation/gif"
                             attributes = [.ImageSize(size: PixelDimensions(width: Int32(dimensions.width), height: Int32(dimensions.height))), .Animated, .FileName(fileName: fileName ?? "animation.gif")]
                         }
-                        return standaloneUploadedFile(postbox: postbox, network: network, peerId: peerId, text: "", source: .data(data), mimeType: mimeType, attributes: attributes, hintFileIsLarge: data.count > 10 * 1024 * 1024)
+                        return localUploadedFile(postbox: postbox, network: network, peerId: peerId, text: "", source: .data(data), mimeType: mimeType, attributes: attributes, hintFileIsLarge: data.count > 10 * 1024 * 1024)
                         |> mapError { _ -> PreparedShareItemError in
                             return .generic
                         }
@@ -265,7 +309,7 @@ private func preparedShareItem(postbox: Postbox, network: Network, to peerId: Pe
                 let imageData = scaledImage.jpegData(compressionQuality: 0.54)!
                 return .single(.preparing(false))
                 |> then(
-                    standaloneUploadedImage(postbox: postbox, network: network, peerId: peerId, text: "", source: .data(imageData), dimensions: PixelDimensions(width: Int32(scaledImage.size.width), height: Int32(scaledImage.size.height)))
+                    localUploadedImage(postbox: postbox, network: network, peerId: peerId, text: "", source: .data(imageData), dimensions: PixelDimensions(width: Int32(scaledImage.size.width), height: Int32(scaledImage.size.height)))
                     |> mapError { _ -> PreparedShareItemError in
                         return .generic
                     }
@@ -288,7 +332,7 @@ private func preparedShareItem(postbox: Postbox, network: Network, to peerId: Pe
             let long = data.count > Int32(1.5 * 1024 * 1024)
             return .single(.preparing(long))
             |> then(
-                standaloneUploadedFile(postbox: postbox, network: network, peerId: peerId, text: "", source: .data(data), thumbnailData: thumbnailData, mimeType: mimeType, attributes: [.FileName(fileName: fileName ?? "file")], hintFileIsLarge: data.count > 10 * 1024 * 1024)
+                localUploadedFile(postbox: postbox, network: network, peerId: peerId, text: "", source: .data(data), thumbnailData: thumbnailData, mimeType: mimeType, attributes: [.FileName(fileName: fileName ?? "file")], hintFileIsLarge: data.count > 10 * 1024 * 1024)
                 |> mapError { _ -> PreparedShareItemError in
                     return .generic
                 }
@@ -319,7 +363,7 @@ private func preparedShareItem(postbox: Postbox, network: Network, to peerId: Pe
             let long = audioData.count > Int32(1.5 * 1024 * 1024)
             return .single(.preparing(long))
             |> then(
-                standaloneUploadedFile(postbox: postbox, network: network, peerId: peerId, text: "", source: .data(audioData), mimeType: mimeType, attributes: [.Audio(isVoice: isVoice, duration: Int(duration), title: title, performer: artist, waveform: waveform?.makeData()), .FileName(fileName: fileName)], hintFileIsLarge: audioData.count > 10 * 1024 * 1024)
+                localUploadedFile(postbox: postbox, network: network, peerId: peerId, text: "", source: .data(audioData), mimeType: mimeType, attributes: [.Audio(isVoice: isVoice, duration: Int(duration), title: title, performer: artist, waveform: waveform?.makeData()), .FileName(fileName: fileName)], hintFileIsLarge: audioData.count > 10 * 1024 * 1024)
                 |> mapError { _ -> PreparedShareItemError in
                     return .generic
                 }
@@ -440,8 +484,12 @@ public func preparedShareItems(postbox: Postbox, network: Network, to peerId: Pe
     })
 }
 
-public func sentShareItems(accountPeerId: PeerId, postbox: Postbox, network: Network, stateManager: AccountStateManager, auxiliaryMethods: AccountAuxiliaryMethods, to peerIds: [PeerId], threadIds: [PeerId: Int64], requireStars: [PeerId: StarsAmount], items: [PreparedShareItemContent], silently: Bool, additionalText: String) -> Signal<Float, Void> {
-    var messages: [StandaloneSendEnqueueMessage] = []
+// ice9: composed as upstream composed it - an album of pictures, the comment as
+// the first one's caption, the comment on its own when nothing carries it - and
+// sent through the app's own encrypted path rather than upstream's standalone
+// one, which had no encryption at all (#230). Paid messages do not exist here.
+public func sentShareItems(account: Account, to peerIds: [PeerId], threadIds: [PeerId: Int64], requireStars: [PeerId: StarsAmount], items: [PreparedShareItemContent], silently: Bool, additionalText: String) -> Signal<Float, MlsSharedSendingError> {
+    var messages: [(text: String, media: AnyMediaReference?, groupingKey: Int64?)] = []
     var groupingKey: Int64?
     var mediaTypes: (photo: Int, video: Int, music: Int, other: Int) = (0, 0, 0, 0)
     if items.count > 1 {
@@ -482,15 +530,7 @@ public func sentShareItems(accountPeerId: PeerId, postbox: Postbox, network: Net
     for item in items {
         switch item {
         case let .text(text):
-            var message = StandaloneSendEnqueueMessage(
-                content: .text(text: StandaloneSendEnqueueMessage.Text(
-                    string: text,
-                    entities: []
-                )),
-                replyToMessageId: nil
-            )
-            message.isSilent = silently
-            messages.append(message)
+            messages.append((text: text, media: nil, groupingKey: nil))
         case let .media(media):
             switch media {
             case let .media(reference):
@@ -505,20 +545,8 @@ public func sentShareItems(accountPeerId: PeerId, postbox: Postbox, network: Net
                 } else {
                     captionText = ""
                 }
-                var message = StandaloneSendEnqueueMessage(
-                    content: .arbitraryMedia(
-                        media: reference,
-                        text: StandaloneSendEnqueueMessage.Text(
-                            string: captionText,
-                            entities: []
-                        )
-                    ),
-                    replyToMessageId: nil
-                )
                 consumedText = true
-                message.isSilent = silently
-                message.groupingKey = groupingKey
-                messages.append(message)
+                messages.append((text: captionText, media: reference, groupingKey: groupingKey))
                 mediaMessageCount += 1
             }
             if let _ = groupingKey, mediaMessageCount % 10 == 0 {
@@ -528,52 +556,25 @@ public func sentShareItems(accountPeerId: PeerId, postbox: Postbox, network: Net
     }
     
     if !consumedText && !additionalText.isEmpty {
-        var message = StandaloneSendEnqueueMessage(
-            content: .text(text: StandaloneSendEnqueueMessage.Text(
-                string: additionalText,
-                entities: []
-            )),
-            replyToMessageId: nil
-        )
-        message.isSilent = silently
-        messages.append(message)
+        messages.append((text: additionalText, media: nil, groupingKey: nil))
     }
     
-    var peerSignals: Signal<Float, StandaloneSendMessagesError> = .single(0.0)
-    for peerId in peerIds {
-        var peerMessages = messages
-        if let amount = requireStars[peerId] {
-            var updatedMessages: [StandaloneSendEnqueueMessage] = []
-            for message in peerMessages {
-                var message = message
-                message.sendPaidMessageStars = amount
-                updatedMessages.append(message)
+    let attributes: [MessageAttribute] = silently ? [NotificationInfoMessageAttribute(flags: .muted)] : []
+    let _ = requireStars
+    let batches = peerIds.map { peerId -> (peerId: PeerId, messages: [EnqueueMessage]) in
+        // An album is grouped per chat: the same key in two chats would be one
+        // album to the database.
+        var albumKeys: [Int64: Int64] = [:]
+        return (peerId: peerId, messages: messages.map { message -> EnqueueMessage in
+            var localGroupingKey: Int64?
+            if let key = message.groupingKey {
+                if albumKeys[key] == nil {
+                    albumKeys[key] = Int64.random(in: Int64.min ... Int64.max)
+                }
+                localGroupingKey = albumKeys[key]
             }
-            peerMessages = updatedMessages
-        }
-        peerSignals = peerSignals |> then(standaloneSendEnqueueMessages(
-            accountPeerId: accountPeerId,
-            postbox: postbox,
-            network: network,
-            stateManager: stateManager,
-            auxiliaryMethods: auxiliaryMethods,
-            peerId: peerId,
-            threadId: threadIds[peerId],
-            messages: peerMessages
-        )
-        |> mapToSignal { status -> Signal<Float, StandaloneSendMessagesError> in
-            switch status {
-            case let .progress(progress):
-                //return .single(progress)
-                let _ = progress
-                return .complete()
-            case .done:
-                return .complete()
-            }
+            return .message(text: message.text, attributes: attributes, inlineStickers: [:], mediaReference: message.media, threadId: threadIds[peerId], replyToMessageId: nil, replyToStoryId: nil, localGroupingKey: localGroupingKey, correlationId: nil, bubbleUpEmojiOrStickersets: [])
         })
     }
-    return peerSignals
-    |> mapError { _ -> Void in
-        return Void()
-    }
+    return MlsSharedSending(account: account).send(batches)
 }

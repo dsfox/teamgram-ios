@@ -67,6 +67,12 @@ public enum Offered {
     /// and this holds even against a server that does not say so. #227.
     public static let aiEditor = false
 
+    /// Importing a chat exported from another messenger, which the share
+    /// extension offers for a WhatsApp archive. The server imports no history
+    /// (messages.initHistoryImport is refused), so the file is shared as the
+    /// file it is. #230.
+    public static let chatImport = false
+
     /// Icons behind a name or profile colour. They are custom emoji from
     /// packs, and there are none (#20), so the picker opens empty. #222.
     public static let colourIcons = false

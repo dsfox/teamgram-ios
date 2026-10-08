@@ -227,6 +227,29 @@ public class ShareRootControllerImpl {
         }
     }
     
+    /// Says why nothing was sent, and closes once that is read (#230). The
+    /// share sheet itself shows nothing for a refusal, and a spinner that
+    /// never stops looks like a send still on its way.
+    fileprivate func explainNotSent(_ error: MlsSharedSendingError, presentationData: PresentationData) {
+        let text: String
+        switch error {
+        case .notEncrypted:
+            text = shareNotEncryptedText(presentationData.strings)
+        case .notSent:
+            text = shareNotSentText(presentationData.strings)
+        }
+        Logger.shared.log("Share", "not sent: \(error)")
+        // Built on the main queue as well as shown there: the refusal arrives
+        // on a signal's queue, and an alert's nodes made off the main thread
+        // abort the extension before anything is on the screen.
+        Queue.mainQueue().async { [weak self] in
+            let controller = textAlertController(theme: AlertControllerTheme(presentationData: presentationData), title: nil, text: NSAttributedString(string: text), actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: { [weak self] in
+                self?.getExtensionContext()?.completeRequest(returningItems: nil, completionHandler: nil)
+            })], dismissOnOutsideTap: false)
+            self?.mainWindow?.present(controller, on: .root)
+        }
+    }
+
     public func loadView() {
         telegramUIDeclareEncodables()
     }
@@ -549,17 +572,52 @@ public class ShareRootControllerImpl {
                             } |> runOn(Queue.mainQueue())
                         }
                         
-                        let sentItems: ([PeerId], [PeerId: Int64], [PeerId: StarsAmount], [PreparedShareItemContent], ShareControllerAccountContext, Bool, String) -> Signal<ShareControllerExternalStatus, NoError> = { peerIds, threadIds, requireStars, contents, account, silently, additionalText in
-                            let sentItems = sentShareItems(accountPeerId: account.accountPeerId, postbox: account.stateManager.postbox, network: account.stateManager.network, stateManager: account.stateManager, auxiliaryMethods: makeTelegramAccountAuxiliaryMethods(uploadInBackground: nil), to: peerIds, threadIds: threadIds, requireStars: requireStars, items: contents, silently: silently, additionalText: additionalText)
-                            |> `catch` { _ -> Signal<
-                                Float, NoError> in
-                                return .complete()
+                        // ice9: a whole account, to send through the app's own path. The
+                        // one the share sheet reads from has no sending of its own, and
+                        // upstream's standalone sending encrypted nothing (#230).
+                        let sendingAccount: (AccountRecordId) -> Signal<Account?, NoError> = { id in
+                            return accountWithId(
+                                accountManager: accountManager,
+                                networkArguments: networkArguments,
+                                id: id,
+                                encryptionParameters: ValueBoxEncryptionParameters(
+                                    forceEncryptionIfNoSet: false,
+                                    key: ValueBoxEncryptionParameters.Key(data: initializationData.encryptionParameters.0)!,
+                                    salt: ValueBoxEncryptionParameters.Salt(data: initializationData.encryptionParameters.1)!
+                                ),
+                                supplementary: true,
+                                isSupportUser: false,
+                                rootPath: rootPath,
+                                beginWithTestingEnvironment: false,
+                                backupData: nil,
+                                auxiliaryMethods: makeTelegramAccountAuxiliaryMethods(uploadInBackground: nil)
+                            )
+                            |> map { result -> Account? in
+                                if case let .authorized(account) = result {
+                                    return account
+                                }
+                                return nil
                             }
-                            return sentItems
+                            |> take(1)
+                        }
+                        
+                        let sentItems: ([PeerId], [PeerId: Int64], [PeerId: StarsAmount], [PreparedShareItemContent], ShareControllerAccountContext, Bool, String) -> Signal<ShareControllerExternalStatus, NoError> = { [weak self] peerIds, threadIds, requireStars, contents, account, silently, additionalText in
+                            return sendingAccount(account.accountId)
+                            |> castError(MlsSharedSendingError.self)
+                            |> mapToSignal { sending -> Signal<Float, MlsSharedSendingError> in
+                                guard let sending = sending else {
+                                    return .fail(.notSent)
+                                }
+                                return sentShareItems(account: sending, to: peerIds, threadIds: threadIds, requireStars: requireStars, items: contents, silently: silently, additionalText: additionalText)
+                            }
                             |> map { value -> ShareControllerExternalStatus in
                                 return .progress(value)
                             }
                             |> then(.single(.done))
+                            |> `catch` { error -> Signal<ShareControllerExternalStatus, NoError> in
+                                self?.explainNotSent(error, presentationData: environment.presentationData)
+                                return .never()
+                            }
                         }
                          
                         var itemCount = 1
@@ -688,6 +746,10 @@ public class ShareRootControllerImpl {
                                 }
                             }
                         }
+                        // ice9: stories are not offered, and the tile opened the app on nothing (#230).
+                        if !Offered.stories {
+                            shareController.shareStory = nil
+                        }
                         /*shareController.debugAction = {
                             guard let strongSelf = self else {
                                 return
@@ -718,7 +780,9 @@ public class ShareRootControllerImpl {
                         }
                     }
                     
-                    if let strongSelf = self, let inputItems = strongSelf.getExtensionContext()?.inputItems, inputItems.count == 1, let item = inputItems[0] as? NSExtensionItem, let attachments = item.attachments {
+                    // ice9: a chat export is shared as the file it is - the server
+                    // imports no history (#230). See Offered.
+                    if Offered.chatImport, let strongSelf = self, let inputItems = strongSelf.getExtensionContext()?.inputItems, inputItems.count == 1, let item = inputItems[0] as? NSExtensionItem, let attachments = item.attachments {
                         for attachment in attachments {
                             if attachment.hasItemConformingToTypeIdentifier(kUTTypeFileURL as String) {
                                 attachment.loadItem(forTypeIdentifier: kUTTypeFileURL as String, completionHandler: { result, error in

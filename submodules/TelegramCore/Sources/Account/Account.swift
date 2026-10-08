@@ -1577,6 +1577,13 @@ public class Account {
     
     private func restartConfigurationUpdates() {
         self.managedOperationsDisposable.add(managedConfigurationUpdates(accountManager: self.accountManager, postbox: self.postbox, network: self.network).start())
+        // An extension that holds a whole account - the share extension, to
+        // send through the app's own encrypted path - runs none of what keeps
+        // the device going: it wakes the encryption the way the notification
+        // extension does, sends, and is gone (#230).
+        if MlsRuntime.inAnExtension {
+            return
+        }
         // Keeps this device reachable for encrypted conversations: a supply of
         // key packages, refilled when the server says it is low. Invisible
         // until somebody starts one - and without it, they could not.

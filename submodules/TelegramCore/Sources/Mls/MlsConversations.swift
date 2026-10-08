@@ -414,16 +414,22 @@ public enum MlsConversations {
     /// The formatting goes inside rather than beside it. An entity - bold, a
     /// link, a mention - is a pair of offsets into the text, and next to a
     /// ciphertext they point at nothing.
-    public static func encrypt(postbox: Postbox, accountPeerId: PeerId, identity: MlsIdentity, group: MlsGroup, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded?, media: Api.mls.Content.Media?) -> String? {
+    public static func encrypt(postbox: Postbox, accountPeerId: PeerId, identity: MlsIdentity, group: MlsGroup, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded?, media: Api.mls.Content.Media?, transaction: Transaction? = nil) -> String? {
         do {
             let ciphertext = try group.encrypt(identity: identity, plaintext: Api.mls.Content.encode(text: text, entities: entities, forwarded: forwarded, media: media))
             let state = try identity.export()
 
-            // The ratchet has moved, so it is written back - through the one
-            // queue that writes it, in the order the moves happened. Writing it
-            // here would mean opening a transaction inside one that may already
-            // be open, on the path every message takes.
-            MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state, from: identity, accountPeerId: accountPeerId)
+            // The ratchet has moved, so it is written back. Inside the
+            // transaction the message is sent in, when there is one: then no
+            // other process can send between the read and the write (see
+            // `MlsStateWriter.takeIfBehind`). Otherwise through the one queue
+            // that writes it, in the order the moves happened - opening a
+            // transaction here would nest it inside one that may be open.
+            if let transaction = transaction {
+                MlsStateWriter.instance(accountPeerId: accountPeerId).writeNow(transaction: transaction, state: state, from: identity, accountPeerId: accountPeerId)
+            } else {
+                MlsStateWriter.instance(accountPeerId: accountPeerId).write(postbox: postbox, state: state, from: identity, accountPeerId: accountPeerId)
+            }
 
             return ciphertextPrefix + ciphertext.base64EncodedString()
         } catch {

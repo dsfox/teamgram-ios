@@ -1067,7 +1067,7 @@ ios_extension(
     minimum_os_version = minimum_os_version,
     provisioning_profile = select({
         ":disableProvisioningProfilesSetting": None,
-        "//conditions:default": "@build_configuration//provisioning:Share.mobileprovision",
+        "//conditions:default": ":Share_xcode_profile" if telegram_use_xcode_managed_codesigning else "@build_configuration//provisioning:Share.mobileprovision",
     }),
     deps = [":ShareExtensionLib"],
     frameworks = [
@@ -1808,6 +1808,23 @@ xcode_provisioning_profile(
    provisioning_profile = ":NotificationService_local_profile",
 )
 
+# And the share extension's pair, made the same way (clients/asc.py).
+local_provisioning_profile(
+    name = "Share_local_profile",
+    profile_name = (
+        "ice9 App Store: {}.Share".format(telegram_bundle_id)
+        if telegram_aps_environment == "production"
+        else "iOS Team Provisioning Profile: {}.Share".format(telegram_bundle_id)
+    ),
+    team_id = telegram_team_id,
+)
+
+xcode_provisioning_profile(
+   name = "Share_xcode_profile",
+   managed_by_xcode = True,
+   provisioning_profile = ":Share_local_profile",
+)
+
 # ice9 #183: the UIScene lifecycle, which the iOS 27 SDK requires at launch. One
 # scene, whose delegate (TelegramUI/Sources/Ice9SceneDelegate.swift) attaches the
 # window AppDelegate made and forwards the scene's events to it. A fragment of
@@ -1892,13 +1909,15 @@ ios_application(
     strings = [
         ":AppStringResources",
     ],
-    # One extension: the one that opens a message before the phone shows it
-    # (#42). Each extension is an App ID and a pair of profiles of its own, and
-    # the others do nothing for a conversation.
+    # Two extensions: the one that opens a message before the phone shows it
+    # (#42), and the one that puts ice9 in the system's share sheet and sends
+    # from it - encrypted, through the app's own path. Each is an App ID and a
+    # pair of profiles of its own; the others do nothing for a conversation.
     extensions = select({
         ":disableExtensionsSetting": [],
         "//conditions:default": [
             ":NotificationServiceExtension" + notificationServiceExtensionVersion,
+            ":ShareExtension",
         ],
     }),
     # Embed the in-repo tgwatch watch app (Telegram/WatchApp) under Watch/ only when

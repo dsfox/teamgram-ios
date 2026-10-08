@@ -259,7 +259,7 @@ private func loadOrMakeMlsIdentity(postbox: Postbox, accountPeerId: PeerId) thro
             }
             return
         }
-        if Bundle.main.bundleURL.pathExtension == "appex" {
+        if MlsRuntime.inAnExtension {
             // Only the app makes a device. An extension that finds nothing
             // leaves the message to the app rather than becoming a second
             // device nobody let in (#166).

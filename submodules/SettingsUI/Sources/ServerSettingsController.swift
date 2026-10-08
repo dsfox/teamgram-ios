@@ -54,6 +54,20 @@ func serverSettingsSendLogs(_ strings: PresentationStrings) -> String {
     return serverSettingsIsRussian(strings) ? "Отправить журнал приложения" : "Send app logs"
 }
 
+/// What the share extension says when it sent nothing (#230). Kept here, with
+/// the other texts ice9 writes in both languages.
+public func shareNotEncryptedText(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings)
+        ? "В этом чате ещё нет шифрования. Откройте ice9 и напишите в него оттуда - из других приложений ice9 отправляет только зашифрованным и сюда ничего не отправил."
+        : "This chat is not encrypted yet. Open ice9 and write in it from there - from other apps ice9 sends only encrypted, and has sent nothing here."
+}
+
+public func shareNotSentText(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings)
+        ? "Не отправлено. Ничего не ушло открытым текстом - попробуйте ещё раз из ice9."
+        : "Not sent. Nothing went unencrypted - try again from ice9."
+}
+
 /// The one way to the app's own log, said where it is: App Review rejected
 /// 12.9.2 under 2.3.1(a) for hidden features (#181), and the debug menu that
 /// used to send it was reached by ten taps on a tab.

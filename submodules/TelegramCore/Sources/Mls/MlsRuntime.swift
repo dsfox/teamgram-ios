@@ -376,7 +376,7 @@ public final class MlsRuntime {
 
     /// What to send instead of this message, or nothing when this conversation
     /// cannot carry it - and then it goes as it always did.
-    public func encrypt(peerId: PeerId, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded? = nil, media: Api.mls.Content.Media? = nil) -> String? {
+    public func encrypt(peerId: PeerId, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded? = nil, media: Api.mls.Content.Media? = nil, transaction: Transaction? = nil) -> String? {
         // An empty text is nothing to encrypt - unless something else has to
         // travel inside the message anyway: the key to a picture sent without a
         // caption, or the attribution of a forward.
@@ -387,12 +387,25 @@ public final class MlsRuntime {
         self.queue.lock()
         defer { self.queue.unlock() }
 
+        // Inside the transaction the message is sent in, the device is read
+        // back first if another process sent since this one read it: the share
+        // extension sends while the app is in the background, and the app's
+        // copy would otherwise send with a key already spent. The conversations
+        // are read again too, off this lock.
+        if let transaction = transaction, MlsStateWriter.instance(accountPeerId: self.accountPeerId).takeIfBehind(transaction: transaction, accountPeerId: self.accountPeerId) {
+            Queue.concurrentDefaultQueue().async { [weak self] in
+                let _ = self?.reload().start()
+            }
+        }
+
         guard let (identity, group) = self.group(for: peerId) else {
             // Nothing to encrypt to yet. This message goes in the clear and a
             // conversation is started behind it, so the next one does not - the
             // alternative is holding a message until a handshake finishes,
             // which is a messenger that pauses for reasons a person cannot see.
-            if self.worthEncrypting(to: peerId) {
+            // Not from an extension: it sends nothing in the clear, and a
+            // conversation is started by the app.
+            if self.worthEncrypting(to: peerId) && !MlsRuntime.inAnExtension {
                 self.startConversation(with: peerId)
             }
             return nil
@@ -403,8 +416,13 @@ public final class MlsRuntime {
         // The comparison with the chat that used to be kicked off here, beside
         // the send, runs before it now - in ensureConversation, which is the
         // step ahead of this one on the same path (#158).
-        return MlsConversations.encrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text, entities: entities, forwarded: forwarded, media: media)
+        return MlsConversations.encrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text, entities: entities, forwarded: forwarded, media: media, transaction: transaction)
     }
+
+    /// Whether this process is an app extension - the notification one or the
+    /// share one - rather than the app. An extension never makes a device of
+    /// its own, never starts a conversation, and never sends in the clear.
+    public static let inAnExtension: Bool = Bundle.main.bundleURL.pathExtension == "appex"
 
     /// When each conversation was last compared with its chat.
     private var comparedAt: [Int64: Double] = [:]
@@ -853,7 +871,10 @@ public final class MlsRuntime {
         if let compared = compared {
             return compared
         }
-        if !worth {
+        // An extension starts no conversation: the app does that, and a chat
+        // without one is refused by the share extension rather than sent in
+        // the clear (#230).
+        if !worth || MlsRuntime.inAnExtension {
             return .single(Void())
         }
         guard let network = network, let identity = identity else {
