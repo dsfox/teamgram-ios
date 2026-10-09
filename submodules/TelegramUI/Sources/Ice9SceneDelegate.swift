@@ -22,6 +22,19 @@ final class Ice9SceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
         if let window = appDelegate.window {
             window.windowScene = windowScene
+            // ice9 #208, carried from upstream 7dd6a03505. UIKit registers a
+            // window's root view controller as that window's rotation client
+            // inside -[UIWindow setRootViewController:], and only if the window
+            // already belongs to a scene. This window was built and given its
+            // root before any scene existed, so it never posted the rotation
+            // notifications the keyboard follows: on iOS 26 the keyboard kept
+            // its portrait shape on its side after a turn to landscape. A real
+            // value change is needed - assigning the same object again is
+            // ignored by UIKit's setter.
+            if let rootViewController = window.rootViewController {
+                window.rootViewController = nil
+                window.rootViewController = rootViewController
+            }
             window.makeKeyAndVisible()
         }
 

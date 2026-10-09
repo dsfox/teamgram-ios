@@ -75,12 +75,18 @@ private func isKeyboardView(view: NSObject) -> Bool {
     if typeName.hasPrefix("UI") && typeName.hasSuffix("InputSetHostView") {
         return true
     }
+    if typeName.hasPrefix("UI") && typeName.hasSuffix("KeyboardItemContainerView") {
+        return true
+    }
     return false
 }
 
 private func isKeyboardViewContainer(view: NSObject) -> Bool {
     let typeName = NSStringFromClass(type(of: view))
     if typeName.hasPrefix("UI") && typeName.hasSuffix("InputSetContainerView") {
+        return true
+    }
+    if typeName.hasPrefix("UI") && typeName.hasSuffix("TrackingWindowView") {
         return true
     }
     return false
@@ -124,21 +130,17 @@ private class ApplicationStatusBarHost: StatusBarHost {
     }
     
     var keyboardWindow: UIWindow? {
-        // ice9 #183: no scene yet, no keyboard. And on iOS 27 the private lookup
-        // by screen traps under the scene lifecycle - at launch and again on the
-        // first rotation - while the keyboard is no longer in any window of the
-        // app's (measured on the 27.0 simulator: the one scene holds our window
-        // and a UITextEffectsWindow with no keyboard in it). So on 27 there is
-        // none to hand out, and moving the keyboard with an interactive
-        // transition is skipped there.
+        // ice9 #208, carried from upstream 93af3a138e. The keyboard window
+        // belongs to an internal keyboard scene and is in no window list; it is
+        // reached through our own scene's keyboard scene delegate. The lookup
+        // by screen that stood here traps when linked against the iOS 27 SDK,
+        // and with nothing in its place, everything meant to sit above the
+        // keyboard was drawn under it on iOS 27.
         guard let scene = self.scene else {
             return nil
         }
-        if #available(iOS 27.0, *) {
-            return scene.windows.first(where: { isKeyboardWindow(window: $0) })
-        }
-        if #available(iOS 16.0, *) {
-            return UIApplication.shared.internalGetKeyboard()
+        if let window = UIApplication.shared.internalGetKeyboard(for: scene) {
+            return window
         }
         
         for window in UIApplication.shared.windows {

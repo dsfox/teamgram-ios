@@ -330,9 +330,15 @@ static NSMutableArray<CALayerSpringParametersOverride *> *currentSpringParameter
 
 @end
 
-@protocol UIRemoteKeyboardWindowProtocol
+@protocol UIKeyboardSceneDelegateProtocol
 
-+ (UIWindow * _Nullable)remoteKeyboardWindowForScreen:(UIScreen * _Nullable)screen create:(BOOL)create;
+- (UIWindow * _Nullable)keyboardWindow;
+
+@end
+
+@protocol UIWindowSceneKeyboardProtocol
+
+- (id _Nullable)keyboardSceneDelegate;
 
 @end
 
@@ -728,17 +734,48 @@ static NSMutableDictionary<NSString *, TrustedWebRecord *> *trustedWebRecords() 
     }
 }*/
 
+// ice9 #208, carried from upstream 93af3a138e: +[UIRemoteKeyboardWindow
+// remoteKeyboardWindowForScreen:create:] traps when linked against the iOS 27
+// SDK; the keyboard scene delegate is the way in (upstream's
+// docs/ios27-windows-and-touches.md).
 - (UIWindow * _Nullable)internalGetKeyboard {
-    Class windowClass = NSClassFromString(@"UIRemoteKeyboardWindow");
-    if (!windowClass) {
+    UIWindowScene *foundScene = nil;
+    for (UIScene *scene in self.connectedScenes) {
+        if (![scene isKindOfClass:[UIWindowScene class]]) {
+            continue;
+        }
+        if (scene.activationState == UISceneActivationStateForegroundActive) {
+            foundScene = (UIWindowScene *)scene;
+            break;
+        }
+        if (foundScene == nil) {
+            foundScene = (UIWindowScene *)scene;
+        }
+    }
+
+    return [self internalGetKeyboardForScene:foundScene];
+}
+
+- (UIWindow * _Nullable)internalGetKeyboardForScene:(UIWindowScene * _Nullable)scene {
+    if (scene == nil) {
         return nil;
     }
-    UIWindow *result = [(id<UIRemoteKeyboardWindowProtocol>)windowClass remoteKeyboardWindowForScreen:[UIScreen mainScreen] create:false];
-    
-    if (result) {
-        //dumpViews(result, @"");
+    if (![scene respondsToSelector:@selector(keyboardSceneDelegate)]) {
+        return nil;
     }
-    
+
+    id keyboardSceneDelegate = [(id<UIWindowSceneKeyboardProtocol>)scene keyboardSceneDelegate];
+    if (![keyboardSceneDelegate respondsToSelector:@selector(keyboardWindow)]) {
+        return nil;
+    }
+
+    // nil until the keyboard has been created for this scene, and also whenever the keyboard UI is
+    // hosted out of process - in that configuration there is no in-process keyboard window at all.
+    UIWindow *result = [(id<UIKeyboardSceneDelegateProtocol>)keyboardSceneDelegate keyboardWindow];
+    if (![result isKindOfClass:[UIWindow class]]) {
+        return nil;
+    }
+
     return result;
 }
 
