@@ -33,23 +33,10 @@ extension ChatControllerImpl {
                         case .info:
                             self.openPeer(peer: peer, navigation: .chat(textInputState: nil, subject: nil, peekData: nil), fromMessage: nil)
                         case .commit:
-                            let enqueueMessage = StandaloneSendEnqueueMessage(
-                                content: .forward(forward: StandaloneSendEnqueueMessage.Forward(
-                                    sourceId: id,
-                                    threadId: nil
-                                )),
-                                replyToMessageId: nil
-                            )
-                            let _ = (standaloneSendEnqueueMessages(
-                                accountPeerId: self.context.account.peerId,
-                                postbox: self.context.account.postbox,
-                                network: self.context.account.network,
-                                stateManager: self.context.account.stateManager,
-                                auxiliaryMethods: self.context.account.auxiliaryMethods,
-                                peerId: peer.id,
-                                threadId: nil,
-                                messages: [enqueueMessage]
-                            )).startStandalone()
+                            // ice9: through enqueueMessages, like the menu's
+                            // Forward - the standalone send asked the server
+                            // to copy the message, around the encryption (#232).
+                            let _ = enqueueMessages(account: self.context.account, peerId: peer.id, messages: [.forward(source: id, threadId: nil, grouping: .auto, attributes: [], correlationId: nil)]).startStandalone()
                         }
                     }
                 )
