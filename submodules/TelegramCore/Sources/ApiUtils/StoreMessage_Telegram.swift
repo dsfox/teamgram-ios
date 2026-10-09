@@ -1396,13 +1396,8 @@ extension StoreMessage {
                     // server cannot copy one somebody here could read - so
                     // without this it would arrive looking like the sender's
                     // own words.
-                    if let forwarded = decrypted.forwarded, forwardInfo == nil {
-                        let author = forwarded.authorId == 0 ? nil : PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value(forwarded.authorId))
-                        forwardInfo = StoreMessageForwardInfo(
-                            authorId: author, sourceId: nil, sourceMessageId: nil,
-                            date: forwarded.date,
-                            authorSignature: author == nil && !forwarded.authorName.isEmpty ? forwarded.authorName : nil,
-                            psaType: nil, flags: [])
+                    if forwardInfo == nil {
+                        forwardInfo = decrypted.storeForwardInfo
                     }
                 } else if let entities, !entities.isEmpty {
                     let attribute = TextEntitiesMessageAttribute(entities: messageTextEntitiesFromApiEntities(entities))

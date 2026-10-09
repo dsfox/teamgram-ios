@@ -583,6 +583,20 @@ public struct MlsMessageContent {
         self.forwarded = forwarded
         self.media = media
     }
+
+    /// Who wrote it first, as the store keeps it: the same whether the message
+    /// opened on arrival or was read back later.
+    var storeForwardInfo: StoreMessageForwardInfo? {
+        guard let forwarded = self.forwarded else {
+            return nil
+        }
+        let author = forwarded.authorId == 0 ? nil : PeerId(namespace: Namespaces.Peer.CloudUser, id: PeerId.Id._internalFromInt64Value(forwarded.authorId))
+        return StoreMessageForwardInfo(
+            authorId: author, sourceId: nil, sourceMessageId: nil,
+            date: forwarded.date,
+            authorSignature: author == nil && !forwarded.authorName.isEmpty ? forwarded.authorName : nil,
+            psaType: nil, flags: [])
+    }
 }
 
 /// What a pass over the messages that would not open found.
@@ -694,7 +708,19 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
                 if !readable.entities.isEmpty {
                     attributes.append(TextEntitiesMessageAttribute(entities: readable.entities))
                 }
-                return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: readable.text, attributes: attributes, media: currentMessage.media))
+                // And everything else the arrival would have put back from
+                // inside it: who wrote it first, and what the blob the server
+                // described really is - a picture read back late was a file
+                // called "file", tagged as one (#218).
+                if storeForwardInfo == nil {
+                    storeForwardInfo = readable.storeForwardInfo
+                }
+                var media = currentMessage.media
+                if let descriptor = readable.media, let real = mlsIncomingMedia(from: media, descriptor: descriptor) {
+                    media = real
+                }
+                let (tags, _) = tagsForStoreMessage(incoming: true, attributes: attributes, media: media, textEntities: readable.entities, isPinned: currentMessage.tags.contains(.pinned))
+                return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: readable.text, attributes: attributes, media: media))
             })
             repaired += 1
         }
