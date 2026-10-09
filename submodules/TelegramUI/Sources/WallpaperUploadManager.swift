@@ -78,7 +78,11 @@ final class WallpaperUploadManagerImpl: WallpaperUploadManager {
         let currentWallpaper = presentationData.chatWallpaper
         
         if previousPresentationData?.chatWallpaper != currentWallpaper {
-            if case .image = presentationData.chatWallpaper, let currentResource = currentWallpaper.mainResource {
+            // ice9: the server keeps no wallpaper (#23). A photo of one's own
+            // stays the background on this phone; sending it up only asked the
+            // server for something it refuses - at every launch, since the
+            // first presentation data has nothing before it (#236).
+            if Offered.chatWallpapers, case .image = presentationData.chatWallpaper, let currentResource = currentWallpaper.mainResource {
                 if areMediaResourcesEqual(self.context?.wallpaper.mainResource, currentResource) {
                 } else {
                     let disposable = MetaDisposable()
