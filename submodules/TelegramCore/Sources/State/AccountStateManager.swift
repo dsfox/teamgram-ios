@@ -983,6 +983,9 @@ public final class AccountStateManager {
                                             }
                                         })
                                         |> deliverOn(queue)
+                                        // ice9 #157: what would not open is read again once the waiting commits are applied.
+                                        |> mapToSignal { firstPass in finalStateOpeningWhatCommitsUnlock(accountPeerId: accountPeerId, postbox: postbox, network: network, state: state, difference: difference, firstPass: firstPass, queue: queue) }
+                                        |> deliverOn(queue)
                                         |> mapToSignal { finalState -> Signal<(difference: Api.updates.Difference?, finalStatte: AccountReplayedFinalState?, skipBecauseOfError: Bool, resetState: Bool), NoError> in
                                             if !finalState.state.preCachedResources.isEmpty {
                                                 for (resource, data) in finalState.state.preCachedResources {

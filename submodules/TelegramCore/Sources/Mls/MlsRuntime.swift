@@ -1248,6 +1248,17 @@ public final class MlsRuntime {
         // message takes.
         Queue.concurrentDefaultQueue().async { [weak self] in
             let _ = (joinPendingWelcomes(postbox: postbox, network: network, accountPeerId: accountPeerId)
+            // And the commits, which explain a message as often as a welcome
+            // does: a conversation that moved to a new epoch while this device
+            // was away has its commit waiting in the box, and without this the
+            // message stood as a lock until the next poll of it, thirty seconds
+            // on (#157).
+            |> mapToSignal { _ -> Signal<Void, NoError> in
+                return catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId)
+                |> then(.single(Void()))
+                |> take(1)
+                |> timeout(10.0, queue: Queue.concurrentDefaultQueue(), alternate: .single(Void()))
+            }
             |> mapToSignal { [weak self] _ -> Signal<Void, NoError> in
                 guard let self = self else {
                     return .complete()

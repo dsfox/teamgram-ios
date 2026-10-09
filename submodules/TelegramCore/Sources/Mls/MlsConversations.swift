@@ -1173,6 +1173,79 @@ func managedMlsCommits(postbox: Postbox, network: Network, accountPeerId: PeerId
     |> restart
 }
 
+/// A difference read with the commits that open its newest messages still
+/// waiting in the box (#157).
+///
+/// A phone that was away while a conversation moved to a new epoch learns its
+/// messages from getDifference, which never carries #156's wake-up, so the
+/// commit is not here yet when the message is. Read as it came, the message was
+/// stored as a lock and opened only once something fetched the commit later.
+///
+/// Not "commits first": the core keeps two past epochs, so a phone that missed
+/// more than two would, with every commit applied up front, lose the older
+/// messages of this very difference, which open today. So whatever opens is
+/// opened as it is, and only if something would not, the waiting commits are
+/// applied and the difference is read once more - safe, because what opened the
+/// first time is remembered by its ciphertext (`MlsRuntime.opened`) and handed
+/// back rather than opened twice. Hence the bound: a difference with more
+/// ciphertexts than that memory holds is left to the catch-up, as before.
+func finalStateOpeningWhatCommitsUnlock(accountPeerId: PeerId, postbox: Postbox, network: Network, state: AccountMutableState, difference: Api.updates.Difference, firstPass: AccountFinalState, queue: Queue) -> Signal<AccountFinalState, NoError> {
+    let locked = mlsLockedMessages(firstPass)
+    guard locked > 0 else {
+        return .single(firstPass)
+    }
+    let ciphertexts = mlsCiphertexts(difference)
+    guard ciphertexts <= 200 else {
+        Logger.shared.log("State", "difference: \(locked) message(s) would not open, and \(ciphertexts) to read is more than a second reading can trust to memory; left to the catch-up")
+        return .single(firstPass)
+    }
+    // Never longer than this: the state manager waits on it, and a stall there
+    // is the endless "Updating" of #233.
+    return (catchUpWithTheGroup(postbox: postbox, network: network, accountPeerId: accountPeerId)
+    |> then(.single(Void()))
+    |> take(1)
+    |> timeout(5.0, queue: queue, alternate: .single(Void())))
+    |> mapToSignal { _ -> Signal<AccountFinalState, NoError> in
+        // Channels were already handed to be reset by the first reading.
+        return finalStateWithDifference(accountPeerId: accountPeerId, postbox: postbox, network: network, state: state, difference: difference, asyncResetChannels: { _ in })
+    }
+    |> map { secondPass -> AccountFinalState in
+        Logger.shared.log("State", "difference: \(locked) message(s) would not open; caught up on commits; \(mlsLockedMessages(secondPass)) still locked")
+        return secondPass
+    }
+}
+
+private func mlsLockedMessages(_ finalState: AccountFinalState) -> Int {
+    var count = 0
+    for operation in finalState.state.operations {
+        if case let .AddMessages(messages, _) = operation {
+            for message in messages where message.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) {
+                count += 1
+            }
+        }
+    }
+    return count
+}
+
+private func mlsCiphertexts(_ difference: Api.updates.Difference) -> Int {
+    let newMessages: [Api.Message]
+    switch difference {
+    case let .difference(differenceData):
+        newMessages = differenceData.newMessages
+    case let .differenceSlice(differenceSliceData):
+        newMessages = differenceSliceData.newMessages
+    case .differenceEmpty, .differenceTooLong:
+        return 0
+    }
+    var count = 0
+    for message in newMessages {
+        if case let .message(messageData) = message, MlsConversations.isCiphertext(messageData.message) {
+            count += 1
+        }
+    }
+    return count
+}
+
 /// Applies whatever changes are waiting and goes back for the messages they
 /// make readable.
 ///
