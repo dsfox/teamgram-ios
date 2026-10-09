@@ -14,6 +14,28 @@ private enum AccountStateManagerOperationContent {
     case replayAsynchronouslyBuiltFinalState(AccountFinalState, () -> Void)
 }
 
+private extension AccountStateManagerOperationContent {
+    /// The case alone, for the log: the payloads are large and personal (#233).
+    var kind: String {
+        switch self {
+        case .pollDifference:
+            return "pollDifference"
+        case .collectUpdateGroups:
+            return "collectUpdateGroups"
+        case let .processUpdateGroups(groups):
+            return "processUpdateGroups(\(groups.count))"
+        case .custom:
+            return "custom"
+        case .pollCompletion:
+            return "pollCompletion"
+        case .processEvents:
+            return "processEvents"
+        case .replayAsynchronouslyBuiltFinalState:
+            return "replayAsynchronouslyBuiltFinalState"
+        }
+    }
+}
+
 private final class AccountStateManagerOperation {
     var isRunning: Bool = false
     let content: AccountStateManagerOperationContent
@@ -212,8 +234,52 @@ public final class AccountStateManager {
             } set(value) {
                 assert(self.queue.isCurrent())
                 self.operations_ = value
+                self.noteWatchedOperationIfGone()
             }
         }
+
+        // ice9: which operation the queue is on, and for how long (#233). On a
+        // phone a processUpdateGroups started and never finished, every update
+        // behind it waited, and the title said "Updating" until the app was
+        // killed - and nothing in the log said which operation it was or how
+        // far it got. Every change to the queue goes through the setter above,
+        // so the end of an operation is seen there, whichever path removes it.
+        // The watchdog only says so: dropping an operation from under its own
+        // completion handler would make that handler remove the wrong one.
+        private var watchedOperation: AccountStateManagerOperation?
+        private var watchedSince: Double = 0
+        private var stuckTimer: SignalKitTimer?
+
+        private func watch(_ operation: AccountStateManagerOperation) {
+            self.watchedOperation = operation
+            self.watchedSince = CFAbsoluteTimeGetCurrent()
+            Logger.shared.log("State", "op start \(operation.content.kind)")
+            self.checkStuck(after: 15.0)
+        }
+
+        private func checkStuck(after delay: Double) {
+            self.stuckTimer?.invalidate()
+            let timer = SignalKitTimer(timeout: delay, repeat: false, completion: { [weak self] in
+                guard let self = self, let operation = self.watchedOperation, self.operations_.first === operation else {
+                    return
+                }
+                Logger.shared.log("State", "op stuck \(operation.content.kind) \(Int(CFAbsoluteTimeGetCurrent() - self.watchedSince))s")
+                self.checkStuck(after: 30.0)
+            }, queue: self.queue)
+            self.stuckTimer = timer
+            timer.start()
+        }
+
+        private func noteWatchedOperationIfGone() {
+            guard let operation = self.watchedOperation, !self.operations_.contains(where: { $0 === operation }) else {
+                return
+            }
+            Logger.shared.log("State", "op done \(operation.content.kind) \(Int((CFAbsoluteTimeGetCurrent() - self.watchedSince) * 1000))ms")
+            self.watchedOperation = nil
+            self.stuckTimer?.invalidate()
+            self.stuckTimer = nil
+        }
+
         private let operationDisposable = MetaDisposable()
         private var operationTimer: SignalKitTimer?
         
@@ -827,6 +893,7 @@ public final class AccountStateManager {
                 return
             }
             operation.isRunning = true
+            self.watch(operation)
             let currentValidityMarker = self.currentValidityMarker
             switch operation.content {
             case let .pollDifference(_, currentEvents):
@@ -1054,9 +1121,11 @@ public final class AccountStateManager {
                 
                 let signal = initialStateWithUpdateGroups(postbox: postbox, groups: groups)
                 |> mapToSignal { [weak self] state -> Signal<(AccountReplayedFinalState?, AccountFinalState), NoError> in
+                    Logger.shared.log("State", "groups: initial state read") // ice9: where it stops, if it does (#233)
                     return finalStateWithUpdateGroups(accountPeerId: accountPeerId, postbox: postbox, network: network, state: state, groups: groups, asyncResetChannels: nil)
                     |> deliverOn(queue)
                     |> mapToSignal { finalState in
+                        Logger.shared.log("State", "groups: final state built") // ice9 (#233)
                         if !finalState.discard && !finalState.state.preCachedResources.isEmpty {
                             for (resource, data) in finalState.state.preCachedResources {
                                 postbox.mediaBox.storeResourceData(resource.id, data: data)
@@ -1084,7 +1153,10 @@ public final class AccountStateManager {
                                 return result
                             }
                         }
-                        |> map({ ($0, finalState) })
+                        |> map({ replayed -> (AccountReplayedFinalState?, AccountFinalState) in
+                            Logger.shared.log("State", "groups: replayed") // ice9 (#233)
+                            return (replayed, finalState)
+                        })
                         |> deliverOn(queue)
                     }
                 }
