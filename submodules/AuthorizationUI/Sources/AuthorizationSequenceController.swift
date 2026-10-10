@@ -165,17 +165,48 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
         return ServerAddressStore(rootPath: self.account.rootPath)
     }
 
+    /// A server link put the question back although it had been answered (#244).
+    private var serverQuestionReopened = false
+
+    /// A server link, from the installer's QR code or a message: it fills the
+    /// server screen, bringing the screen back if it was answered already.
+    public func applyServerLink(_ link: ServerLink) {
+        for c in self.viewControllers {
+            if let c = c as? AuthorizationSequenceServerController {
+                c.fill(link)
+                return
+            }
+        }
+        ServerLinkInbox.shared.put(link)
+        self.serverQuestionReopened = true
+        self.updateState(state: .state(.phoneEntry(countryCode: AuthorizationSequenceCountrySelectionController.defaultCountryCode(), number: "")))
+    }
+
     private func serverController(countryCode: Int32, number: String) -> AuthorizationSequenceServerController {
         for c in self.viewControllers {
             if let c = c as? AuthorizationSequenceServerController {
                 return c
             }
         }
-        let controller = AuthorizationSequenceServerController(strings: self.presentationData.strings, theme: self.presentationData.theme, network: self.account.network, store: self.serverAddressStore)
+        let controller = AuthorizationSequenceServerController(strings: self.presentationData.strings, theme: self.presentationData.theme, network: self.account.network, store: self.serverAddressStore, openUrl: { [weak self] url in
+            self?.openUrl(url)
+        })
+        if self.serverQuestionReopened {
+            // Opened by a server link when the question had been answered
+            // already: whoever opened it may change their mind (#244).
+            controller.cancelReopened = { [weak self] in
+                guard let strongSelf = self else {
+                    return
+                }
+                strongSelf.serverQuestionReopened = false
+                strongSelf.updateState(state: .state(.phoneEntry(countryCode: countryCode, number: number)))
+            }
+        }
         controller.completed = { [weak self] in
             guard let strongSelf = self else {
                 return
             }
+            strongSelf.serverQuestionReopened = false
             // The state has said phoneEntry all along - the screen the sequence
             // builds for it is what changes, now that the question has an
             // answer - so the stack is asked for again rather than pushed onto.
@@ -1328,7 +1359,7 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
                     // and the code comes from the server. Only on a first
                     // sign-in - a second account and a phone-number change both
                     // happen against the server already chosen. See ice9 #65.
-                    if self.otherAccountPhoneNumbers.1.isEmpty, self.serverAddressStore.chosen == nil {
+                    if self.otherAccountPhoneNumbers.1.isEmpty, self.serverAddressStore.chosen == nil || self.serverQuestionReopened {
                         self.setViewControllers([self.serverController(countryCode: countryCode, number: number)], animated: !self.viewControllers.isEmpty)
                         return
                     }

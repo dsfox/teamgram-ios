@@ -25,10 +25,29 @@ public struct ServerAddress: Equatable {
 
     public let host: String
     public let port: Int32
+    /// A server of one's own: the DER of the key fetched from it and checked
+    /// against the code the person typed (#244). Nil means the key built into
+    /// the app - ours, and the stand's.
+    public let key: Data?
 
-    public init(host: String, port: Int32) {
+    public init(host: String, port: Int32, key: Data? = nil) {
         self.host = host.isEmpty ? ServerAddress.defaultHost : host
         self.port = (port > 0 && port <= 65535) ? port : ServerAddress.defaultPort
+        self.key = key
+    }
+
+    public func withKey(_ key: Data?) -> ServerAddress {
+        return ServerAddress(host: self.host, port: self.port, key: key)
+    }
+
+    /// The key a handshake with this server may use, as MtProtoKit takes it.
+    public var publicKeyPem: String? {
+        return self.key.map(ServerCode.pem)
+    }
+
+    /// The code of the key this phone holds for the server, when it holds one.
+    public var code: String? {
+        return self.key.map(ServerCode.code)
     }
 
     /// True when this phone is talking to ours.
@@ -107,12 +126,24 @@ public final class ServerAddressStore {
         return text.split(separator: "\n").map(String.init)
     }
 
+    /// A server of one's own adds a line after these two: "key <base64 DER>"
+    /// (#244). Older files have none, and read as before.
+    private static let keyLine = "key "
+
     /// The address in hand, answered or not.
     public var stored: ServerAddress? {
-        guard let first = self.lines.first else {
+        let lines = self.lines
+        guard let first = lines.first, let address = ServerAddress.parse(first) else {
             return nil
         }
-        return ServerAddress.parse(first)
+        guard let line = lines.dropFirst().first(where: { $0.hasPrefix(ServerAddressStore.keyLine) }) else {
+            return address
+        }
+        guard let key = Data(base64Encoded: String(line.dropFirst(ServerAddressStore.keyLine.count))), ServerCode.isAcceptable(key) else {
+            Logger.shared.log("ServerAddress", "the kept key for \(address.described) is not one the app takes; reaching it with the built-in key")
+            return address
+        }
+        return address.withKey(key)
     }
 
     /// What somebody answered, or nil when the question is still to be asked.
@@ -134,7 +165,7 @@ public final class ServerAddressStore {
     /// is checked before this is called, because an address that does not answer
     /// turns into a phone stuck on "Connecting" with no way back to it.
     public func store(_ address: ServerAddress) {
-        self.write([address.described, ServerAddressStore.answered])
+        self.write([address.described, ServerAddressStore.answered] + self.keyLines(address))
     }
 
     /// Puts the question back without changing what is dialled. This is what
@@ -142,7 +173,15 @@ public final class ServerAddressStore {
     /// up again with the current address in it, and until somebody types
     /// another one the client goes on reaching the same server it always did.
     public func askAgain() {
-        self.write([self.effective.described])
+        let effective = self.effective
+        self.write([effective.described] + self.keyLines(effective))
+    }
+
+    private func keyLines(_ address: ServerAddress) -> [String] {
+        guard let key = address.key else {
+            return []
+        }
+        return [ServerAddressStore.keyLine + key.base64EncodedString()]
     }
 
     private func write(_ lines: [String]) {
@@ -151,6 +190,34 @@ public final class ServerAddressStore {
         } catch let error {
             Logger.shared.log("ServerAddress", "could not keep \(lines.first ?? ""): \(error)")
         }
+    }
+}
+
+/// A server link opened when the server screen is not up yet (#244): held in
+/// memory for a few minutes and taken by the screen when it appears. Never
+/// stored - a link only fills the fields, and nothing is kept until the check.
+public final class ServerLinkInbox {
+    public static let shared = ServerLinkInbox()
+
+    private let lock = NSLock()
+    private var link: (ServerLink, Date)?
+
+    public func put(_ link: ServerLink) {
+        self.lock.lock()
+        self.link = (link, Date())
+        self.lock.unlock()
+    }
+
+    public func take() -> ServerLink? {
+        self.lock.lock()
+        defer {
+            self.lock.unlock()
+        }
+        guard let (link, when) = self.link else {
+            return nil
+        }
+        self.link = nil
+        return Date().timeIntervalSince(when) < 600 ? link : nil
     }
 }
 
@@ -178,9 +245,13 @@ public func reseedFromAddress(network: Network, address: ServerAddress) {
         MTDatacenterAddress(ip: address.host, port: UInt16(address.port), preferForMedia: false, restrictToTcp: false, cdn: false, preferForProxy: false, secret: nil)
     ])
 
-    Logger.shared.log("ServerAddress", "reseeding datacenter \(datacenterId) from \(address.described)")
+    Logger.shared.log("ServerAddress", "reseeding datacenter \(datacenterId) from \(address.described)\(address.key != nil ? " with the server's own key" : "")")
 
     network.context.performBatchUpdates {
+        // Before the keys are thrown away and a new one asked for, so the
+        // handshake that follows already uses the key this server's code was
+        // checked against (#244) - and a put-back brings the old key back.
+        network.context.serverPublicKey = address.publicKeyPem
         for selector in [MTDatacenterAuthInfoSelector.persistent, .ephemeralMain, .ephemeralMedia] {
             network.context.updateAuthInfoForDatacenter(withId: datacenterId, authInfo: nil, selector: selector)
         }

@@ -77,6 +77,9 @@
 @property (nonatomic, strong) id<EncryptionProvider> _Nonnull encryptionProvider;
 @property (nonatomic, strong, readonly) MTApiEnvironment * _Nonnull apiEnvironment;
 @property (nonatomic, readonly) bool isTestingEnvironment;
+/// ice9 (#244): the one key a handshake with this server may use - a server of
+/// one's own, checked against its code - or nil for the key built into the app.
+@property (atomic, copy) NSString * _Nullable serverPublicKey;
 @property (nonatomic, readonly) bool useTempAuthKeys;
 @property (nonatomic) int32_t tempKeyExpiration;
 

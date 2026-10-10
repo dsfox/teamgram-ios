@@ -2516,6 +2516,16 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             }
         }
         |> deliverOnMainQueue).start(next: { sharedContext, context, authContext in
+            // ice9 (#244): a link to a server of one's own fills the server
+            // screen when signed out, and asks about changing servers when not.
+            if let link = ServerLink.parse(url.absoluteString) {
+                if let authContext = authContext {
+                    authContext.rootController.applyServerLink(link)
+                } else if let context = context {
+                    context.context.sharedContext.presentGlobalController(serverLinkWhileSignedInController(context: context.context, link: link), nil)
+                }
+                return
+            }
             if let authContext = authContext, let confirmationCode = parseConfirmationCodeUrl(sharedContext: sharedContext, url: url) {
                 authContext.rootController.applyConfirmationCode(confirmationCode)
             } else if let context = context {

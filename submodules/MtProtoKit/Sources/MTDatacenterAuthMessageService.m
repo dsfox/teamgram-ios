@@ -178,7 +178,14 @@ typedef enum {
             _stage = MTDatacenterAuthStagePQ;
         }
     } else {
-        _publicKeys = defaultPublicKeys(!mtProto.context.isTestingEnvironment);
+        // ice9 (#244): a server of one's own is reached with exactly the key
+        // its code was checked against, never alongside the built-in one.
+        NSString *serverPublicKey = mtProto.context.serverPublicKey;
+        if (serverPublicKey != nil) {
+            _publicKeys = @[[[MTDatacenterAuthPublicKey alloc] initWithPublicKey:serverPublicKey]];
+        } else {
+            _publicKeys = defaultPublicKeys(!mtProto.context.isTestingEnvironment);
+        }
         _stage = MTDatacenterAuthStagePQ;
     }
     
@@ -427,7 +434,7 @@ static NSData *encryptRSAModernPadding(id<EncryptionProvider> encryptionProvider
             if (publicKey == nil)
             {
                 if (MTLogEnabled()) {
-                    MTLog(@"[MTDatacenterAuthMessageService#%p couldn't find valid server public key]", self);
+                    MTLog(@"[MTDatacenterAuthMessageService#%p couldn't find valid server public key%@]", self, mtProto.context.serverPublicKey != nil ? @" - the server does not offer the key this phone holds for it" : @"");
                 }
                 [self reset:mtProto];
             }

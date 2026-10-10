@@ -537,7 +537,10 @@ func initializedNetwork(accountId: AccountRecordId, arguments: NetworkInitializa
             // rootPath/account-<id>, and the answer sits one level up.
             let rootPath = (basePath as NSString).deletingLastPathComponent
             let seedAddress = ServerAddressStore(rootPath: rootPath).effective
-            Logger.shared.log("Network", "seeding datacenter 1 from \(seedAddress.described)")
+            Logger.shared.log("Network", "seeding datacenter 1 from \(seedAddress.described)\(seedAddress.key != nil ? " with the server's own key" : "")")
+            // A server of one's own is reached with the key its code was
+            // checked against, in every process that opens this network (#244).
+            context.serverPublicKey = seedAddress.publicKeyPem
             context.setSeedAddressSetForDatacenterWithId(1, seedAddressSet: MTDatacenterAddressSet(addressList: [
                 MTDatacenterAddress(ip: seedAddress.host, port: UInt16(seedAddress.port), preferForMedia: false, restrictToTcp: false, cdn: false, preferForProxy: false, secret: nil)
             ]))

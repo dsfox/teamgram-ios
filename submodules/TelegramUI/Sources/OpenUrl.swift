@@ -1,6 +1,7 @@
 import Foundation
 import Display
 import TelegramCore
+import SettingsUI
 import SwiftSignalKit
 import MtProtoKit
 import TelegramPresentationData
@@ -359,6 +360,13 @@ private func makeTelegramUrl(_ path: String, queryItems: [URLQueryItem] = []) ->
 }
 
 func openExternalUrlImpl(context: AccountContext, urlContext: OpenURLContext, url: String, forceExternal: Bool, presentationData: PresentationData, navigationController: NavigationController?, dismissInput: @escaping () -> Void) {
+    // ice9 (#244): a link to a server of one's own, tapped in a chat, asks
+    // whether to change servers rather than being read as a person's name.
+    if let link = ServerLink.parse(url) {
+        dismissInput()
+        context.sharedContext.presentGlobalController(serverLinkWhileSignedInController(context: context, link: link), nil)
+        return
+    }
     if forceExternal || url.lowercased().hasPrefix("tel:") || url.lowercased().hasPrefix("calshow:") {
         if url.lowercased().hasPrefix("tel:+888") {
             context.sharedContext.presentGlobalController(textAlertController(context: context, title: nil, text: presentationData.strings.Conversation_CantPhoneCallAnonymousNumberError, actions: [

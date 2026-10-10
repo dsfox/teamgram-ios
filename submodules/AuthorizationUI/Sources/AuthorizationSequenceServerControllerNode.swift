@@ -21,9 +21,12 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
 
     private let addressField: TextFieldNode
     private let addressSeparatorNode: ASDisplayNode
+    private let codeField: TextFieldNode
+    private let codeSeparatorNode: ASDisplayNode
 
     private let errorNode: ASTextNode
     private let defaultNode: HighlightableButtonNode
+    private let ownServerNode: HighlightableButtonNode
 
     private var layoutArguments: (ContainerViewLayout, CGFloat)?
 
@@ -31,12 +34,20 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
         return self.addressField.textField.text ?? ""
     }
 
-    var enterAddress: ((String) -> Void)?
+    /// The server code as typed - only a server of one's own has one (#244).
+    var currentCode: String {
+        return self.codeField.textField.text ?? ""
+    }
+
+    var enterAddress: ((String, String) -> Void)?
+    var openInstructions: (() -> Void)?
 
     var inProgress: Bool = false {
         didSet {
-            self.addressField.alpha = self.inProgress ? 0.6 : 1.0
-            self.addressField.textField.isEnabled = !self.inProgress
+            for field in [self.addressField, self.codeField] {
+                field.alpha = self.inProgress ? 0.6 : 1.0
+                field.textField.isEnabled = !self.inProgress
+            }
         }
     }
 
@@ -84,6 +95,28 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
         self.addressField.textField.keyboardType = .URL
         self.addressField.textField.text = address.described
 
+        self.codeSeparatorNode = ASDisplayNode()
+        self.codeSeparatorNode.isLayerBacked = true
+        self.codeSeparatorNode.backgroundColor = theme.list.itemPlainSeparatorColor
+
+        // Digits only, and only for a server of one's own: the code its
+        // installer printed beside the address, which the app checks the
+        // server's key against (#244). Filled with the code of the key this
+        // phone holds, so changing servers shows the one it is leaving.
+        self.codeField = TextFieldNode()
+        self.codeField.textField.accessibilityIdentifier = "Auth.Server.CodeField"
+        self.codeField.textField.font = Font.regular(17.0)
+        self.codeField.textField.textColor = theme.list.itemPrimaryTextColor
+        self.codeField.textField.textAlignment = .center
+        self.codeField.textField.attributedPlaceholder = NSAttributedString(string: serverChoiceCodePlaceholder(strings), font: Font.regular(17.0), textColor: theme.list.itemPlaceholderTextColor)
+        self.codeField.textField.keyboardAppearance = theme.rootController.keyboardColor.keyboardAppearance
+        self.codeField.textField.disableAutomaticKeyboardHandling = [.forward, .backward]
+        self.codeField.textField.tintColor = theme.list.itemAccentColor
+        self.codeField.textField.autocorrectionType = .no
+        self.codeField.textField.spellCheckingType = .no
+        self.codeField.textField.keyboardType = .asciiCapableNumberPad
+        self.codeField.textField.text = address.code.map(ServerCode.grouped) ?? ""
+
         self.errorNode = ASTextNode()
         self.errorNode.isUserInteractionEnabled = false
         self.errorNode.displaysAsynchronously = false
@@ -91,6 +124,15 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
         self.defaultNode = HighlightableButtonNode()
         self.defaultNode.displaysAsynchronously = false
         self.defaultNode.setAttributedTitle(NSAttributedString(string: serverChoiceUseDefault(strings), font: Font.regular(16.0), textColor: theme.list.itemAccentColor, paragraphAlignment: .center), for: [])
+
+        // Said on the screen where it can be acted on rather than on a page
+        // somebody would have to go looking for. Most people will keep ours and
+        // should - but a messenger that offers a server of your own and never
+        // mentions how is offering it the way a form offers a tick box.
+        self.ownServerNode = HighlightableButtonNode()
+        self.ownServerNode.displaysAsynchronously = false
+        self.ownServerNode.titleNode.maximumNumberOfLines = 0
+        self.ownServerNode.setAttributedTitle(NSAttributedString(string: serverChoiceOwnServer(strings), font: Font.regular(15.0), textColor: theme.list.itemAccentColor, paragraphAlignment: .center), for: [])
 
         super.init()
 
@@ -102,15 +144,21 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
 
         self.addressField.textField.delegate = self
         self.addressField.textField.addTarget(self, action: #selector(self.addressChanged), for: .editingChanged)
+        self.codeField.textField.delegate = self
+        self.codeField.textField.addTarget(self, action: #selector(self.codeChanged), for: .editingChanged)
 
         self.addSubnode(self.addressSeparatorNode)
         self.addSubnode(self.addressField)
+        self.addSubnode(self.codeSeparatorNode)
+        self.addSubnode(self.codeField)
         self.addSubnode(self.titleNode)
         self.addSubnode(self.noticeNode)
         self.addSubnode(self.errorNode)
         self.addSubnode(self.defaultNode)
+        self.addSubnode(self.ownServerNode)
 
         self.defaultNode.addTarget(self, action: #selector(self.defaultPressed), forControlEvents: .touchUpInside)
+        self.ownServerNode.addTarget(self, action: #selector(self.ownServerPressed), forControlEvents: .touchUpInside)
 
         self.updateDefaultButton()
     }
@@ -132,7 +180,7 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
     /// Nothing to put back when what is typed is already the default.
     private func updateDefaultButton() {
         let typed = ServerAddress.parse(self.currentAddress)
-        self.defaultNode.isHidden = typed?.isOurs ?? false
+        self.defaultNode.isHidden = (typed?.isOurs ?? false) && (ServerCode.digits(self.currentCode) ?? "x").isEmpty
     }
 
     @objc private func addressChanged() {
@@ -140,8 +188,32 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
         self.updateDefaultButton()
     }
 
+    /// Groups of four as it is typed, the way the installer prints it.
+    @objc private func codeChanged() {
+        let digits = (self.codeField.textField.text ?? "").filter { ("0" ... "9").contains($0) }
+        let grouped = ServerCode.grouped(String(digits.prefix(24)))
+        if grouped != self.codeField.textField.text {
+            self.codeField.textField.text = grouped
+        }
+        self.showError(nil)
+        self.updateDefaultButton()
+    }
+
     @objc private func defaultPressed() {
         self.addressField.textField.text = ServerAddress.default.described
+        self.codeField.textField.text = ""
+        self.showError(nil)
+        self.updateDefaultButton()
+    }
+
+    @objc private func ownServerPressed() {
+        self.openInstructions?()
+    }
+
+    /// A server link fills both fields; nothing is kept until Next and the check (#244).
+    func fill(host: String, port: Int32, code: String) {
+        self.addressField.textField.text = ServerAddress(host: host, port: port).described
+        self.codeField.textField.text = ServerCode.grouped(code)
         self.showError(nil)
         self.updateDefaultButton()
     }
@@ -162,14 +234,18 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
         let noticeSize = self.noticeNode.measure(CGSize(width: layout.size.width - 28.0, height: CGFloat.greatestFiniteMagnitude))
         let errorSize = self.errorNode.measure(CGSize(width: layout.size.width - 28.0, height: CGFloat.greatestFiniteMagnitude))
         let defaultSize = self.defaultNode.measure(CGSize(width: layout.size.width, height: CGFloat.greatestFiniteMagnitude))
+        let ownServerSize = self.ownServerNode.measure(CGSize(width: layout.size.width - 44.0, height: CGFloat.greatestFiniteMagnitude))
 
         var items: [AuthorizationLayoutItem] = []
         items.append(AuthorizationLayoutItem(node: self.titleNode, size: titleSize, spacingBefore: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
         items.append(AuthorizationLayoutItem(node: self.noticeNode, size: noticeSize, spacingBefore: AuthorizationLayoutItemSpacing(weight: 10.0, maxValue: 10.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
         items.append(AuthorizationLayoutItem(node: self.addressField, size: CGSize(width: layout.size.width - 88.0, height: 44.0), spacingBefore: AuthorizationLayoutItemSpacing(weight: 32.0, maxValue: 100.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
         items.append(AuthorizationLayoutItem(node: self.addressSeparatorNode, size: CGSize(width: layout.size.width - 88.0, height: UIScreenPixel), spacingBefore: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
+        items.append(AuthorizationLayoutItem(node: self.codeField, size: CGSize(width: layout.size.width - 88.0, height: 40.0), spacingBefore: AuthorizationLayoutItemSpacing(weight: 12.0, maxValue: 12.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
+        items.append(AuthorizationLayoutItem(node: self.codeSeparatorNode, size: CGSize(width: layout.size.width - 88.0, height: UIScreenPixel), spacingBefore: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
         items.append(AuthorizationLayoutItem(node: self.errorNode, size: errorSize, spacingBefore: AuthorizationLayoutItemSpacing(weight: 16.0, maxValue: 16.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
         items.append(AuthorizationLayoutItem(node: self.defaultNode, size: defaultSize, spacingBefore: AuthorizationLayoutItemSpacing(weight: 32.0, maxValue: 60.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
+        items.append(AuthorizationLayoutItem(node: self.ownServerNode, size: ownServerSize, spacingBefore: AuthorizationLayoutItemSpacing(weight: 40.0, maxValue: 80.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
 
         let _ = layoutAuthorizationItems(bounds: CGRect(origin: CGPoint(x: 0.0, y: insets.top), size: CGSize(width: layout.size.width, height: layout.size.height - insets.top - insets.bottom - 20.0)), items: items, transition: transition, failIfDoesNotFit: false)
     }
@@ -183,7 +259,7 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
     }
 
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        self.enterAddress?(self.currentAddress)
+        self.enterAddress?(self.currentAddress, self.currentCode)
         return false
     }
 }

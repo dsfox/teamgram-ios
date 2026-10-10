@@ -92,6 +92,52 @@ func serverSettingsSourceCodeInfo(_ strings: PresentationStrings) -> String {
         : "ice9 is built on Telegram's open-source apps for iOS and Android. The code of this app, of the server and of the encryption is public at github.com/dsfox."
 }
 
+/// What a pinned key means, said under the address (#244).
+func serverSettingsCodeInfo(_ strings: PresentationStrings, code: String) -> String {
+    return serverSettingsIsRussian(strings)
+        ? "Телефон доверяет только ключу с кодом \(code)."
+        : "This phone trusts only the key with the code \(code)."
+}
+
+func serverSettingsLinkMalformed(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings)
+        ? "Ссылка на сервер повреждена. Попросите её ещё раз."
+        : "This server link is damaged. Ask for it again."
+}
+
+func serverSettingsSameServer(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings)
+        ? "Этот телефон уже говорит с этим сервером."
+        : "This phone already talks to this server."
+}
+
+/// A server link opened while signed in (#244): the same question Settings >
+/// Server asks, because changing servers is a sign-out here too. Confirmed, the
+/// question comes back after the sign-out with the link's server filled in.
+public func serverLinkWhileSignedInController(context: AccountContext, link: ServerLink) -> ViewController {
+    let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+    let store = ServerAddressStore(rootPath: context.sharedContext.basePath)
+    if case .malformed = link {
+        // Nothing to change to, so no reason to sign out.
+        return textAlertController(context: context, title: nil, text: serverSettingsLinkMalformed(presentationData.strings), actions: [
+            TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})
+        ])
+    }
+    if case let .link(host, port, code) = link, store.effective.host == host, store.effective.port == port, (store.effective.code ?? "") == code {
+        return textAlertController(context: context, title: nil, text: serverSettingsSameServer(presentationData.strings), actions: [
+            TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})
+        ])
+    }
+    return textAlertController(context: context, title: serverSettingsConfirmTitle(presentationData.strings), text: serverSettingsConfirmText(presentationData.strings), actions: [
+        TextAlertAction(type: .genericAction, title: presentationData.strings.Common_Cancel, action: {}),
+        TextAlertAction(type: .destructiveAction, title: serverSettingsConfirmAction(presentationData.strings), action: {
+            store.askAgain()
+            ServerLinkInbox.shared.put(link)
+            let _ = logoutFromAccount(id: context.account.id, accountManager: context.sharedContext.accountManager, alreadyLoggedOutRemotely: false).startStandalone()
+        })
+    ])
+}
+
 private struct ServerSettingsArguments {
     let change: () -> Void
     let sendLogs: () -> Void
@@ -107,6 +153,7 @@ private enum ServerSettingsSection: Int32 {
 
 private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
     case current(PresentationTheme, String)
+    case codeInfo(PresentationTheme, String)
     case change(PresentationTheme, String)
     case changeInfo(PresentationTheme, String)
     case sendLogs(PresentationTheme, String)
@@ -116,7 +163,7 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
 
     var section: ItemListSectionId {
         switch self {
-        case .current:
+        case .current, .codeInfo:
             return ServerSettingsSection.current.rawValue
         case .change, .changeInfo:
             return ServerSettingsSection.change.rawValue
@@ -131,6 +178,8 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
         switch self {
         case .current:
             return 1
+        case .codeInfo:
+            return 8
         case .change:
             return 2
         case .changeInfo:
@@ -147,7 +196,15 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
     }
 
     static func <(lhs: ServerSettingsEntry, rhs: ServerSettingsEntry) -> Bool {
-        return lhs.stableId < rhs.stableId
+        return lhs.order < rhs.order
+    }
+
+    /// The code line sits under the address, whatever its id.
+    private var order: Int32 {
+        if case .codeInfo = self {
+            return 3
+        }
+        return self.stableId * 2
     }
 
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
@@ -163,7 +220,7 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
             return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: title, kind: .destructive, alignment: .natural, sectionId: self.section, style: .blocks, action: {
                 arguments.change()
             })
-        case let .changeInfo(_, text):
+        case let .changeInfo(_, text), let .codeInfo(_, text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         case let .sendLogs(_, title):
             return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: title, kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
@@ -182,8 +239,13 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
 }
 
 private func serverSettingsEntries(presentationData: PresentationData, address: ServerAddress) -> [ServerSettingsEntry] {
-    return [
+    var entries: [ServerSettingsEntry] = [
         .current(presentationData.theme, address.described),
+    ]
+    if let code = address.code {
+        entries.append(.codeInfo(presentationData.theme, serverSettingsCodeInfo(presentationData.strings, code: ServerCode.grouped(code))))
+    }
+    return entries + [
         .change(presentationData.theme, serverSettingsChange(presentationData.strings)),
         .changeInfo(presentationData.theme, serverSettingsChangeInfo(presentationData.strings)),
         .sendLogs(presentationData.theme, serverSettingsSendLogs(presentationData.strings)),
