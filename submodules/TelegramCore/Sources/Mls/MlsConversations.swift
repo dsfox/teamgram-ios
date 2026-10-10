@@ -208,6 +208,18 @@ public extension MlsConversationIds {
         return answer
     }
 
+    /// That this device tried to start the conversation with them over, kept
+    /// beside the note a success leaves: the runtime replaces what it holds in
+    /// memory with this on every reload, and the repair reloads each time it
+    /// runs (#238).
+    static func rememberRebuildTried(transaction: Transaction, peerId: PeerId) {
+        transaction.updatePreferencesEntry(key: PreferencesKeys.mlsConversations, { entry in
+            var ids = entry?.get(MlsConversationIds.self) ?? MlsConversationIds()
+            ids.rebuiltAtByPeer[peerId.mlsKey] = Int32(Date().timeIntervalSince1970)
+            return PreferencesEntry(ids)
+        })
+    }
+
     static func remember(transaction: Transaction, peerId: PeerId, groupId: Data, learntAt: Int32) {
         transaction.updatePreferencesEntry(key: PreferencesKeys.mlsConversations, { entry in
             var ids = entry?.get(MlsConversationIds.self) ?? MlsConversationIds()

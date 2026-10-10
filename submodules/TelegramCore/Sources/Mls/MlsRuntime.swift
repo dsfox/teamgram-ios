@@ -1196,7 +1196,8 @@ public final class MlsRuntime {
     /// messages asks the server once rather than once each.
     private var recovering: Set<Int64> = []
 
-    /// When a conversation with somebody was last rebuilt from this side.
+    /// When a conversation with somebody was last rebuilt from this side, or
+    /// tried to be.
     ///
     /// A device that has just been set up again cannot read anything that was
     /// sent before it existed, and no new conversation will change that - the
@@ -1322,16 +1323,27 @@ public final class MlsRuntime {
                     // side a key package to say so.
                     return .single(0)
                 }
+                // Counted as it begins, not as it succeeds (#238). A chat that
+                // already has a conversation refuses the claim, and only once
+                // every member's key packages are taken - so every unreadable
+                // message after a refusal took them all again.
+                self.queue.lock()
+                self.markRebuilt(key)
+                self.queue.unlock()
 
                 Logger.shared.log("Mls", "no welcome explains an unreadable message from \(peerId), so starting the conversation again")
-                return MlsConversations.start(postbox: postbox, accountPeerId: self.accountPeerId, network: network, identity: identity, peerId: peerId)
+                return (postbox.transaction { transaction -> Void in
+                    MlsConversationIds.rememberRebuildTried(transaction: transaction, peerId: peerId)
+                }
+                |> mapToSignal { _ -> Signal<Data?, NoError> in
+                    return MlsConversations.start(postbox: postbox, accountPeerId: accountPeerId, network: network, identity: identity, peerId: peerId)
+                })
                 |> mapToSignal { [weak self] groupId -> Signal<Int, NoError> in
                     guard let self = self, let groupId = groupId else {
                         return .single(0)
                     }
                     self.queue.lock()
                     self.remember(key: peerId.mlsKey, groupId: groupId)
-                    self.markRebuilt(key)
                     self.queue.unlock()
                     return .single(0)
                 }
