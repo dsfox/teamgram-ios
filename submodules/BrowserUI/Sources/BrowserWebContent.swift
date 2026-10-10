@@ -252,11 +252,7 @@ final class BrowserWebContent: UIView, BrowserContent, WKNavigationDelegate, WKU
             configuration = preferredConfiguration
         } else {
             configuration = WKWebViewConfiguration()
-            var proxyServerHost = "magic.org"
-            if let data = context.currentAppConfiguration.with({ $0 }).data, let hostValue = data["ton_proxy_address"] as? String {
-                proxyServerHost = hostValue
-            }
-            configuration.setURLSchemeHandler(TonSchemeHandler(proxyServerHost: proxyServerHost), forURLScheme: "tonsite")
+            // ice9: no TON sites, so no proxy to Telegram's magic.org for them (#181).
             configuration.allowsInlineMediaPlayback = true
             if #available(iOSApplicationExtension 10.0, iOS 10.0, *) {
                 configuration.mediaTypesRequiringUserActionForPlayback = []

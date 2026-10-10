@@ -428,21 +428,10 @@ plist_fragment(
             <key>CFBundleTypeRole</key>
             <string>Viewer</string>
             <key>CFBundleURLName</key>
-            <string>{telegram_bundle_id}</string>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>teamgram</string>
-            </array>
-        </dict>
-        <dict>
-            <key>CFBundleTypeRole</key>
-            <string>Viewer</string>
-            <key>CFBundleURLName</key>
             <string>{telegram_bundle_id}.compatibility</string>
             <key>CFBundleURLSchemes</key>
             <array>
                 <string>tg2</string>
-                <string>tonsite</string>
             </array>
         </dict>
     </array>
@@ -482,7 +471,7 @@ store_bundle_ids = [
     "ph.telegra.Telegraph",
 ]
 
-apple_pay_merchants = official_apple_pay_merchants if telegram_bundle_id == "ph.telegra.Telegraph" else []
+apple_pay_merchants = []  # ice9: nothing here pays (#181)
 
 apple_pay_merchants_fragment = "" if apple_pay_merchants == [] else """
 <key>com.apple.developer.in-app-payments</key>
@@ -670,11 +659,11 @@ plist_fragment(
     template =
     """
     <key>CFBundleIdentifier</key>
-    <string>{telegram_bundle_id}.MtProtoKit</string>
+    <string>{telegram_bundle_id}.Ice9Transport</string>
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleName</key>
-    <string>MtProtoKit</string>
+    <string>Ice9Transport</string>
     <key>CFBundlePackageType</key>
     <string>FMWK</string>
     """.format(
@@ -684,7 +673,9 @@ plist_fragment(
 
 ios_framework(
     name = "MtProtoKitFramework",
-    bundle_id = "{telegram_bundle_id}.MtProtoKit".format(
+    # ice9: the bundle is named for ice9, the Swift module keeps its name (#181).
+    bundle_name = "Ice9Transport",
+    bundle_id = "{telegram_bundle_id}.Ice9Transport".format(
         telegram_bundle_id = telegram_bundle_id,
     ),
     families = [
@@ -814,11 +805,11 @@ plist_fragment(
     template =
     """
     <key>CFBundleIdentifier</key>
-    <string>{telegram_bundle_id}.TelegramCore</string>
+    <string>{telegram_bundle_id}.Ice9Core</string>
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleName</key>
-    <string>TelegramCore</string>
+    <string>Ice9Core</string>
     <key>CFBundlePackageType</key>
     <string>FMWK</string>
     """.format(
@@ -828,7 +819,9 @@ plist_fragment(
 
 ios_framework(
     name = "TelegramCoreFramework",
-    bundle_id = "{telegram_bundle_id}.TelegramCore".format(
+    # ice9: the bundle is named for ice9, the Swift module keeps its name (#181).
+    bundle_name = "Ice9Core",
+    bundle_id = "{telegram_bundle_id}.Ice9Core".format(
         telegram_bundle_id = telegram_bundle_id,
     ),
     families = [
@@ -942,11 +935,11 @@ plist_fragment(
     template =
     """
     <key>CFBundleIdentifier</key>
-    <string>{telegram_bundle_id}.TelegramUI</string>
+    <string>{telegram_bundle_id}.Ice9UI</string>
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleName</key>
-    <string>TelegramUI</string>
+    <string>Ice9UI</string>
     <key>CFBundlePackageType</key>
     <string>FMWK</string>
     """.format(
@@ -956,7 +949,9 @@ plist_fragment(
 
 ios_framework(
     name = "TelegramUIFramework",
-    bundle_id = "{telegram_bundle_id}.TelegramUI".format(
+    # ice9: the bundle is named for ice9, the Swift module keeps its name (#181).
+    bundle_name = "Ice9UI",
+    bundle_id = "{telegram_bundle_id}.Ice9UI".format(
         telegram_bundle_id = telegram_bundle_id,
     ),
     families = [
@@ -1870,6 +1865,9 @@ apple_prebuilt_watchos_application(
 
 ios_application(
     name = "Telegram",
+    # ice9: Payload/ice9.app with the executable ice9; the label stays, which
+    # Make.py and the xcodeproj know it by (#181).
+    bundle_name = "ice9",
     bundle_id = "{telegram_bundle_id}".format(
         telegram_bundle_id = telegram_bundle_id,
     ),
@@ -1889,9 +1887,8 @@ ios_application(
         ":SceneManifestInfoPlist",
     ],
     app_icons = [":AppIconSet"],
-    alternate_icons = [
-        ":{}".format(name) for name in alternate_icon_folders
-    ],
+    # ice9: no alternate icons - they were teamgram's feather and Telegram's
+    # Premium stars, and the picker is gone (#181).
     resources = [
         ":LaunchScreen",
         # No .appiconset here: the build rules refuse to mix one with the Icon

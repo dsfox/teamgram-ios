@@ -3609,9 +3609,8 @@ public final class SharedAccountContextImpl: SharedAccountContext {
     }
     
     public func makeGiftOptionsController(context: AccountContext, peerId: EnginePeer.Id, premiumOptions: [CachedPremiumGiftOption], hasBirthday: Bool, completion: (() -> Void)?) -> ViewController {
-        guard let starsContext = context.starsContext else {
-            fatalError()
-        }
+        // ice9: a gift door that was missed opens an empty picker rather than crashing (#181).
+        let starsContext = context.starsContext ?? context.engine.payments.peerStarsContext()
         let controller = GiftOptionsScreen(context: context, starsContext: starsContext, peerId: peerId, premiumOptions: premiumOptions, hasBirthday: hasBirthday, completion: completion)
         controller.navigationPresentation = .modal
         return controller

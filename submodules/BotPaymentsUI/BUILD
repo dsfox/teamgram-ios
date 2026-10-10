@@ -3,9 +3,8 @@ load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
 swift_library(
     name = "BotPaymentsUI",
     module_name = "BotPaymentsUI",
-    srcs = glob([
-        "Sources/**/*.swift",
-    ]),
+    # ice9: nothing here sells or takes payment (#181); see Ice9NoPayments.
+    srcs = ["//submodules/Ice9NoPayments:BotPaymentsUIStub"],
     copts = [
         "-warnings-as-errors",
     ],

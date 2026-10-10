@@ -5362,7 +5362,7 @@ public final class PeerInfoStoryPaneNode: ASDisplayNode, PeerInfoPaneNode, ASScr
             }
             
             let shareController = self.context.sharedContext.makeShareController(context: self.context, params: ShareControllerParams(
-                subject: .url("https://t.me/\(urlBase)/a/\(id)"),
+                subject: .url("https://i.ice9.app/\(urlBase)/a/\(id)"),
                 externalShare: false,
                 actionCompleted: { [weak self] in
                     guard let self else {

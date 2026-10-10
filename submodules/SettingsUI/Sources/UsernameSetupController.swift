@@ -474,7 +474,7 @@ public func usernameSetupController(context: AccountContext, mode: UsernameSetup
         |> take(1)
         |> deliverOnMainQueue).start(next: { peer in
             if case let .user(user) = peer, user.botInfo != nil {
-                context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: "https://fragment.com/", forceExternal: true, presentationData: context.sharedContext.currentPresentationData.with { $0 }, navigationController: nil, dismissInput: {})
+                context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: "https://ice9.app/", forceExternal: true, presentationData: context.sharedContext.currentPresentationData.with { $0 }, navigationController: nil, dismissInput: {})
             } else {
                 var currentAddressName: String = peer.addressName ?? ""
                 updateState { state in
@@ -534,7 +534,7 @@ public func usernameSetupController(context: AccountContext, mode: UsernameSetup
     }, openAuction: { username in
         dismissInputImpl?()
         
-        context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: "https://fragment.com/username/\(username)", forceExternal: true, presentationData: context.sharedContext.currentPresentationData.with { $0 }, navigationController: nil, dismissInput: {})
+        context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: "https://ice9.app/username/\(username)", forceExternal: true, presentationData: context.sharedContext.currentPresentationData.with { $0 }, navigationController: nil, dismissInput: {})
     })
     
     let temporaryOrder = Promise<[String]?>(nil)

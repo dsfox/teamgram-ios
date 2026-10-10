@@ -209,7 +209,7 @@ public struct StarsGiveawayOption: Equatable, Codable {
         self.yearlyBoosts = yearlyBoosts
         self.currency = currency
         self.amount = amount
-        self.storeProductId = storeProductId?.replacingOccurrences(of: "telegram_stars.topup", with: "org.telegram.telegramStars.topup")
+        self.storeProductId = storeProductId // ice9: onto no App Store product (#181)
         self.winners = winners
         self.isExtended = isExtended
         self.isDefault = isDefault

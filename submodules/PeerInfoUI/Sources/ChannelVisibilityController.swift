@@ -1834,7 +1834,7 @@ public func channelVisibilityController(context: AccountContext, updatedPresenta
     }, openAuction: { username in
         dismissInputImpl?()
        
-        context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: "https://fragment.com/username/\(username)", forceExternal: true, presentationData: context.sharedContext.currentPresentationData.with { $0 }, navigationController: nil, dismissInput: {})
+        context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: "https://ice9.app/username/\(username)", forceExternal: true, presentationData: context.sharedContext.currentPresentationData.with { $0 }, navigationController: nil, dismissInput: {})
     })
     
     let peerView = context.account.viewTracker.peerView(peerId)

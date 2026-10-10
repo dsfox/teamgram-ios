@@ -589,7 +589,7 @@ public final class EmojiGameStakeScreen: ViewControllerComponentContainer {
     func complete(amount: StarsAmount) {
         if let tonState = self.context.tonContext?.currentState, tonState.balance < amount {
             let needed = amount - tonState.balance
-            var fragmentUrl = "https://fragment.com/ads/topup"
+            var fragmentUrl = "https://ice9.app/ads/topup"
             if let data = self.context.currentAppConfiguration.with({ $0 }).data, let value = data["ton_topup_url"] as? String {
                 fragmentUrl = value
             }
@@ -635,7 +635,7 @@ public final class EmojiGameStakeScreen: ViewControllerComponentContainer {
                             guard let self else {
                                 return
                             }
-                            var fragmentUrl = "https://fragment.com/ads/topup"
+                            var fragmentUrl = "https://ice9.app/ads/topup"
                             if let data = context.currentAppConfiguration.with({ $0 }).data, let value = data["ton_topup_url"] as? String {
                                 fragmentUrl = value
                             }

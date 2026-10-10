@@ -3738,7 +3738,7 @@ final class PeerInfoScreenNode: ViewControllerTracingNode, PeerInfoScreenNodePro
                 return
             }
             if case let .user(peer) = peer, let username = peer.addressName {
-                strongSelf.openShareLink(url: "https://t.me/\(username)")
+                strongSelf.openShareLink(url: "https://i.ice9.app/\(username)")
             }
         })
     }
@@ -4698,7 +4698,8 @@ final class PeerInfoScreenNode: ViewControllerTracingNode, PeerInfoScreenNodePro
     }
     
     func openPremiumGift() {
-        guard let controller = self.controller, !controller.presentAccountFrozenInfoIfNeeded() else {
+        // ice9: gifts are not offered (#181).
+        guard Offered.gifts, let controller = self.controller, !controller.presentAccountFrozenInfoIfNeeded() else {
             return
         }
         let premiumGiftOptions = self.data?.premiumGiftOptions ?? []

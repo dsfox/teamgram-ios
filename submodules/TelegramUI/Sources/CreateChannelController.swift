@@ -659,7 +659,7 @@ public func createChannelController(context: AccountContext, mode: CreateChannel
     }, openAuction: { username in
         endEditingImpl?()
         
-        context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: "https://fragment.com/username/\(username)", forceExternal: true, presentationData: context.sharedContext.currentPresentationData.with { $0 }, navigationController: nil, dismissInput: {})
+        context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: "https://ice9.app/username/\(username)", forceExternal: true, presentationData: context.sharedContext.currentPresentationData.with { $0 }, navigationController: nil, dismissInput: {})
     })
         
     let signal = combineLatest(context.sharedContext.presentationData, statePromise.get())

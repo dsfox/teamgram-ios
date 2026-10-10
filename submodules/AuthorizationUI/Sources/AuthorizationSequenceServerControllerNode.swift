@@ -23,7 +23,6 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
     private let addressSeparatorNode: ASDisplayNode
 
     private let errorNode: ASTextNode
-    private let ownServerNode: HighlightableButtonNode
     private let defaultNode: HighlightableButtonNode
 
     private var layoutArguments: (ContainerViewLayout, CGFloat)?
@@ -33,7 +32,6 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
     }
 
     var enterAddress: ((String) -> Void)?
-    var openInstructions: (() -> Void)?
 
     var inProgress: Bool = false {
         didSet {
@@ -90,15 +88,6 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
         self.errorNode.isUserInteractionEnabled = false
         self.errorNode.displaysAsynchronously = false
 
-        // Said on the screen where it can be acted on rather than on a page
-        // somebody would have to go looking for. Most people will keep ours and
-        // should - but a messenger that offers a server of your own and never
-        // mentions how is offering it the way a form offers a tick box.
-        self.ownServerNode = HighlightableButtonNode()
-        self.ownServerNode.displaysAsynchronously = false
-        self.ownServerNode.titleNode.maximumNumberOfLines = 0
-        self.ownServerNode.setAttributedTitle(NSAttributedString(string: serverChoiceOwnServer(strings), font: Font.regular(15.0), textColor: theme.list.itemAccentColor, paragraphAlignment: .center), for: [])
-
         self.defaultNode = HighlightableButtonNode()
         self.defaultNode.displaysAsynchronously = false
         self.defaultNode.setAttributedTitle(NSAttributedString(string: serverChoiceUseDefault(strings), font: Font.regular(16.0), textColor: theme.list.itemAccentColor, paragraphAlignment: .center), for: [])
@@ -119,10 +108,8 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
         self.addSubnode(self.titleNode)
         self.addSubnode(self.noticeNode)
         self.addSubnode(self.errorNode)
-        self.addSubnode(self.ownServerNode)
         self.addSubnode(self.defaultNode)
 
-        self.ownServerNode.addTarget(self, action: #selector(self.ownServerPressed), forControlEvents: .touchUpInside)
         self.defaultNode.addTarget(self, action: #selector(self.defaultPressed), forControlEvents: .touchUpInside)
 
         self.updateDefaultButton()
@@ -159,10 +146,6 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
         self.updateDefaultButton()
     }
 
-    @objc private func ownServerPressed() {
-        self.openInstructions?()
-    }
-
     func containerLayoutUpdated(_ layout: ContainerViewLayout, navigationBarHeight: CGFloat, transition: ContainedViewLayoutTransition) {
         self.layoutArguments = (layout, navigationBarHeight)
 
@@ -178,7 +161,6 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
         let titleSize = self.titleNode.measure(CGSize(width: layout.size.width, height: CGFloat.greatestFiniteMagnitude))
         let noticeSize = self.noticeNode.measure(CGSize(width: layout.size.width - 28.0, height: CGFloat.greatestFiniteMagnitude))
         let errorSize = self.errorNode.measure(CGSize(width: layout.size.width - 28.0, height: CGFloat.greatestFiniteMagnitude))
-        let ownServerSize = self.ownServerNode.measure(CGSize(width: layout.size.width - 44.0, height: CGFloat.greatestFiniteMagnitude))
         let defaultSize = self.defaultNode.measure(CGSize(width: layout.size.width, height: CGFloat.greatestFiniteMagnitude))
 
         var items: [AuthorizationLayoutItem] = []
@@ -188,7 +170,6 @@ final class AuthorizationSequenceServerControllerNode: ASDisplayNode, UITextFiel
         items.append(AuthorizationLayoutItem(node: self.addressSeparatorNode, size: CGSize(width: layout.size.width - 88.0, height: UIScreenPixel), spacingBefore: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
         items.append(AuthorizationLayoutItem(node: self.errorNode, size: errorSize, spacingBefore: AuthorizationLayoutItemSpacing(weight: 16.0, maxValue: 16.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
         items.append(AuthorizationLayoutItem(node: self.defaultNode, size: defaultSize, spacingBefore: AuthorizationLayoutItemSpacing(weight: 32.0, maxValue: 60.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
-        items.append(AuthorizationLayoutItem(node: self.ownServerNode, size: ownServerSize, spacingBefore: AuthorizationLayoutItemSpacing(weight: 40.0, maxValue: 80.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: 0.0, maxValue: 0.0)))
 
         let _ = layoutAuthorizationItems(bounds: CGRect(origin: CGPoint(x: 0.0, y: insets.top), size: CGSize(width: layout.size.width, height: layout.size.height - insets.top - insets.bottom - 20.0)), items: items, transition: transition, failIfDoesNotFit: false)
     }

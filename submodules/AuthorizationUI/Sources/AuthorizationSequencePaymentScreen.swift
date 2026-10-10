@@ -26,7 +26,7 @@ import MessageUI
 import CoreTelephony
 import PhoneNumberFormat
 import PlainButtonComponent
-import StoreKit
+// ice9: no StoreKit here - this screen buys nothing (#181)
 import DeviceModel
 import GlassBarButtonComponent
 

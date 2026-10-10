@@ -537,7 +537,7 @@ public final class PeerInfoGiftsPaneNode: ASDisplayNode, PeerInfoPaneNode, UIScr
                 }
                 f(.default)
                 
-                self.openShareLink?("https://t.me/\(addressName)/c/\(id)")
+                self.openShareLink?("https://i.ice9.app/\(addressName)/c/\(id)")
             })))
         }
         
@@ -1337,7 +1337,7 @@ public final class PeerInfoGiftsPaneNode: ASDisplayNode, PeerInfoPaneNode, UIScr
                                 text: presentationData.strings.Gift_UnavailableAction_Text,
                                 actions: [
                                     TextAlertAction(type: .defaultAction, title: presentationData.strings.Gift_UnavailableAction_OpenFragment, action: {
-                                        context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: "https://fragment.com/gift/\(uniqueGift.slug)", forceExternal: true, presentationData: presentationData, navigationController: nil, dismissInput: {})
+                                        context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: "https://ice9.app/gift/\(uniqueGift.slug)", forceExternal: true, presentationData: presentationData, navigationController: nil, dismissInput: {})
                                     }),
                                     TextAlertAction(type: .genericAction, title: presentationData.strings.Common_Cancel, action: {})
                                 ],

@@ -4464,7 +4464,8 @@ extension ChatControllerImpl {
                     return true
             }), in: .current)
         }, openPremiumGift: { [weak self] in
-            guard let self, let peerId = self.chatLocation.peerId else {
+            // ice9: gifts are not offered (#181).
+            guard Offered.gifts, let self, let peerId = self.chatLocation.peerId else {
                 return
             }
             

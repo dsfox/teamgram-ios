@@ -154,10 +154,8 @@ private final class WebBrowserItemNode: ListViewItemNode {
                         let image = renderSettingsIcon(name: "Chat/Context Menu/Globe", backgroundColors: [UIColor(rgb: 0x8E8E93)])!
                         updatedIconSignal = openInAppIcon(engine: item.context.engine, appIcon: .image(image: image), withChrome: false)
                     } else {
-                        let icons = item.context.sharedContext.applicationBindings.getAvailableAlternateIcons()
-                        let current = item.context.sharedContext.applicationBindings.getAlternateIconName()
-                        let currentIcon = icons.first(where: { $0.name == current })?.imageName ?? "BlueIcon"
-                        if let image = UIImage(named: currentIcon, in: getAppBundle(), compatibleWith: nil) {
+                        // ice9: the app's own icon - there are no alternate ones, and BlueIcon was teamgram's feather (#181).
+                        if let image = UIImage(named: "AppIcon60x60", in: getAppBundle(), compatibleWith: nil) {
                             updatedIconSignal = openInAppIcon(engine: item.context.engine, appIcon: .image(image: image))
                         }
                     }

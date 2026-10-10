@@ -156,7 +156,7 @@ public enum StarsPurchasePurpose: Equatable {
 public struct PremiumConfiguration {
     public static var defaultValue: PremiumConfiguration {
         return PremiumConfiguration(
-            isPremiumDisabled: false,
+            isPremiumDisabled: true, // ice9: nothing is sold, before the server's config arrives too (#181)
             areStarsDisabled: true,
             subscriptionManagementUrl: "",
             showPremiumGiftInAttachMenu: false,

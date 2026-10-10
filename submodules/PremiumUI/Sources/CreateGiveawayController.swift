@@ -1149,7 +1149,7 @@ public func createGiveawayController(context: AccountContext, updatedPresentatio
             }
         }
         let defaultPrice: (Int64, NSDecimalNumber)
-        if let defaultProduct = products.first(where: { $0.id == "org.telegram.telegramPremium.monthly" }) {
+        if let defaultProduct = products.first(where: { $0.isSubscription }) { // ice9: no Telegram product id (#181)
             defaultPrice = (defaultProduct.priceCurrencyAndAmount.amount, defaultProduct.priceValue)
         } else {
             defaultPrice = (1, NSDecimalNumber(value: 1))

@@ -306,7 +306,7 @@ public func parseInternalUrl(sharedContext: SharedAccountContext, context: Accou
                             }
                         }
                         if let _ = token {
-                            return .oauth(url: "https://t.me/\(query)")
+                            return .oauth(url: "https://i.ice9.app/\(query)")
                         }
                     } else {
                         for queryItem in queryItems {

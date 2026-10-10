@@ -959,7 +959,8 @@ func peerInfoScreenSettingsData(context: AccountContext, peerId: EnginePeer.Id, 
         tonState = .single(nil)
     }
     
-    let profileGiftsContext = ProfileGiftsContext(account: context.account, peerId: peerId)
+    // ice9: gifts are not offered, so nobody's are asked for (#181).
+    let profileGiftsContext: ProfileGiftsContext? = Offered.gifts ? ProfileGiftsContext(account: context.account, peerId: peerId) : nil
     
     let businessConnectedBot = context.engine.data.subscribe(
         TelegramEngine.EngineData.Item.Peer.BusinessConnectedBot(id: context.account.peerId)
@@ -1185,7 +1186,7 @@ func peerInfoScreenData(
             let profileGiftsContext: ProfileGiftsContext?
             let profileGiftsCollectionsContext: ProfileGiftsCollectionsContext?
             if case .user = kind {
-                if isMyProfile || userPeerId != context.account.peerId {
+                if Offered.gifts && (isMyProfile || userPeerId != context.account.peerId) {
                     profileGiftsContext = existingProfileGiftsContext ?? ProfileGiftsContext(account: context.account, peerId: userPeerId)
                     profileGiftsCollectionsContext = existingProfileGiftsCollectionsContext ?? ProfileGiftsCollectionsContext(account: context.account, peerId: userPeerId, allGiftsContext: profileGiftsContext)
                     

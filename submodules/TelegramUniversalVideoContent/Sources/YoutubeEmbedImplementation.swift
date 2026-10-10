@@ -175,7 +175,7 @@ final class YoutubeEmbedImplementation: WebEmbedImplementation {
         updateStatus(self.status)
         
         let html = String(format: htmlTemplate, paramsJson)
-        webView.loadHTMLString(html, baseURL: URL(string: "https://ph.telegra.Telegraph"))
+        webView.loadHTMLString(html, baseURL: URL(string: "https://ice9.app"))
 //        webView.isUserInteractionEnabled = false
         
         userContentController.addUserScript(WKUserScript(source: userScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false))

@@ -1000,7 +1000,7 @@ private final class SheetContent: CombinedComponent {
                                         case .ton:
                                             if let balance = state.tonBalance, amount > balance {
                                                 let needed = amount - balance
-                                                var fragmentUrl = "https://fragment.com/ads/topup"
+                                                var fragmentUrl = "https://ice9.app/ads/topup"
                                                 if let data = state.context.currentAppConfiguration.with({ $0 }).data, let value = data["ton_topup_url"] as? String {
                                                     fragmentUrl = value
                                                 }

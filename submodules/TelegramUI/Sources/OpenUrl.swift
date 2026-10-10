@@ -245,9 +245,6 @@ private func handleInternetUrl(
     if internetSchemes.contains(urlScheme) {
         isInternetUrl = true
     }
-    if urlScheme == "tonsite" {
-        isInternetUrl = true
-    }
     
     if isInternetUrl {
         if let host = parsedUrl.host, telegramMeHosts.contains(host) {

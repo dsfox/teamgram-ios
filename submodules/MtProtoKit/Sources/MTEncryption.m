@@ -754,82 +754,8 @@ NSData *MTRsaEncryptPKCS1OAEP(id<EncryptionProvider> provider, NSString *key, NS
 }
 
 static NSData *decrypt_TL_data(id<EncryptionProvider> provider, unsigned char buffer[256]) {
-    NSString *keyString = @"-----BEGIN RSA PUBLIC KEY-----\n"
-"MIIBCgKCAQEAyr+18Rex2ohtVy8sroGPBwXD3DOoKCSpjDqYoXgCqB7ioln4eDCF\n"
-"fOBUlfXUEvM/fnKCpF46VkAftlb4VuPDeQSS/ZxZYEGqHaywlroVnXHIjgqoxiAd\n"
-"192xRGreuXIaUKmkwlM9JID9WS2jUsTpzQ91L8MEPLJ/4zrBwZua8W5fECwCCh2c\n"
-"9G5IzzBm+otMS/YKwmR1olzRCyEkyAEjXWqBI9Ftv5eG8m0VkBzOG655WIYdyV0H\n"
-"fDK/NWcvGqa0w/nriMD6mDjKOryamw0OP9QuYgMN0C9xMW9y8SmP4h92OAWodTYg\n"
-"Y1hZCxdv6cs5UnW9+PWvS+WIbkh+GaWYxwIDAQAB\n"
-"-----END RSA PUBLIC KEY-----";
-    
-    id<MTRsaPublicKey> rsaKey = [provider parseRSAPublicKey:keyString];
-    if (rsaKey == nil) {
-        return nil;
-    }
-    
-    uint8_t *bytes = buffer;
-    
-    id<MTBignumContext> context = [provider createBignumContext];
-    
-    id<MTBignum> x = [context create];
-    id<MTBignum> y = [context create];
-    
-    [context assignBinTo:x value:[NSData dataWithBytesNoCopy:buffer length:256 freeWhenDone:false]];
-    
-    id<MTBignum> rsaKeyN = [context rsaGetN:rsaKey];
-    id<MTBignum> rsaKeyE = [context rsaGetE:rsaKey];
-    
-    NSData *result = nil;
-    
-    if ([context modExpInto:y a:x b:rsaKeyE mod:rsaKeyN]) {
-        NSData *yBytes = [context getBin:y];
-        unsigned l = 256 - (unsigned)yBytes.length;
-        assert(l >= 0);
-        
-        [yBytes getBytes:bytes + l length:256 - l];
-        
-        NSMutableData *iv = [[NSMutableData alloc] initWithLength:16];
-        memcpy(iv.mutableBytes, bytes + 16, 16);
-        
-        NSData *encryptedBytes = [[NSData alloc] initWithBytes:bytes + 32 length:256 - 32];
-        
-        NSData *keyBytes = [[NSData alloc] initWithBytes:bytes length:32];
-        
-        NSMutableData *decryptedBytes = [[NSMutableData alloc] initWithLength:encryptedBytes.length];
-        MyAesCbcDecrypt(encryptedBytes.bytes, (int)encryptedBytes.length, decryptedBytes.mutableBytes, keyBytes.bytes, (int)keyBytes.length, iv.mutableBytes);
-        
-        if (decryptedBytes == nil) {
-            return nil;
-        }
-        
-        NSData *sha256Bytes = MTSha256([decryptedBytes subdataWithRange:NSMakeRange(0, 256 - 32 - 16)]);
-        
-        unsigned char sha256_out[32];
-        [sha256Bytes getBytes:sha256_out length:32];
-        
-        NSData *sha256Part = [sha256Bytes subdataWithRange:NSMakeRange(0, 16)];
-        NSData *testSha256 = [decryptedBytes subdataWithRange:NSMakeRange(decryptedBytes.length - 16, 16)];
-        
-        if ([sha256Part isEqualToData:testSha256]) {
-            memcpy(bytes + 32, decryptedBytes.bytes, 256 - 32);
-            
-            unsigned data_len = *(unsigned *) (bytes + 32);
-            if (data_len && data_len <= 256 - 32 - 16 && !(data_len & 3)) {
-                result = [NSData dataWithBytes:buffer + 32 + 4 length:data_len];
-            } else {
-                if (MTLogEnabled()) {
-                    MTLog(@"TL data length field invalid - %d", data_len);
-                }
-            }
-        } else {
-            if (MTLogEnabled()) {
-                MTLog(@"RSA signature check FAILED (SHA256 mismatch)");
-            }
-        }
-    }
-
-    return result;
+    // ice9: Telegram's signed backup configuration is never read, nor its key kept (#181).
+    return nil;
 }
 
 @implementation MTBackupDatacenterAddress

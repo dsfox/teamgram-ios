@@ -2829,7 +2829,7 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
                                     
                                     if let balance, funds.amount.amount > balance {
                                         let needed = funds.amount.amount - balance
-                                        var fragmentUrl = "https://fragment.com/ads/topup"
+                                        var fragmentUrl = "https://ice9.app/ads/topup"
                                         if let data = strongSelf.context.currentAppConfiguration.with({ $0 }).data, let value = data["ton_topup_url"] as? String {
                                             fragmentUrl = value
                                         }
@@ -5420,6 +5420,10 @@ public final class ChatControllerImpl: TelegramBaseController, ChatController, G
             }
             self.openEditMessageFactCheck(messageId: messageId)
         }, sendGift: { [weak self] peerId in
+            // ice9: gifts are not offered (#181).
+            guard Offered.gifts else {
+                return
+            }
             guard let self else {
                 return
             }

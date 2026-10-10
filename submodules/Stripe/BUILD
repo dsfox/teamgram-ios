@@ -3,13 +3,11 @@ objc_library(
     name = "Stripe",
     enable_modules = True,
     module_name = "Stripe",
-    srcs = glob([
-        "Sources/**/*.m",
-        "Sources/**/*.h",
-    ]),
-    hdrs = glob([
-        "PublicHeaders/**/*.h",
-    ]),
+    # ice9: no card payment SDK in the app (#181). The target stays so its
+    # dependents need no edit; it compiles nothing. Upstream's code is left in
+    # Sources/ for the next carry.
+    srcs = [],
+    hdrs = [],
     includes = [
         "PublicHeaders",
     ],

@@ -300,9 +300,11 @@ public final class AccountContextImpl: AccountContext {
             self.themeUpdateManager = ThemeUpdateManagerImpl(sharedContext: sharedContext, account: account)
             
             self.inAppPurchaseManager = InAppPurchaseManager(engine: .authorized(self.engine))
-            self.starsContext = self.engine.payments.peerStarsContext()
-            self.tonContext = self.engine.payments.peerTonContext()
-            self.giftAuctionsManager = GiftAuctionsManager(account: account)
+            // ice9: no Stars, TON or gift auctions, so nothing asks the server
+            // about them at launch (#181).
+            self.starsContext = nil
+            self.tonContext = nil
+            self.giftAuctionsManager = nil
         } else {
             self.prefetchManager = nil
             self.wallpaperUploadManager = nil

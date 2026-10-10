@@ -267,7 +267,7 @@ final class TextProcessingContentComponent: Component {
                 return
             }
             let shareController = component.context.sharedContext.makeShareController(context: component.context, params: ShareControllerParams(
-                subject: .url("https://t.me/addstyle/\(slug)"),
+                subject: .url("https://i.ice9.app/addstyle/\(slug)"),
                 completed: { [weak self] peerIds in
                     Task { @MainActor in
                         guard let self, let component = self.component, let environment = self.environment, let peerId = peerIds.first else {

@@ -1756,7 +1756,8 @@ public final class ChatListNode: ListViewImpl {
             let controller = self.context.sharedContext.makePremiumIntroController(context: self.context, source: .ads, forceDark: false, dismissed: nil)
             self.push?(controller)
         }, openPremiumGift: { [weak self] peers, birthdays in
-            guard let self else {
+            // ice9: gifts are not offered (#181).
+            guard Offered.gifts, let self else {
                 return
             }
             if peers.count == 1, let peerId = peers.first?.id {

@@ -35,17 +35,6 @@ func serverChoicePlaceholder(_ strings: PresentationStrings) -> String {
     return serverChoiceIsRussian(strings) ? "адрес или имя:порт" : "address or name:port"
 }
 
-/// Where the instructions for putting one up live. On the site because that is
-/// the public place we have - the repository is private, so there is no other
-/// link to give.
-let serverChoiceInstructions = "https://ice9.app/server"
-
-func serverChoiceOwnServer(_ strings: PresentationStrings) -> String {
-    return serverChoiceIsRussian(strings)
-        ? "Важно! Свой сервер поднимается за 5–10 минут по инструкции. Это просто — попробуйте."
-        : "Important: your own server goes up in 5-10 minutes, and here is how. It is easy - try it."
-}
-
 func serverChoiceUseDefault(_ strings: PresentationStrings) -> String {
     return serverChoiceIsRussian(strings) ? "Сервер по умолчанию" : "Use default"
 }
@@ -88,7 +77,6 @@ final class AuthorizationSequenceServerController: ViewController {
     private let theme: PresentationTheme
     private let network: Network
     private let store: ServerAddressStore
-    private let openUrl: (String) -> Void
 
     /// Somebody named a server and it answered. The address is already kept and
     /// the client is already pointed at it.
@@ -118,12 +106,11 @@ final class AuthorizationSequenceServerController: ViewController {
         }
     }
 
-    init(strings: PresentationStrings, theme: PresentationTheme, network: Network, store: ServerAddressStore, openUrl: @escaping (String) -> Void) {
+    init(strings: PresentationStrings, theme: PresentationTheme, network: Network, store: ServerAddressStore) {
         self.strings = strings
         self.theme = theme
         self.network = network
         self.store = store
-        self.openUrl = openUrl
 
         super.init(navigationBarPresentationData: NavigationBarPresentationData(theme: AuthorizationSequenceController.navigationBarTheme(theme), strings: NavigationBarStrings(presentationStrings: strings)))
 
@@ -156,9 +143,6 @@ final class AuthorizationSequenceServerController: ViewController {
 
         self.controllerNode.enterAddress = { [weak self] address in
             self?.submit(address)
-        }
-        self.controllerNode.openInstructions = { [weak self] in
-            self?.openUrl(serverChoiceInstructions)
         }
     }
 

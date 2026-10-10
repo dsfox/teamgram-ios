@@ -634,7 +634,8 @@ extension PeerInfoScreenNode {
                         })))
                     }
                     
-                    if strongSelf.peerId.namespace == Namespaces.Peer.CloudUser, !user.isDeleted && user.botInfo == nil && !user.flags.contains(.isSupport) {
+                    // ice9: gifts are not offered (#181).
+                    if Offered.gifts && strongSelf.peerId.namespace == Namespaces.Peer.CloudUser, !user.isDeleted && user.botInfo == nil && !user.flags.contains(.isSupport) {
                         if let cachedData = data.cachedData as? CachedUserData, cachedData.disallowedGifts == .All {
                         } else {
                             items.append(.action(ContextMenuActionItem(text: presentationData.strings.Profile_SendGift, icon: { theme in

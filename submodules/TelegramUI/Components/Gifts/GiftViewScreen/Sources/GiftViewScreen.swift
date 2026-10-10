@@ -930,7 +930,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                     shareStory(gift)
                 }
             }
-            let link = "https://t.me/nft/\(gift.slug)"
+            let link = "https://i.ice9.app/nft/\(gift.slug)"
             let shareController = self.context.sharedContext.makeShareController(
                 context: self.context,
                 params: ShareControllerParams(
@@ -1095,7 +1095,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                 text: presentationData.strings.Gift_UnavailableAction_Text,
                 actions: [
                     TextAlertAction(type: .defaultAction, title: presentationData.strings.Gift_UnavailableAction_OpenFragment, action: {
-                        context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: "https://fragment.com/gift/\(gift.slug)", forceExternal: true, presentationData: presentationData, navigationController: controller.navigationController as? NavigationController, dismissInput: {})
+                        context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: "https://ice9.app/gift/\(gift.slug)", forceExternal: true, presentationData: presentationData, navigationController: controller.navigationController as? NavigationController, dismissInput: {})
                     }),
                     TextAlertAction(type: .genericAction, title: presentationData.strings.Common_Cancel, action: {})
                 ],
@@ -1528,7 +1528,7 @@ private final class GiftViewSheetContent: CombinedComponent {
             }
             
             let presentationData = self.context.sharedContext.currentPresentationData.with { $0 }
-            let link = "https://t.me/nft/\(gift.slug)"
+            let link = "https://i.ice9.app/nft/\(gift.slug)"
             
             let _ = (self.context.engine.data.get(
                 TelegramEngine.EngineData.Item.Peer.Peer(id: arguments.peerId ?? context.account.peerId)
@@ -2438,7 +2438,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                     return
                 }
                 let needed = price.amount - tonState.balance
-                var fragmentUrl = "https://fragment.com/ads/topup"
+                var fragmentUrl = "https://ice9.app/ads/topup"
                 if let data = self.context.currentAppConfiguration.with({ $0 }).data, let value = data["ton_topup_url"] as? String {
                     fragmentUrl = value
                 }
@@ -6006,7 +6006,7 @@ public class GiftViewScreen: ViewControllerComponentContainer {
                                     navigationController.pushViewController(controller)
                                 })
                             case .ton:
-                                var fragmentUrl = "https://fragment.com/ads/topup"
+                                var fragmentUrl = "https://ice9.app/ads/topup"
                                 if let data = context.currentAppConfiguration.with({ $0 }).data, let value = data["ton_topup_url"] as? String {
                                     fragmentUrl = value
                                 }

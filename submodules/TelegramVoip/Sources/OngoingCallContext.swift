@@ -949,23 +949,8 @@ public final class OngoingCallContext {
                     }
                 }
                 
-                var unfilteredConnections: [CallSessionConnection]
-                unfilteredConnections = [connections.primary] + connections.alternatives
-                
-                if version == "12.0.0" {
-                    for connection in unfilteredConnections {
-                        if case let .reflector(reflector) = connection {
-                            unfilteredConnections.append(.reflector(CallSessionConnection.Reflector(
-                                id: 123456,
-                                ip: "91.108.9.38",
-                                ipv6: "",
-                                isTcp: true,
-                                port: 595,
-                                peerTag: reflector.peerTag
-                            )))
-                        }
-                    }
-                }
+                // ice9: only the relays the server names; no Telegram relay is added (#181).
+                let unfilteredConnections: [CallSessionConnection] = [connections.primary] + connections.alternatives
                 
                 var reflectorIdList: [Int64] = []
                 for connection in unfilteredConnections {

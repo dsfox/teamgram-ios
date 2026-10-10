@@ -3,9 +3,8 @@ load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
 swift_library(
     name = "PaymentMethodUI",
     module_name = "PaymentMethodUI",
-    srcs = glob([
-        "Sources/**/*.swift",
-    ]),
+    # ice9: nothing here sells or takes payment (#181); see Ice9NoPayments.
+    srcs = ["//submodules/Ice9NoPayments:PaymentMethodUIStub"],
     copts = [
         "-warnings-as-errors",
     ],
@@ -34,8 +33,6 @@ swift_library(
         "//submodules/ItemListUI:ItemListUI",
         "//submodules/TelegramStringFormatting:TelegramStringFormatting",
         "//submodules/UndoUI:UndoUI",
-        "//submodules/Stripe:Stripe",
-        "//submodules/Components/Forms/CreditCardInputComponent:CreditCardInputComponent",
     ],
     visibility = [
         "//visibility:public",

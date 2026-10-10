@@ -12605,7 +12605,7 @@ Sorry for the inconvenience.";
 "Monetization.Proceeds.Stars.Info" = "Stars from your total balance can be used for ads or withdrawn as rewards 21 days after they are earned.";
 "Monetization.Proceeds.TonAndStars.Info" = "Stars and GRAM from your total balance can be used for ads or withdrawn as rewards 21 and 3 days respectively after they are earned.";
 
-"Stars.Transaction.FragmentUnknown_URL" = "https://fragment.com/stars";
+"Stars.Transaction.FragmentUnknown_URL" = "";
 "Conversation.StatusBotSubscribers_1" = "1 user";
 "Conversation.StatusBotSubscribers_any" = "%d users";
 
@@ -16184,7 +16184,7 @@ Error: %8$@";
 "TextProcessing.ActionApply" = "Apply";
 "TextProcessing.ActionClose" = "Close";
 "TextProcessing.LimitToast.Title" = "Daily limit reached";
-"TextProcessing.LimitToast.Text" = "Get **Telegram Premium** for **50x** more text edits per day.";
+"TextProcessing.LimitToast.Text" = "Get **Premium** for **50x** more text edits per day.";
 "TextProcessing.Emojify" = "Emojify";
 "TextProcessing.TextExpand" = "more";
 "TextProcessing.TextCollapse" = "less";
@@ -16242,7 +16242,7 @@ Error: %8$@";
 "Attachment.ChatsMusic" = "YOUR CHATS";
 "Attachment.PublicMusic" = "PUBLIC CHATS";
 
-"PeerInfo.UnofficialSecurityRisk" = "%@ uses an unofficial Telegram client – messages to this user may be less secure.";
+"PeerInfo.UnofficialSecurityRisk" = "%@ uses an unofficial client – messages to this user may be less secure.";
 
 "Gallery.Live" = "LIVE";
 
@@ -16294,18 +16294,18 @@ Error: %8$@";
 "Chat.AdminAction.ToastReactionsDeletedTextMultiple" = "Reactions Deleted.";
 "Chat.AdminAction.ToastMessagesAndReactionsDeletedText" = "Messages and reactions deleted.";
 
-"Premium.SignUp.SignUpNewInfo" = "Get Telegram Premium for %@";
+"Premium.SignUp.SignUpNewInfo" = "Get Premium for %@";
 "Premium.SignUp.SignUpNewInfo.Days_1" = "%@ day";
 "Premium.SignUp.SignUpNewInfo.Days_any" = "%@ days";
-"Premium.SignUp.SignUpNewInfoNone" = "Get Telegram Premium";
+"Premium.SignUp.SignUpNewInfoNone" = "Get Premium";
 
 "Login.Fee.Support.NewText.Days_1" = "%@ day";
 "Login.Fee.Support.NewText.Days_any" = "%@ days";
-"Login.Fee.Support.NewText" = "Sign up for a %@ Telegram Premium subscription to help cover the SMS costs.";
-"Login.Fee.Support.NewTextNone" = "Sign up for Telegram Premium subscription to help cover the SMS costs.";
+"Login.Fee.Support.NewText" = "Sign up for a %@ Premium subscription to help cover the SMS costs.";
+"Login.Fee.Support.NewTextNone" = "Sign up for Premium subscription to help cover the SMS costs.";
 
-"Login.Fee.GetPremiumNone" = "Get Telegram Premium";
-"Login.Fee.GetPremiumForDays" = "Get Telegram Premium for %@";
+"Login.Fee.GetPremiumNone" = "Get Premium";
+"Login.Fee.GetPremiumForDays" = "Get Premium for %@";
 "Login.Fee.GetPremiumForDays.Days_1" = "%@ day";
 "Login.Fee.GetPremiumForDays.Days_any" = "%@ days";
 
@@ -16382,7 +16382,7 @@ Error: %8$@";
 "SocksProxySetup.QrCode.TgLink" = "tg:// link";
 "SocksProxySetup.QrCode.TMeLink" = "t.me link";
 
-"WebBrowser.OpenLinksInfo" = "Open links inside Telegram instead of your default browser for more privacy.";
+"WebBrowser.OpenLinksInfo" = "Open links inside ice9 instead of your default browser for more privacy.";
 "WebBrowser.Exceptions.OpenInApp" = "OPEN IN-APP";
 "WebBrowser.Exceptions.DontOpenInApp" = "DON'T OPEN IN-APP";
 "WebBrowser.Exceptions.InAppInfo" = "These sites will still be opened in-app.";
@@ -16561,14 +16561,14 @@ Error: %8$@";
 "Attachment.Article" = "Article";
 "RichText.AddMediaTitle" = "Add Media";
 "RichText.RemoveFormattingTitle" = "Remove Formatting?";
-"RichText.RemoveFormattingText" = "This message includes rich formatting, which requires Telegram Premium.";
+"RichText.RemoveFormattingText" = "This message includes rich formatting, which requires Premium.";
 "RichText.SubscribeToPremium" = "Subscribe to Premium";
 "RichText.SendWithoutFormatting" = "Send Without Formatting";
 "RichText.LinkTitle" = "Link";
 "RichText.LinkText" = "Set a URL for the selected text";
 "RichText.LinkSet" = "Set";
 "RichText.LinkRemove" = "Remove";
-"RichText.PremiumToastText" = "Sending a message with this formatting will require [Telegram Premium]().";
+"RichText.PremiumToastText" = "Sending a message with this formatting will require [Premium]().";
 "RichText.TableMenu.Alignment" = "Alignment";
 "RichText.FormulaAdd" = "Add Formula";
 "RichText.FormulaEdit" = "Edit Formula";

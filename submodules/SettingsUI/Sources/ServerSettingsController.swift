@@ -77,15 +77,32 @@ func serverSettingsSendLogsInfo(_ strings: PresentationStrings) -> String {
         : "The app's own record of its work on this phone, for whoever is helping you with a problem. It goes as a file to the chat you pick, and nowhere else. If the app was not keeping one, it starts with this tap."
 }
 
+/// Where ice9 comes from, said in the app (#181): App Review refused 12.9.2 as
+/// Telegram's code "presented as an original product". It is built on
+/// Telegram's open-source apps, and its own code is public; this says both.
+public let serverSettingsSourceCodeUrl = "https://github.com/dsfox/teamgram-ios"
+
+func serverSettingsSourceCode(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings) ? "Исходный код" : "Source code"
+}
+
+func serverSettingsSourceCodeInfo(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings)
+        ? "ice9 построен на открытых приложениях Telegram для iOS и Android. Код этого приложения, сервера и шифрования открыт на github.com/dsfox."
+        : "ice9 is built on Telegram's open-source apps for iOS and Android. The code of this app, of the server and of the encryption is public at github.com/dsfox."
+}
+
 private struct ServerSettingsArguments {
     let change: () -> Void
     let sendLogs: () -> Void
+    let openSourceCode: () -> Void
 }
 
 private enum ServerSettingsSection: Int32 {
     case current
     case change
     case logs
+    case source
 }
 
 private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
@@ -94,6 +111,8 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
     case changeInfo(PresentationTheme, String)
     case sendLogs(PresentationTheme, String)
     case sendLogsInfo(PresentationTheme, String)
+    case sourceCode(PresentationTheme, String)
+    case sourceCodeInfo(PresentationTheme, String)
 
     var section: ItemListSectionId {
         switch self {
@@ -103,6 +122,8 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
             return ServerSettingsSection.change.rawValue
         case .sendLogs, .sendLogsInfo:
             return ServerSettingsSection.logs.rawValue
+        case .sourceCode, .sourceCodeInfo:
+            return ServerSettingsSection.source.rawValue
         }
     }
 
@@ -118,6 +139,10 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
             return 4
         case .sendLogsInfo:
             return 5
+        case .sourceCode:
+            return 6
+        case .sourceCodeInfo:
+            return 7
         }
     }
 
@@ -146,6 +171,12 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
             })
         case let .sendLogsInfo(_, text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+        case let .sourceCode(_, title):
+            return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: title, kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
+                arguments.openSourceCode()
+            })
+        case let .sourceCodeInfo(_, text):
+            return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         }
     }
 }
@@ -157,6 +188,8 @@ private func serverSettingsEntries(presentationData: PresentationData, address: 
         .changeInfo(presentationData.theme, serverSettingsChangeInfo(presentationData.strings)),
         .sendLogs(presentationData.theme, serverSettingsSendLogs(presentationData.strings)),
         .sendLogsInfo(presentationData.theme, serverSettingsSendLogsInfo(presentationData.strings)),
+        .sourceCode(presentationData.theme, serverSettingsSourceCode(presentationData.strings)),
+        .sourceCodeInfo(presentationData.theme, serverSettingsSourceCodeInfo(presentationData.strings)),
     ]
 }
 
@@ -198,6 +231,8 @@ public func serverSettingsController(context: AccountContext) -> ViewController 
         triggerDebugSendLogsUI(context: context, pushController: { controller in
             pushControllerImpl?(controller)
         })
+    }, openSourceCode: {
+        context.sharedContext.openExternalUrl(context: context, urlContext: .generic, url: serverSettingsSourceCodeUrl, forceExternal: true, presentationData: context.sharedContext.currentPresentationData.with { $0 }, navigationController: nil, dismissInput: {})
     })
 
     let signal = context.sharedContext.presentationData
