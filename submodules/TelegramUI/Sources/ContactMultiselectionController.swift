@@ -36,12 +36,6 @@ class ContactMultiselectionControllerImpl: ViewController, ContactMultiselection
     
     private let titleView: CounterControllerTitleView
     
-    /// Puts the cursor in the search field with a hint: the "Invite by phone
-    /// number" row's whole job (#164).
-    public func focusSearch(placeholder: String) {
-        self.contactsNode.tokenListNode.focus(placeholder: placeholder)
-    }
-    
     private var contactsNode: ContactMultiselectionControllerNode {
         return self.displayNode as! ContactMultiselectionControllerNode
     }

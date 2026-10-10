@@ -16,6 +16,9 @@ swift_library(
         "//submodules/AccountContext:AccountContext",
         "//submodules/AlertUI:AlertUI",
         "//submodules/PresentationDataUtils:PresentationDataUtils",
+        "//submodules/ComponentFlow:ComponentFlow",
+        "//submodules/TelegramUI/Components/AlertComponent",
+        "//submodules/TelegramUI/Components/AlertComponent/AlertMultilineInputFieldComponent",
     ],
     visibility = [
         "//visibility:public",

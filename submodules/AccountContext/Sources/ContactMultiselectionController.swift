@@ -162,6 +162,4 @@ public protocol ContactMultiselectionController: ViewController {
     var displayProgress: Bool { get set }
     var dismissed: (() -> Void)? { get set }
     var isCallVideoOptionSelected: Bool { get }
-    /// Puts the cursor in the search field with a hint (#164).
-    func focusSearch(placeholder: String)
 }

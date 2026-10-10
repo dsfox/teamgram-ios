@@ -58,18 +58,23 @@ public func presentAddMembersImpl(context: AccountContext, updatedPresentationDa
             }, clearHighlightAutomatically: true))
         }
         
-        var focusSearchImpl: (() -> Void)?
-        // An invitation is an SMS with a code, and the number is typed into
-        // the search field; this row only puts the cursor there (#164).
+        var askForNumberImpl: (() -> Void)?
+        // An invitation is an SMS with a code; this row asks for the number
+        // in a window of its own (#164).
         options.append(ContactListAdditionalOption(title: presentationData.strings.Invite_ByPhoneNumber, icon: .generic(UIImage(bundleImageName: "Contact List/AddMemberIcon")!), action: {
-            focusSearchImpl?()
+            askForNumberImpl?()
         }, clearHighlightAutomatically: true))
         var inviteImpl: ((String) -> Void)?
         let contactsController = context.sharedContext.makeContactMultiselectionController(ContactMultiselectionControllerParams(context: context, updatedPresentationData: updatedPresentationData, mode: .peerSelection(searchChatList: false, searchGroups: false, searchChannels: false), options: .single(options), filters: [.excludeSelf, .disable(recentIds)], onlyWriteable: true, isGroupInvitation: true, inviteByNumber: { phone in
             inviteImpl?(phone)
         }))
-        focusSearchImpl = { [weak contactsController] in
-            contactsController?.focusSearch(placeholder: presentationData.strings.Invite_ByPhoneHint)
+        askForNumberImpl = { [weak contactsController] in
+            guard let contactsController else {
+                return
+            }
+            InvitationComposer.askForNumber(context: context, from: contactsController, then: { phone in
+                inviteImpl?(phone)
+            })
         }
         inviteImpl = { [weak contactsController] phone in
             guard let contactsController else {

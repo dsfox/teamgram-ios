@@ -386,8 +386,14 @@ public class ContactsController: ViewController {
         }
         
         self.contactsNode.openInviteByNumber = { [weak self] in
-            // The search bar takes the number; the row it produces does the rest.
-            self?.activateSearch(isFromTabBar: false)
+            // A window that asks for the number; it then goes where a number
+            // typed into the search goes.
+            guard let strongSelf = self else {
+                return
+            }
+            InvitationComposer.askForNumber(context: strongSelf.context, from: strongSelf, then: { [weak self] phone in
+                self?.contactsNode.requestAddContact?(phone)
+            })
         }
         
         self.contactsNode.openInvite = { [weak self] in

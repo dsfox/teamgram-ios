@@ -7,6 +7,9 @@ import TelegramCore
 import AccountContext
 import AlertUI
 import PresentationDataUtils
+import ComponentFlow
+import AlertComponent
+import AlertMultilineInputFieldComponent
 
 /// The one place an invitation SMS is composed from (#47).
 ///
@@ -49,6 +52,8 @@ public final class InvitationComposer: NSObject, MFMessageComposeViewControllerD
         one.disposable.set((context.engine.contacts.mintInvitation(phone: phone, chat: chat)
         |> deliverOnMainQueue).start(next: { [weak controller] code in
             guard let controller, let window = controller.view.window, MFMessageComposeViewController.canSendText() else {
+                // Said, rather than nothing happening: a simulator has no SMS app.
+                Logger.shared.log("Invite", "this device cannot send SMS, or the screen that asked is gone")
                 one.done()
                 return
             }
@@ -78,6 +83,50 @@ public final class InvitationComposer: NSObject, MFMessageComposeViewControllerD
             }
             controller.present(textAlertController(context: context, title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strings.Common_OK, action: {})]), in: .window(.root))
         }))
+    }
+
+    /// Asks for the number to invite in a window with one field for it.
+    ///
+    /// "Invite by phone number" opened the contacts search before, with no
+    /// hint and the letters keyboard, and a person was left to guess that a
+    /// number goes there. What is typed is handed over as it is, the way the
+    /// search handed over a typed number.
+    public static func askForNumber(context: AccountContext, from controller: ViewController, then: @escaping (String) -> Void) {
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+        let strings = presentationData.strings
+        let inputState = AlertMultilineInputFieldComponent.ExternalState()
+        let content: [AnyComponentWithIdentity<AlertComponentEnvironment>] = [
+            AnyComponentWithIdentity(id: "title", component: AnyComponent(
+                AlertTitleComponent(title: strings.Invite_ByPhoneNumber)
+            )),
+            AnyComponentWithIdentity(id: "input", component: AnyComponent(
+                AlertMultilineInputFieldComponent(
+                    context: context,
+                    placeholder: strings.Invite_ByPhoneHint,
+                    characterLimit: 24,
+                    keyboardType: .phonePad,
+                    autocorrectionType: .no,
+                    emptyLineHandling: .notAllowed,
+                    isInitiallyFocused: true,
+                    externalState: inputState
+                )
+            ))
+        ]
+        let alert = AlertScreen(
+            configuration: AlertScreen.Configuration(allowInputInset: true),
+            content: content,
+            actions: [
+                .init(title: strings.Common_Cancel, action: {}),
+                .init(title: strings.Contacts_InviteToTelegram, type: .default, action: {
+                    let typed = inputState.value.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !typed.isEmpty {
+                        then(typed)
+                    }
+                })
+            ],
+            updatedPresentationData: (presentationData, context.sharedContext.presentationData)
+        )
+        controller.present(alert, in: .window(.root))
     }
 
     private func done() {
