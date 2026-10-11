@@ -1,0 +1,3 @@
+/* ice9's own permission texts (#194), laid over upstream's InfoPlist.strings by brand.py. */
+
+"NSContactsUsageDescription" = "ice9 отправляет номера и имена из ваших контактов на свой сервер, чтобы показать, кто уже в ice9. Номера тех, кого в ice9 нет, не сохраняются.";

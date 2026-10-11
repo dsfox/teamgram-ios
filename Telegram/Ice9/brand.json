@@ -1,0 +1,33 @@
+{
+  "comment": "ice9's brand over upstream's text files, applied by brand.py at build time (#194). Replacements run in order; removals are by file name, then language ('*' for every language).",
+  "replace": [
+    [
+      "\u062a\u064a\u0644\u064a\u062c\u0631\u0627\u0645 (Telegram)",
+      "ice9"
+    ],
+    [
+      "Telegram (Telegramma)",
+      "ice9"
+    ],
+    [
+      "Telegram",
+      "ice9"
+    ],
+    [
+      "t.me/",
+      "i.ice9.app/"
+    ]
+  ],
+  "remove": {
+    "InfoPlist.strings": {
+      "*": [
+        "NSContactsUsageDescription"
+      ],
+      "tr": [
+        "NSLocationWhenInUseUsageDescription",
+        "NSLocationAlwaysAndWhenInUseUsageDescription",
+        "NSLocationAlwaysUsageDescription"
+      ]
+    }
+  }
+}

@@ -140,15 +140,68 @@ genrule(
     cmd = "touch $(OUTS)",
 )
 
+# ice9: #194 - upstream's strings stay in the tree as upstream ships them, and
+# the app is built from them as Ice9/brand.py brands them (Ice9/brand.json,
+# Ice9/overrides). Our images lie over upstream's the same way, from Ice9/.
+ice9_brand = "python3 $(location Ice9/brand.py) --rules $(location Ice9/brand.json)"
+
+ice9_info_plist_languages = [path.split("/")[1][:-len(".lproj")] for path in glob(["Telegram-iOS/*.lproj/InfoPlist.strings"])]
+
+ice9_vocabulary_languages = [path.split("/")[1][:-len(".lproj")] for path in glob(["Telegram-iOS/*.lproj/AppIntentVocabulary.plist"])]
+
+ice9_info_plist_overrides = [path.split("/")[2][:-len(".lproj")] for path in glob(["Ice9/overrides/*.lproj/InfoPlist.strings"])]
+
+genrule(
+    name = "Ice9Localizable",
+    srcs = [
+        "Ice9/brand.py",
+        "Ice9/brand.json",
+        "Ice9/overrides/en.lproj/Localizable.strings",
+        "Telegram-iOS/en.lproj/Localizable.strings",
+    ],
+    outs = ["en.lproj/Localizable.strings"],
+    cmd = ice9_brand + " --language en --overrides $(location Ice9/overrides/en.lproj/Localizable.strings) $(location Telegram-iOS/en.lproj/Localizable.strings) $@",
+)
+
+[
+    genrule(
+        name = "Ice9InfoPlist_{}".format(language),
+        srcs = [
+            "Ice9/brand.py",
+            "Ice9/brand.json",
+            "Telegram-iOS/{}.lproj/InfoPlist.strings".format(language),
+        ] + (["Ice9/overrides/{}.lproj/InfoPlist.strings".format(language)] if language in ice9_info_plist_overrides else []),
+        outs = ["{}.lproj/InfoPlist.strings".format(language)],
+        cmd = ice9_brand + " --language {} {} $(location Telegram-iOS/{}.lproj/InfoPlist.strings) $@".format(
+            language,
+            "--overrides $(location Ice9/overrides/{}.lproj/InfoPlist.strings)".format(language) if language in ice9_info_plist_overrides else "",
+            language,
+        ),
+    ) for language in ice9_info_plist_languages
+]
+
+[
+    genrule(
+        name = "Ice9AppIntentVocabulary_{}".format(language),
+        srcs = [
+            "Ice9/brand.py",
+            "Ice9/brand.json",
+            "Telegram-iOS/{}.lproj/AppIntentVocabulary.plist".format(language),
+        ],
+        outs = ["{}.lproj/AppIntentVocabulary.plist".format(language)],
+        cmd = ice9_brand + " --language {} $(location Telegram-iOS/{}.lproj/AppIntentVocabulary.plist) $@".format(language, language),
+    ) for language in ice9_vocabulary_languages
+]
+
 genrule(
     name = "GeneratedPresentationStrings",
     srcs = [
         "//build-system:GenerateStrings/GenerateStrings.py",
-        "Telegram-iOS/en.lproj/Localizable.strings",
+        ":en.lproj/Localizable.strings",
     ],
     cmd = '''
         python3 $(location //build-system:GenerateStrings/GenerateStrings.py) \\
-            --source=$(location Telegram-iOS/en.lproj/Localizable.strings) \\
+            --source=$(location :en.lproj/Localizable.strings) \\
             --outImplementation=$(location GeneratedPresentationStrings/Sources/PresentationStrings.m) \\
             --outHeader=$(location GeneratedPresentationStrings/PublicHeaders/PresentationStrings/PresentationStrings.h) \\
             --outData=$(location GeneratedPresentationStrings/Resources/PresentationStrings.data) \\
@@ -262,13 +315,19 @@ filegroup(
     name = "AppResources",
     srcs = glob([
         "Telegram-iOS/Resources/**/*",
-    ], exclude = ["Telegram-iOS/Resources/**/.*"]),
+    ], exclude = [
+        "Telegram-iOS/Resources/**/.*",
+        # ice9: #194 - ours, from Ice9/Resources.
+        "Telegram-iOS/Resources/PlaneLogo.tgs",
+        "Telegram-iOS/Resources/PlaneLogoPlain.tgs",
+        "Telegram-iOS/Resources/intro/telegram_plane1@2x.png",
+    ]) + glob(["Ice9/Resources/**/*"], exclude = ["Ice9/Resources/**/.*"]),
 )
 
 filegroup(
     name = "AppStringResources",
     srcs = [
-        "Telegram-iOS/en.lproj/Localizable.strings",
+        ":en.lproj/Localizable.strings",  # ice9: #194
     ] + [
         "{}.lproj/Localizable.strings".format(language) for language in empty_languages
     ],
@@ -276,16 +335,12 @@ filegroup(
 
 filegroup(
     name = "AppIntentVocabularyResources",
-    srcs = glob([
-        "Telegram-iOS/*.lproj/AppIntentVocabulary.plist",
-    ], exclude = ["Telegram-iOS/*.lproj/**/.*"]),
+    srcs = ["{}.lproj/AppIntentVocabulary.plist".format(language) for language in ice9_vocabulary_languages],  # ice9: #194
 )
 
 filegroup(
     name = "InfoPlistStringResources",
-    srcs = glob([
-        "Telegram-iOS/*.lproj/InfoPlist.strings",
-    ], exclude = ["Telegram-iOS/*.lproj/**/.*"]),
+    srcs = ["{}.lproj/InfoPlist.strings".format(language) for language in ice9_info_plist_languages],  # ice9: #194
 )
 
 filegroup(
