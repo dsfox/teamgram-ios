@@ -590,20 +590,8 @@ func finalStateWithUpdateGroups(accountPeerId: PeerId, postbox: Postbox, network
         hadReset = true
         break
     }
-
-    if hadReset {
-        // The server has said "you may have missed something". For a client of
-        // this fork, one of the things it may have missed is a phone of its own
-        // being signed out - and the leaf that phone holds in every
-        // conversation goes on reading until another of this person's phones
-        // takes it out. Only the count says one has gone, and the count is
-        // asked on a rhythm; the server sends this the moment a session ends,
-        // so the rhythm stops being the answer (#121).
-        //
-        // An empty publish is the question, so nothing is stored and nothing
-        // else is disturbed.
-        let _ = askHowManyDevices(postbox: postbox, network: network,
-                                  accountPeerId: accountPeerId).start()
+    if hadReset { // ice9: a phone of one's own may have gone (#121)
+        mlsAfterReset(postbox: postbox, network: network, accountPeerId: accountPeerId)
     }
     
     var currentPtsUpdates = ptsUpdates(groups)
@@ -4350,39 +4338,8 @@ func replayFinalState(
                                         for (space, _) in holesAtHistoryStart {
                                             transaction.removeHole(peerId: chatPeerId, threadId: nil, namespace: Namespaces.Message.Cloud, space: MessageHistoryHoleOperationSpace(space), range: 1 ... id.id)
                                         }
-                                    // Who is in the chat decides who can read it, and this
-                                    // message is the one thing every member gets. Comparing
-                                    // against the remembered participant list instead waits
-                                    // for that list to be fetched again, which nothing
-                                    // guarantees: a person who followed a link sat in a
-                                    // group where nothing appeared, and a person removed
-                                    // went on reading it (#40, 4.3).
-                                    //
-                                    // Every member tries, and that is deliberate: one commit
-                                    // takes the epoch and the rest find it already done.
-                                    case let .addedMembers(peerIds):
-                                        if message.id.peerId.namespace == Namespaces.Peer.CloudGroup {
-                                            let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                                            if peerIds.contains(accountPeerId) {
-                                                runtime.invited()
-                                            }
-                                            runtime.memberAdded(peerId: message.id.peerId, userIds: peerIds)
-                                        }
-                                    case .joinedByLink, .joinedByRequest:
-                                        // Followed alone, so the person who joined is
-                                        // whoever the message is from.
-                                        if message.id.peerId.namespace == Namespaces.Peer.CloudGroup, let author = message.authorId {
-                                            let runtime = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                                            if author == accountPeerId {
-                                                runtime.invited()
-                                            }
-                                            runtime.memberAdded(peerId: message.id.peerId, userIds: [author])
-                                        }
-                                    case let .removedMembers(peerIds):
-                                        if message.id.peerId.namespace == Namespaces.Peer.CloudGroup {
-                                            MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                                                .memberRemoved(peerId: message.id.peerId, userIds: peerIds)
-                                        }
+                                    case .addedMembers, .joinedByLink, .joinedByRequest, .removedMembers: // ice9: who can read follows who is in (#40)
+                                        MlsRuntime.noteMembership(action.action, peerId: message.id.peerId, authorId: message.authorId, postbox: postbox, accountPeerId: accountPeerId)
                                     case let .setChatWallpaper(wallpaper, _):
                                         if message.authorId == accountPeerId {
                                             transaction.updatePeerCachedData(peerIds: [message.id.peerId], update: { peerId, current in
@@ -4592,16 +4549,7 @@ func replayFinalState(
                     if let previousPaidContent = previousMessage.media.first(where: { $0 is TelegramMediaPaidContent }) as? TelegramMediaPaidContent, case .full = previousPaidContent.extendedMedia.first {
                         updatedMedia = previousMessage.media
                     }
-                    // An edit changes the caption, never the file - so the file
-                    // this device already opened is the right one. What arrives
-                    // is the blob the server is holding, and the key that opens
-                    // it travelled inside the original message; the edited one
-                    // carries a caption and nothing else. Taking the arriving
-                    // media left the picture unreadable the moment its caption
-                    // was changed, on both phones.
-                    if !previousMessage.media.isEmpty, MlsRuntime.isEncrypted(peerId: id.peerId) {
-                        updatedMedia = previousMessage.media
-                    }
+                    updatedMedia = mlsEditedMedia(updatedMedia, previous: previousMessage.media, peerId: id.peerId) // ice9: the file stays
                     
                     return .update(message.withUpdatedLocalTags(updatedLocalTags).withUpdatedFlags(updatedFlags).withUpdatedAttributes(updatedAttributes).withUpdatedMedia(updatedMedia))
                 })

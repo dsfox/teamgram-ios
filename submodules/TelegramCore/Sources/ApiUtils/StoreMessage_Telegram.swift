@@ -1227,35 +1227,8 @@ extension StoreMessage {
                     threadId = Int64(quickReplyShortcutId)
                 }
                 
-                // Read back if this is one of ours and this device is in the
-                // conversation.
-                //
-                // A message can be ours and still unreadable here - it usually
-                // means it overtook the welcome that lets this device into the
-                // conversation, which happens because the two travel by
-                // different routes. Then the ciphertext is put aside and the
-                // text becomes something a person can understand, rather than
-                // `mls1:AAEAAh...` in their chat, their chat list and their
-                // search. `MlsRuntime` goes looking for the welcome and reads
-                // the message back once it has it.
-                var messageText = message
-                // The formatting is not applied here. It is decided in one
-                // place, further down, where an empty attribute is added for a
-                // message that has no entities - and that empty one used to
-                // land on top of the formatting restored here, so an encrypted
-                // message arrived in plain type while its entities sat in the
-                // ciphertext, correct and unused.
-                var decrypted: MlsMessageContent?
-                if MlsRuntime.isCiphertext(message) {
-                    if let content = MlsRuntime.decryptIncoming(peerId: peerId, text: message, at: date) {
-                        messageText = content.text
-                        decrypted = content
-                    } else {
-                        messageText = MlsCiphertextMessageAttribute.placeholder
-                        attributes.append(MlsCiphertextMessageAttribute(ciphertext: message))
-                        decrypted = MlsMessageContent(text: messageText, entities: [])
-                    }
-                }
+                let decrypted = MlsMessageContent.incoming(message, peerId: peerId, date: date, attributes: &attributes) // ice9: read back, or put aside
+                let messageText = decrypted?.text ?? message
                 var medias: [Media] = []
                 
                 var consumableContent: (Bool, Bool)? = nil
@@ -1264,15 +1237,8 @@ extension StoreMessage {
                     let (mediaValue, expirationTimer, nonPremium, hasSpoiler, webpageAttributes, videoTimestamp) = textMediaAndExpirationTimerFromApiMedia(media, peerId)
                     if let mediaValue = mediaValue {
                         medias.append(mediaValue)
-
-                        // What arrived is a document holding bytes the server
-                        // cannot read. What it really is - a picture, a video,
-                        // a voice message - and the key to it came inside the
-                        // message, so the two are put back together here.
-                        if let descriptor = decrypted?.media, let real = mlsIncomingMedia(from: medias, descriptor: descriptor) {
-                            medias = real
-                        }
-
+                        medias = decrypted?.realMedia(medias) ?? medias // ice9: what the file really is
+                    
                         if let expirationTimer = expirationTimer, expirationTimer > 0 {
                             attributes.append(AutoclearTimeoutMessageAttribute(timeout: expirationTimer, countdownBeginTime: nil))
                             consumableContent = (true, false)
@@ -1383,22 +1349,8 @@ extension StoreMessage {
                 }
             
                 var entitiesAttribute: TextEntitiesMessageAttribute?
-                if let decrypted = decrypted {
-                    // Whatever came in the clear beside a ciphertext is not the
-                    // formatting of this message: the formatting travelled
-                    // inside it, with the text it indexes into.
-                    let attribute = TextEntitiesMessageAttribute(entities: decrypted.entities)
-                    entitiesAttribute = attribute
-                    attributes.append(attribute)
-
-                    // And so did who wrote it first. A forward into an
-                    // encrypted conversation travels as a new message - the
-                    // server cannot copy one somebody here could read - so
-                    // without this it would arrive looking like the sender's
-                    // own words.
-                    if forwardInfo == nil {
-                        forwardInfo = decrypted.storeForwardInfo
-                    }
+                if let decrypted { // ice9: the formatting travelled inside the ciphertext
+                    entitiesAttribute = decrypted.appliedEntities(to: &attributes, forwardInfo: &forwardInfo)
                 } else if let entities, !entities.isEmpty {
                     let attribute = TextEntitiesMessageAttribute(entities: messageTextEntitiesFromApiEntities(entities))
                     entitiesAttribute = attribute

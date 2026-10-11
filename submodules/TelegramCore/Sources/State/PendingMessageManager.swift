@@ -1413,26 +1413,15 @@ public final class PendingMessageManager {
                                         }
                                     }
                                     
-                                    // An album's captions go out by their own
-                                    // route, so they need encrypting here too -
-                                    // one of them carries the text of the whole
-                                    // group, and it used to be the one thing in
-                                    // a picture message the server could read.
-                                    var outgoingText = text
-                                    if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                                        .encrypt(peerId: message.id.peerId, text: text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message), media: content.mlsMedia, transaction: transaction) {
-                                        outgoingText = ciphertext
-                                        messageEntities = nil
-                                    } else if MlsRuntime.inAnExtension {
-                                        // An extension sends nothing in the clear (#230).
+                                    // ice9: encrypted, and an extension sends nothing in the clear (#230)
+                                    guard let outgoingText = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).outgoingCaption(peerId: message.id.peerId, text: text, entities: &messageEntities, forwarded: MlsRuntime.forwarded(from: message), media: content.mlsMedia, transaction: transaction) else {
                                         return failMessages(postbox: postbox, ids: group.map { $0.0 })
                                     }
-
                                     var singleFlags: Int32 = 0
                                     if let _ = messageEntities {
                                         singleFlags |= 1 << 0
                                     }
-
+                                    
                                     singleMedias.append(.inputSingleMedia(.init(flags: singleFlags, media: inputMedia, randomId: uniqueId, message: outgoingText, entities: messageEntities)))
                                 default:
                                     return failMessages(postbox: postbox, ids: group.map { $0.0 })
@@ -1741,16 +1730,8 @@ public final class PendingMessageManager {
     
     private func sendMessageContent(network: Network, postbox: Postbox, stateManager: AccountStateManager, accountPeerId: PeerId, messageId: MessageId, content: PendingMessageUploadedContentAndReuploadInfo) -> Signal<Void, NoError> {
         let queue = self.queue
-        // Before anything is sent, make sure there is a conversation to encrypt
-        // into. Otherwise the first message to somebody - usually the one that
-        // says why you are writing - would be the single message in that chat
-        // the server could read.
-        //
-        // This costs one round trip, once per person, and completes rather than
-        // fails when no conversation can be made: then the message goes in the
-        // clear, as it always did.
-        return MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).ensureConversation(peerId: messageId.peerId)
-        |> mapToSignal { _ -> Signal<Void, NoError> in
+        // ice9: a conversation to encrypt into comes first
+        return MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).beforeSending(to: messageId.peerId) {
         return postbox.transaction { [weak self] transaction -> Signal<Void, NoError> in
             guard let message = transaction.getMessage(messageId) else {
                 return .complete()
@@ -1985,23 +1966,8 @@ public final class PendingMessageManager {
                             flags |= 1 << 22
                         }
                     
-                        // Encrypted if this conversation can carry it, and
-                        // exactly as before if it cannot. A messenger that
-                        // refuses to send is worse than one whose server can
-                        // read a message, so every failure here falls back
-                        // rather than stopping.
-                        var outgoingText = message.text
-                        if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                            .encrypt(peerId: messageId.peerId, text: message.text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message), transaction: transaction) {
-                            outgoingText = ciphertext
-                            // Bold, links, mentions are offsets into the text,
-                            // so they went inside the ciphertext with it. What
-                            // is left here would point past the end of what the
-                            // other side reads back.
-                            messageEntities = nil
-                            flags &= ~Int32(1 << 3)
-                        } else if MlsRuntime.inAnExtension {
-                            // An extension sends nothing in the clear (#230).
+                        // ice9: encrypted, and an extension sends nothing in the clear (#230)
+                        guard let outgoingText = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).outgoingText(peerId: messageId.peerId, text: message.text, entities: &messageEntities, flags: &flags, forwarded: MlsRuntime.forwarded(from: message), transaction: transaction) else {
                             return failMessages(postbox: postbox, ids: [messageId])
                         }
                         sendMessageRequest = network.requestWithAdditionalInfo(Api.functions.messages.sendMessage(flags: flags, peer: inputPeer, replyTo: replyTo, message: outgoingText, randomId: uniqueId, replyMarkup: nil, entities: messageEntities, scheduleDate: scheduleTime, scheduleRepeatPeriod: scheduleRepeatPeriod, sendAs: sendAsInputPeer, quickReplyShortcut: quickReplyShortcut, effect: messageEffectId, allowPaidStars: allowPaidStars, suggestedPost: suggestedPost, richMessage: apiRichMessage), info: .acknowledgement, tag: dependencyTag)
@@ -2112,20 +2078,8 @@ public final class PendingMessageManager {
                             flags |= 1 << 22
                         }
                     
-                        // The caption is text like any other, and it was the
-                        // one that still travelled in the clear. The picture
-                        // itself is not encrypted yet - see the issue - but
-                        // what somebody wrote under it now is.
-                        var outgoingText = text
-                        if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                            .encrypt(peerId: messageId.peerId, text: text, entities: messageEntities ?? [], forwarded: MlsRuntime.forwarded(from: message), media: content.mlsMedia, transaction: transaction) {
-                            outgoingText = ciphertext
-                            messageEntities = nil
-                            flags &= ~Int32(1 << 3)
-                        } else if MlsRuntime.inAnExtension {
-                            // An extension sends nothing in the clear, the
-                            // picture included: a file whose key is not inside
-                            // a ciphertext went up readable (#230).
+                        // ice9: encrypted, and an extension sends nothing in the clear (#230)
+                        guard let outgoingText = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).outgoingText(peerId: messageId.peerId, text: text, entities: &messageEntities, flags: &flags, forwarded: MlsRuntime.forwarded(from: message), media: content.mlsMedia, transaction: transaction) else {
                             return failMessages(postbox: postbox, ids: [messageId])
                         }
                         sendMessageRequest = network.request(Api.functions.messages.sendMedia(flags: flags, peer: inputPeer, replyTo: replyTo, media: inputMedia, message: outgoingText, randomId: uniqueId, replyMarkup: nil, entities: messageEntities, scheduleDate: scheduleTime, scheduleRepeatPeriod: scheduleRepeatPeriod, sendAs: sendAsInputPeer, quickReplyShortcut: quickReplyShortcut, effect: messageEffectId, allowPaidStars: allowPaidStars, suggestedPost: suggestedPost), tag: dependencyTag)

@@ -209,18 +209,7 @@ private func requestEditMessageInternal(accountPeerId: PeerId, postbox: Postbox,
                     flags |= Int32(1 << 17)
                 }
                 
-                // Editing used to undo the encryption of a message that had
-                // already been sent encrypted: the new text went up in the
-                // clear, and the server ended up holding what it had never been
-                // able to read.
-                var outgoingText = text
-                if let ciphertext = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId)
-                    .encrypt(peerId: messageId.peerId, text: text, entities: apiEntities ?? []) {
-                    outgoingText = ciphertext
-                    apiEntities = nil
-                    flags &= ~Int32(1 << 3)
-                }
-
+                let outgoingText = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).editedText(peerId: messageId.peerId, text: text, entities: &apiEntities, flags: &flags) // ice9: an edit stays encrypted
                 return network.request(Api.functions.messages.editMessage(flags: flags, peer: inputPeer, id: messageId.id, message: outgoingText, media: inputMedia, replyMarkup: nil, entities: apiEntities, scheduleDate: effectiveScheduleTime, scheduleRepeatPeriod: effectiveScheduleRepeatPeriod, quickReplyShortcutId: quickReplyShortcutId, richMessage: apiRichMessage))
                 |> map { result -> Api.Updates? in
                     return result
@@ -288,14 +277,7 @@ private func requestEditMessageInternal(accountPeerId: PeerId, postbox: Postbox,
                                                 if let previousPaidContent = previousMessage.media.first(where: { $0 is TelegramMediaPaidContent }) as? TelegramMediaPaidContent, case .full = previousPaidContent.extendedMedia.first {
                                                     updatedMedia = previousMessage.media
                                                 }
-                                                // An edit changes the caption, never the file. In an
-                                                // encrypted chat what comes back is the blob the server
-                                                // is holding, and taking it loses the key this device
-                                                // used to open the picture - so editing a caption left
-                                                // the picture unreadable, at both ends.
-                                                if !previousMessage.media.isEmpty, MlsRuntime.isEncrypted(peerId: id.peerId) {
-                                                    updatedMedia = previousMessage.media
-                                                }
+                                                updatedMedia = mlsEditedMedia(updatedMedia, previous: previousMessage.media, peerId: id.peerId) // ice9: the file stays
 
                                                 return .update(message.withUpdatedLocalTags(updatedLocalTags).withUpdatedFlags(updatedFlags).withUpdatedMedia(updatedMedia))
                                             })
@@ -322,14 +304,7 @@ private func requestEditMessageInternal(accountPeerId: PeerId, postbox: Postbox,
                                                 if let previousPaidContent = previousMessage.media.first(where: { $0 is TelegramMediaPaidContent }) as? TelegramMediaPaidContent, case .full = previousPaidContent.extendedMedia.first {
                                                     updatedMedia = previousMessage.media
                                                 }
-                                                // An edit changes the caption, never the file. In an
-                                                // encrypted chat what comes back is the blob the server
-                                                // is holding, and taking it loses the key this device
-                                                // used to open the picture - so editing a caption left
-                                                // the picture unreadable, at both ends.
-                                                if !previousMessage.media.isEmpty, MlsRuntime.isEncrypted(peerId: id.peerId) {
-                                                    updatedMedia = previousMessage.media
-                                                }
+                                                updatedMedia = mlsEditedMedia(updatedMedia, previous: previousMessage.media, peerId: id.peerId) // ice9: the file stays
 
                                                 return .update(message.withUpdatedLocalTags(updatedLocalTags).withUpdatedFlags(updatedFlags).withUpdatedMedia(updatedMedia))
                                             })
@@ -356,14 +331,7 @@ private func requestEditMessageInternal(accountPeerId: PeerId, postbox: Postbox,
                                                 if let previousPaidContent = previousMessage.media.first(where: { $0 is TelegramMediaPaidContent }) as? TelegramMediaPaidContent, case .full = previousPaidContent.extendedMedia.first {
                                                     updatedMedia = previousMessage.media
                                                 }
-                                                // An edit changes the caption, never the file. In an
-                                                // encrypted chat what comes back is the blob the server
-                                                // is holding, and taking it loses the key this device
-                                                // used to open the picture - so editing a caption left
-                                                // the picture unreadable, at both ends.
-                                                if !previousMessage.media.isEmpty, MlsRuntime.isEncrypted(peerId: id.peerId) {
-                                                    updatedMedia = previousMessage.media
-                                                }
+                                                updatedMedia = mlsEditedMedia(updatedMedia, previous: previousMessage.media, peerId: id.peerId) // ice9: the file stays
 
                                                 return .update(message.withUpdatedLocalTags(updatedLocalTags).withUpdatedFlags(updatedFlags).withUpdatedMedia(updatedMedia))
                                             })
@@ -390,14 +358,7 @@ private func requestEditMessageInternal(accountPeerId: PeerId, postbox: Postbox,
                                                 if let previousPaidContent = previousMessage.media.first(where: { $0 is TelegramMediaPaidContent }) as? TelegramMediaPaidContent, case .full = previousPaidContent.extendedMedia.first {
                                                     updatedMedia = previousMessage.media
                                                 }
-                                                // An edit changes the caption, never the file. In an
-                                                // encrypted chat what comes back is the blob the server
-                                                // is holding, and taking it loses the key this device
-                                                // used to open the picture - so editing a caption left
-                                                // the picture unreadable, at both ends.
-                                                if !previousMessage.media.isEmpty, MlsRuntime.isEncrypted(peerId: id.peerId) {
-                                                    updatedMedia = previousMessage.media
-                                                }
+                                                updatedMedia = mlsEditedMedia(updatedMedia, previous: previousMessage.media, peerId: id.peerId) // ice9: the file stays
                                                 
                                                 return .update(message.withUpdatedLocalTags(updatedLocalTags).withUpdatedFlags(updatedFlags).withUpdatedMedia(updatedMedia))
                                             })

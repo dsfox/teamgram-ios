@@ -245,47 +245,7 @@ func applyUpdateMessage(postbox: Postbox, stateManager: AccountStateManager, mes
             }
             
             if let apiMessage = apiMessage, let apiMessagePeerId = apiMessage.peerId, let updatedMessage = StoreMessage(apiMessage: apiMessage, accountPeerId: accountPeerId, peerIsForum: transaction.getPeer(apiMessagePeerId)?.isForumOrMonoForum ?? false, namespace: namespace) {
-                // The file too: what comes back is the blob of ciphertext the
-                // server is holding, and the picture itself is already here -
-                // kept on a resource nothing remakes (#225).
-                if updatedMessage.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }), !currentMessage.media.isEmpty {
-                    media = mlsSteadySentMedia(currentMessage.media, mediaBox: postbox.mediaBox)
-                } else {
-                    media = updatedMessage.media
-                }
-                attributes = updatedMessage.attributes
-                // The server confirms a sent message by echoing it back, and
-                // what it echoes is what travelled: for an encrypted message,
-                // ciphertext this device cannot read. MLS application messages
-                // are not readable by the person who wrote them - measured, see
-                // `the_sender_cannot_read_their_own_message` - so taking the
-                // server's copy here destroys the text the person typed and
-                // leaves them looking at their own message as a placeholder,
-                // permanently.
-                //
-                // The local copy is the truth for our own messages. It is the
-                // only copy of them that will ever be readable on this device.
-                if updatedMessage.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) {
-                    text = currentMessage.text
-                    // The formatting is local too, and for the same reason: it
-                    // went inside the ciphertext, so the copy coming back has
-                    // none and taking it would strip the bold off a message in
-                    // the chat of the person who just wrote it.
-                    attributes = attributes.filter {
-                        !($0 is MlsCiphertextMessageAttribute) && !($0 is TextEntitiesMessageAttribute)
-                    }
-                    if let entities = currentMessage.attributes.first(where: { $0 is TextEntitiesMessageAttribute }) {
-                        attributes.append(entities)
-                    }
-                } else {
-                    text = updatedMessage.text
-                }
-                // For a forward into an encrypted conversation there is none
-                // coming back - it travelled as an ordinary message - so the
-                // local one stands.
-                forwardInfo = updatedMessage.forwardInfo ?? currentMessage.forwardInfo.flatMap { info in
-                    StoreMessageForwardInfo(authorId: info.author?.id, sourceId: info.source?.id, sourceMessageId: info.sourceMessageId, date: info.date, authorSignature: info.authorSignature, psaType: info.psaType, flags: info.flags)
-                }
+                (media, text, attributes, forwardInfo) = mlsAcceptedEcho(updatedMessage, current: currentMessage, mediaBox: postbox.mediaBox) // ice9: one's own message stays readable (#225)
                 threadId = updatedMessage.threadId
             } else if case let .updateShortSentMessage(updateShortSentMessageData) = result {
                 let (_, _, _, _, _, apiMedia, entities, ttlPeriod) = (updateShortSentMessageData.flags, updateShortSentMessageData.id, updateShortSentMessageData.pts, updateShortSentMessageData.ptsCount, updateShortSentMessageData.date, updateShortSentMessageData.media, updateShortSentMessageData.entities, updateShortSentMessageData.ttlPeriod)
@@ -638,32 +598,11 @@ func applyUpdateGroupMessages(postbox: Postbox, stateManager: AccountStateManage
                 }
                 
                 let media: [Media]
-                var attributes: [MessageAttribute]
+                let attributes: [MessageAttribute]
                 let text: String
-
-                if updatedMessage.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }), !currentMessage.media.isEmpty {
-                    media = mlsSteadySentMedia(currentMessage.media, mediaBox: postbox.mediaBox)
-                } else {
-                    media = updatedMessage.media
-                }
-                attributes = updatedMessage.attributes
-                // An album is confirmed by its own path, and the same thing is
-                // true here as for a single message: what comes back is the
-                // ciphertext its author cannot read, so the caption they wrote
-                // has to stay. Without this an album arrived in the sender's
-                // own chat with a lock where the caption was.
-                if updatedMessage.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }) {
-                    text = currentMessage.text
-                    attributes = attributes.filter {
-                        !($0 is MlsCiphertextMessageAttribute) && !($0 is TextEntitiesMessageAttribute)
-                    }
-                    if let entities = currentMessage.attributes.first(where: { $0 is TextEntitiesMessageAttribute }) {
-                        attributes.append(entities)
-                    }
-                } else {
-                    text = updatedMessage.text
-                }
-
+ 
+                (media, text, attributes, _) = mlsAcceptedEcho(updatedMessage, current: currentMessage, mediaBox: postbox.mediaBox) // ice9: one's own message stays readable (#225)
+                
                 var storeForwardInfo: StoreMessageForwardInfo?
                 if let forwardInfo = currentMessage.forwardInfo {
                     storeForwardInfo = StoreMessageForwardInfo(authorId: forwardInfo.author?.id, sourceId: forwardInfo.source?.id, sourceMessageId: forwardInfo.sourceMessageId, date: forwardInfo.date, authorSignature: forwardInfo.authorSignature, psaType: forwardInfo.psaType, flags: forwardInfo.flags)
