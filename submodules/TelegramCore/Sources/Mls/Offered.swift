@@ -163,6 +163,16 @@ public enum Offered {
     /// sign in, so the door opens on nothing. Issue #107.
     public static let desktop = false
 
+    /// Help: Support, the FAQ, Telegram's features ("Tips") and the privacy
+    /// policy - the block in Settings and their settings-search entries (#197).
+    ///
+    /// Support reaches help.getSupport, which the server refuses outright; the
+    /// FAQ and the features led to Telegram's site and channel; the policy
+    /// opened telegram.org through the language pack our own server served.
+    /// Hidden until there is a page of ours worth opening from inside the app;
+    /// the stores are given the address directly.
+    public static let help = false
+
     // A round video in a conversation that encrypts used to be switched off
     // here: the one message uploaded while it was still being recorded, which
     // an encrypted upload cannot take. It is offered again since #80 - the

@@ -564,10 +564,9 @@ private func notificationsAndSoundsEntries(authorizationStatus: AccessType, warn
     entries.append(.categoriesHeader(presentationData.theme, presentationData.strings.Notifications_MessageNotifications.uppercased()))
     entries.append(.privateChats(presentationData.theme, presentationData.strings.Notifications_PrivateChats, !exceptions.users.isEmpty ? presentationData.strings.Notifications_CategoryExceptions(Int32(exceptions.users.peerIds.count)) : "", globalSettings.privateChats.enabled ? presentationData.strings.Notifications_On : presentationData.strings.Notifications_Off))
     entries.append(.groupChats(presentationData.theme, presentationData.strings.Notifications_GroupChats, !exceptions.groups.isEmpty ? presentationData.strings.Notifications_CategoryExceptions(Int32(exceptions.groups.peerIds.count)) : "", globalSettings.groupChats.enabled ? presentationData.strings.Notifications_On : presentationData.strings.Notifications_Off))
-    // No implementation on our server at all - not a stub with an
-    // empty answer, no handler whatsoever. A switch here promises a
-    // notification that can never arrive.
-    // entries.append(.channels(presentationData.theme, presentationData.strings.Notifications_Channels, !exceptions.channels.isEmpty ? presentationData.strings.Notifications_CategoryExceptions(Int32(exceptions.channels.peerIds.count)) : "", globalSettings.channels.enabled ? presentationData.strings.Notifications_On : presentationData.strings.Notifications_Off))
+    if Offered.channels {
+    entries.append(.channels(presentationData.theme, presentationData.strings.Notifications_Channels, !exceptions.channels.isEmpty ? presentationData.strings.Notifications_CategoryExceptions(Int32(exceptions.channels.peerIds.count)) : "", globalSettings.channels.enabled ? presentationData.strings.Notifications_On : presentationData.strings.Notifications_Off))
+    }
     
     let storiesValue: String
     switch globalSettings.privateChats.storySettings.mute {
@@ -579,13 +578,9 @@ private func notificationsAndSoundsEntries(authorizationStatus: AccessType, warn
         storiesValue = presentationData.strings.Notifications_On
     }
     
-    // No implementation on our server at all - not a stub with an
-    
-    // empty answer, no handler whatsoever. A switch here promises a
-    
-    // notification that can never arrive.
-    
-    // entries.append(.stories(presentationData.theme, presentationData.strings.Notifications_Stories, !exceptions.stories.isEmpty ? presentationData.strings.Notifications_CategoryExceptions(Int32(exceptions.stories.peerIds.count)) : "", storiesValue))
+    if Offered.stories {
+    entries.append(.stories(presentationData.theme, presentationData.strings.Notifications_Stories, !exceptions.stories.isEmpty ? presentationData.strings.Notifications_CategoryExceptions(Int32(exceptions.stories.peerIds.count)) : "", storiesValue))
+    }
     
     var reactionsValue: String = ""
     var hasReactionNotifications = false

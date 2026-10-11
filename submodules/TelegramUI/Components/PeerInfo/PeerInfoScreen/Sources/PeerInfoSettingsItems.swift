@@ -220,12 +220,11 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
     items[.shortcuts]!.append(PeerInfoScreenDisclosureItem(id: 3, label: .text(devicesLabel), text: presentationData.strings.Settings_Devices, icon: PresentationResourcesSettings.devices, action: {
         interaction.openSettings(.devices)
     }))
-    // Chat folders: reading them answers with an empty list and creating one has
-    // no handler at all, so the screen composes a folder that cannot be saved
-    // (task #22).
-    // items[.shortcuts]!.append(PeerInfoScreenDisclosureItem(id: 4, text: presentationData.strings.Settings_ChatFolders, icon: PresentationResourcesSettings.chatFolders, action: {
-    //     interaction.openSettings(.chatFolders)
-    // }))
+    if Offered.folders {
+    items[.shortcuts]!.append(PeerInfoScreenDisclosureItem(id: 4, text: presentationData.strings.Settings_ChatFolders, icon: PresentationResourcesSettings.chatFolders, action: {
+        interaction.openSettings(.chatFolders)
+    }))
+    }
     
     let notificationsWarning: Bool
     if let settings = data.globalSettings {
@@ -329,9 +328,17 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
         }
     }
     
-    // Блок помощи не выводим: обращение в поддержку упирается в сервис, которого
-    // у нас нет, а «вопросы» и «возможности» вели на чужой сайт и чужой канал.
-    // Вернём, когда появится, куда вести.
+    if Offered.help {
+    items[.support]!.append(PeerInfoScreenDisclosureItem(id: 0, text: presentationData.strings.Settings_Support, icon: PresentationResourcesSettings.support, action: {
+        interaction.openSettings(.support)
+    }))
+    items[.support]!.append(PeerInfoScreenDisclosureItem(id: 1, text: presentationData.strings.Settings_FAQ, icon: PresentationResourcesSettings.faq, action: {
+        interaction.openSettings(.faq)
+    }))
+    items[.support]!.append(PeerInfoScreenDisclosureItem(id: 2, text: presentationData.strings.Settings_Tips, icon: PresentationResourcesSettings.tips, action: {
+        interaction.openSettings(.tips)
+    }))
+    }
     
     var result: [(AnyHashable, [PeerInfoScreenItem])] = []
     for section in SettingsSection.allCases {
