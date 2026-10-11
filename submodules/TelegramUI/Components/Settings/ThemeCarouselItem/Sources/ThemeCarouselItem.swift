@@ -384,9 +384,7 @@ private final class ThemeCarouselThemeItemIconNode: ListViewItemNode {
                 string = "❌"
                 self?.imageNode.backgroundColor = item.theme.list.mediaPlaceholderColor
             } else if let emoticon = item.themeReference?.emoticon {
-                // ice9: drawn as text when the animated emoji set has none for
-                // it - ours offers no sticker sets, and a tile with no emoji is
-                // a colour nobody can name (#23). See ChatThemeScreen.
+                // ice9: the emoji drawn as text when the animated set has none for it (#23)
                 if item.emojiFile == nil {
                     string = emoticon
                 }

@@ -198,8 +198,7 @@ public class ComposeControllerImpl: ViewController, ComposeController {
                 case .notDetermined:
                     DeviceAccess.authorizeAccess(to: .contacts)
                 default:
-                    // Allowed, denied or restricted alike: the screen takes a
-                    // typed number and reads nothing from the book (#164).
+                    // ice9: any permission opens the number screen, which reads nothing from the book (#164)
                     let controller = strongSelf.context.sharedContext.makeNewContactScreen(
                         context: strongSelf.context,
                         peer: nil,

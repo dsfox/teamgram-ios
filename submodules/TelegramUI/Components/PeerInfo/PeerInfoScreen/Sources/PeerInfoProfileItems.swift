@@ -1153,7 +1153,6 @@ func editingItems(data: PeerInfoScreenData?, boostStatus: ChannelBoostStatus?, s
                     } else {
                         invitesText = ""
                     }
-                    // See Offered: the link is not how anybody gets in.
                     if Offered.groupInviteLinks {
                         items[.peerSettings]!.append(PeerInfoScreenDisclosureItem(id: ItemInviteLinks, label: .text(invitesText), text: presentationData.strings.GroupInfo_InviteLinks, icon: PresentationResourcesSettings.links, action: {
                             interaction.editingOpenInviteLinksSetup()
@@ -1470,7 +1469,6 @@ func editingItems(data: PeerInfoScreenData?, boostStatus: ChannelBoostStatus?, s
                             invitesText = ""
                         }
                         
-                        // See Offered: the link is not how anybody gets in.
                         if Offered.groupInviteLinks {
                             items[.peerDataSettings]!.append(PeerInfoScreenDisclosureItem(id: ItemInviteLinks, label: .text(invitesText), text: presentationData.strings.GroupInfo_InviteLinks, icon: PresentationResourcesSettings.links, action: {
                                 interaction.editingOpenInviteLinksSetup()
@@ -1710,7 +1708,6 @@ func editingItems(data: PeerInfoScreenData?, boostStatus: ChannelBoostStatus?, s
                         invitesText = ""
                     }
                     
-                    // See Offered: the link is not how anybody gets in.
                     if Offered.groupInviteLinks {
                         items[.peerPublicSettings]!.append(PeerInfoScreenDisclosureItem(id: ItemInviteLinks, label: .text(invitesText), text: presentationData.strings.GroupInfo_InviteLinks, icon: PresentationResourcesSettings.links, action: {
                             interaction.editingOpenInviteLinksSetup()
@@ -1793,7 +1790,6 @@ func editingItems(data: PeerInfoScreenData?, boostStatus: ChannelBoostStatus?, s
                         invitesText = ""
                     }
                     
-                    // See Offered: the link is not how anybody gets in.
                     if Offered.groupInviteLinks {
                         items[.peerSettings]!.append(PeerInfoScreenDisclosureItem(id: ItemInviteLinks, label: .text(invitesText), text: presentationData.strings.GroupInfo_InviteLinks, icon: PresentationResourcesSettings.links, action: {
                             interaction.editingOpenInviteLinksSetup()

@@ -35,9 +35,7 @@ final class AuthorizationSequenceCodeEntryControllerNode: ASDisplayNode, UITextF
     
     private let resetTextNode: ImmediateTextNode
     private let resetNode: HighlightableButtonNode
-    // The way in for somebody whose phone is gone. There is no SMS here and the
-    // code goes to a session they no longer have, so without this the screen is
-    // a dead end for exactly the person who needs it most.
+    // ice9: the way in for somebody whose phone is gone
     private let recoveryNode: HighlightableButtonNode
     
     private let dividerNode: AuthorizationDividerNode
@@ -715,9 +713,7 @@ final class AuthorizationSequenceCodeEntryControllerNode: ASDisplayNode, UITextF
                     self.textSeparatorNode.isHidden = true
                     items.append(AuthorizationLayoutItem(node: self.codeInputView, size: codeFieldSize, spacingBefore: AuthorizationLayoutItemSpacing(weight: 30.0, maxValue: 30.0), spacingAfter: AuthorizationLayoutItemSpacing(weight: canReset || pendingDate != nil ? 0.0 : 104.0, maxValue: canReset ? 0.0 : 104.0)))
 
-                    // Only where a phone number is being opened. On the email
-                    // screens the phrase means nothing and the offer would be
-                    // a wrong turn.
+                    // ice9: recovery is offered only where a phone number is being opened
                     if self.openRecovery != nil {
                         let recoverySize = self.recoveryNode.measure(CGSize(width: maximumWidth, height: CGFloat.greatestFiniteMagnitude))
                         self.recoveryNode.isHidden = false

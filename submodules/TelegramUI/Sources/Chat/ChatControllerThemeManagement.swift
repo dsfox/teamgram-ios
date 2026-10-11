@@ -123,8 +123,6 @@ import ChatThemeScreen
 
 extension ChatControllerImpl {
     public func presentThemeSelection() {
-        // Chat themes follow their switch (#23), held at the funnel, so a
-        // service message or a deep link cannot lead past it. See Offered.
         if !Offered.chatThemes {
             return
         }

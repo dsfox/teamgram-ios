@@ -436,8 +436,6 @@ private func themeSettingsControllerEntries(
     entries.append(.chatPreview(presentationData.theme, presentationData.chatWallpaper, presentationData.chatFontSize, presentationData.chatBubbleCorners, presentationData.strings, presentationData.dateTimeFormat, presentationData.nameDisplayOrder, [ChatPreviewMessageItem(outgoing: false, reply: (authorName, presentationData.strings.Appearance_PreviewReplyText), text: presentationData.strings.Appearance_PreviewIncomingText, nameColor: nameColor, backgroundEmojiId: accountPeer?.backgroundEmojiId), ChatPreviewMessageItem(outgoing: true, reply: nil, text: presentationData.strings.Appearance_PreviewOutgoingText, nameColor: .preset(.blue), backgroundEmojiId: nil)]))
     
     entries.append(.themes(presentationData.theme, presentationData.strings, chatThemes, themeReference, presentationThemeSettings.automaticThemeSwitchSetting.force || presentationData.autoNightModeTriggered, animatedEmojiStickers, presentationThemeSettings.themeSpecificAccentColors, presentationThemeSettings.themeSpecificChatWallpapers))
-    // Cloud themes, which this row opens, are files the server does not keep.
-    // The themes of a chat are chosen in the chat. #23. See Offered.
     if Offered.cloudThemes {
         entries.append(.chatTheme(presentationData.theme, strings.Settings_ChatThemes))
     }
@@ -451,7 +449,6 @@ private func themeSettingsControllerEntries(
         colors = collectibleColor.peerNameColors(dark: presentationData.theme.overallDarkAppearance)
     }
     let profileColors = profileColor.flatMap { nameColors.getProfile($0, dark: presentationData.theme.overallDarkAppearance, subject: .palette) }
-    // #24. See Offered.
     if Offered.nameColours {
         entries.append(.nameColor(presentationData.theme, presentationData.strings.Settings_YourColor, accountPeer?.compactDisplayTitle ?? "", colors, profileColors))
     }
@@ -542,10 +539,7 @@ public func themeSettingsController(context: AccountContext, focusOnItemTag: The
         appIcons = appIcons.filter { !$0.isPremium } 
     }
     
-    // One brand, one icon. The alternates are still Telegram's colour variants,
-    // so a chooser would offer someone else's artwork; and a picker with a
-    // single entry is not a choice. The section below hides itself when the
-    // list is empty, so emptying it is all that is needed.
+    // ice9: one brand, one icon - no alternates, so the icon section hides itself
     appIcons = []
     let availableAppIcons: Signal<[PresentationAppIcon], NoError> = .single(appIcons)
     let currentAppIconName = ValuePromise<String?>()

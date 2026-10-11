@@ -206,8 +206,7 @@ private enum GroupStickerPackEntry: ItemListNodeEntry {
                 return ItemListSingleLineInputItem(presentationData: presentationData, systemStyle: .glass, title: NSAttributedString(string: prefix, textColor: theme.list.itemPrimaryTextColor), text: value, placeholder: placeholder, type: .regular(capitalization: false, autocorrection: false), spacing: 0.0, clearType: .none, tag: nil, sectionId: self.section, textUpdated: { value in
                     arguments.updateSearchText(value)
                 }, processPaste: { text in
-                    // Pasting a link to a pack takes the name out of it. Ours,
-                    // not upstream's two hosts, which this used to accept (#87).
+                    // ice9: a pasted pack link is read on our host only (#87)
                     if let url = (URL(string: text) ?? URL(string: "http://" + text)), url.host == "i.ice9.app" {
                         let prefix = isEmoji ? "/addemoji/" : "/addstickers/"
                         if url.path.hasPrefix(prefix) {

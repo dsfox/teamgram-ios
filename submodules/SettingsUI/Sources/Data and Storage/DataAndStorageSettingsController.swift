@@ -624,8 +624,6 @@ private func dataAndStorageControllerEntries(context: AccountContext, state: Dat
     
     entries.append(.autoSaveItem(index: 0, type: .privateChats, title: presentationData.strings.Notifications_PrivateChats, label: privateLabelAndValue.label, value: privateLabelAndValue.value))
     entries.append(.autoSaveItem(index: 1, type: .groups, title: presentationData.strings.Notifications_GroupChats, label: groupsLabelAndValue.label, value: groupsLabelAndValue.value))
-    // Saving media out of channels, in a messenger with no channels (#16).
-    // See Offered.
     if Offered.channels {
         entries.append(.autoSaveItem(index: 2, type: .channels, title: presentationData.strings.Notifications_Channels, label: channelsLabelAndValue.label, value: channelsLabelAndValue.value))
     }

@@ -604,8 +604,6 @@ private func notificationsAndSoundsEntries(authorizationStatus: AccessType, warn
         hasReactionNotifications = true
         reactionsValue.append(presentationData.strings.Notifications_Reactions_SubtitleStories)
     }
-    // Reactions exist (#18), but nothing wakes a phone for one, so a switch
-    // here would promise a notification that never comes. See Offered.
     if Offered.reactionNotifications {
         entries.append(.reactions(presentationData.theme, presentationData.strings.Notifications_Reactions, reactionsValue, hasReactionNotifications ? presentationData.strings.Notifications_On : presentationData.strings.Notifications_Off))
     }
@@ -622,8 +620,6 @@ private func notificationsAndSoundsEntries(authorizationStatus: AccessType, warn
     
     let counterTagSettings = CounterTagSettings(summaryTags: inAppSettings.totalUnreadCountIncludeTags)
     
-    // Whether channels count towards the badge, in a messenger with no
-    // channels (#16). See Offered.
     if Offered.channels {
         entries.append(.includeChannels(presentationData.theme, presentationData.strings.Notifications_Badge_IncludeChannels, counterTagSettings.contains(.channels)))
     }

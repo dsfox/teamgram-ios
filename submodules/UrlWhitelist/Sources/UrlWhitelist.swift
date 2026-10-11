@@ -1,9 +1,6 @@
 import Foundation
 
-// A concealed link - one whose text says one thing and whose address says
-// another - is shown to the reader before it opens, unless the host is one of
-// ours. Upstream's list was upstream's properties, which meant a message that
-// read "tap here" and went to somebody else's domain opened without a word (#87).
+// ice9: only our hosts open a concealed link without showing it first (#87)
 private let whitelistedHosts: Set<String> = Set([
     "i.ice9.app",
     "ice9.app"
@@ -19,10 +16,7 @@ public func isConcealedUrlWhitelisted(_ url: URL) -> Bool {
             return true
         }
     }
-    // A second block stood here, letting through two paths - /blog/ and /tour/ -
-    // on the host above. It was upstream's, for pages upstream has; ours has
-    // neither, and the host is now whitelisted whole a few lines up, so it could
-    // never have been reached anyway (#102).
+    // ice9: no /blog/ and /tour/ exceptions; the host is whitelisted whole (#102)
     return false
 }
 

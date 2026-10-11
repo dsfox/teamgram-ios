@@ -847,20 +847,7 @@ class ContactMultiselectionControllerImpl: ViewController, ContactMultiselection
             }
             additionalOptionIds.sort()
         }
-        // A group with nobody else in it is a group, and here it is the usual
-        // way to start one: people arrive by a link, and this fork asks for no
-        // access to anybody's address book - so the screen a person meets first
-        // is empty by design.
-        //
-        // Two things were tried before this and both were walls. Greying the
-        // button out made a dead end with nothing on it to explain itself. A
-        // message explaining it was still a wall, only a polite one: the person
-        // wanted to make the group now and invite later, which is exactly what
-        // the link is for.
-        //
-        // The server takes an empty list and makes a group of one. It refused
-        // it until today, with a sentence about other people's privacy settings
-        // - about people who had never been chosen.
+        // ice9: a group can be made with nobody else in it
         self._result.set(.single(.result(peerIds: peerIds, additionalOptionIds: additionalOptionIds)))
     }
 }

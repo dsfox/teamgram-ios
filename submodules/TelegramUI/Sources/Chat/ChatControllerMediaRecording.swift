@@ -163,11 +163,7 @@ extension ChatControllerImpl {
                 var allowLiveUpload = false
                 var viewOnceAvailable = false
                 if let peerId = self.chatLocation.peerId {
-                    // Not in a conversation that encrypts: the live upload
-                    // sends the recording in the clear while it is still
-                    // being written. The head start is given up, the way a
-                    // secret chat already gives it up, and the finished file
-                    // goes up whole and encrypted like any other video.
+                    // ice9: no live upload where the chat encrypts; the finished video goes up encrypted
                     allowLiveUpload = peerId.namespace != Namespaces.Peer.SecretChat && !MlsRuntime.isEncrypted(peerId: peerId)
                     viewOnceAvailable = !isScheduledMessages && peerId.namespace == Namespaces.Peer.CloudUser && peerId != self.context.account.peerId && !isBot && self.presentationInterfaceState.sendPaidMessageStars == nil
                 } else if case .customChatContents = self.chatLocation {

@@ -128,10 +128,6 @@ extension ChatControllerImpl {
                 actions.context = self.context
                 actions.animationCache = self.controllerInteraction?.presentationContext.animationCache
                                                          
-                // Not offered. The server keeps no reactions, so one appears for
-                // a moment on the phone that tapped it and is gone by the next
-                // sync. Left out of the menu rather than shown and undone. See
-                // Offered, where everything switched off is written down.
                 if Offered.reactions, canAddMessageReactions(message: EngineMessage(topMessage)), let allowedReactions = allowedReactions, !topReactions.isEmpty {
                     actions.reactionItems = topReactions.map { ReactionContextItem.reaction(item: $0, icon: .none) }
                     actions.selectedReactionItems = selectedReactions.reactions

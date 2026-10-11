@@ -142,8 +142,7 @@ final class BotCheckoutWebInteractionControllerNode: ViewControllerTracingNode, 
     
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         if case let .externalVerification(completion) = self.intent, let host = navigationAction.request.url?.host {
-            // Where a payment provider sends the browser back to when it is done.
-            // It has to be our host, not upstream's (#87).
+            // ice9: the payment provider sends the browser back to our host (#87)
             if host == "i.ice9.app" {
                 decisionHandler(.cancel)
                 completion(true)

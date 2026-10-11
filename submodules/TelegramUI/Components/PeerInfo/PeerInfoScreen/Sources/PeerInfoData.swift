@@ -517,8 +517,6 @@ final class PeerInfoScreenData {
         self.threadNotificationSettings = threadNotificationSettings
         self.globalNotificationSettings = globalNotificationSettings
         self._isContact = isContact
-        // ice9: stories are not offered (#224), so no profile carries their
-        // panes - every way of building the panes ends here. See Offered.
         self.availablePanes = Offered.stories ? availablePanes : availablePanes.filter { $0 != .stories && $0 != .storyArchive }
         self.groupsInCommon = groupsInCommon
         self.linkedDiscussionPeer = linkedDiscussionPeer
@@ -2645,9 +2643,6 @@ func peerInfoHeaderButtons(peer: EnginePeer?, cachedData: CachedPeerData?, isOpe
                 canViewStats = false
             }
             
-            // Video chats are not offered: nothing implements them on the
-            // server, and the button would open a room nobody can enter.
-            // See Offered.
             if Offered.videoChats, hasVoiceChat || canStartVoiceChat {
                 result.append(.voiceChat)
             }

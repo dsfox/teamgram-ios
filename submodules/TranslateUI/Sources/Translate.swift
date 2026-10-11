@@ -173,9 +173,6 @@ public func normalizeTranslationLanguage(_ code: String) -> String {
 }
 
 public func canTranslateChats(context: AccountContext) -> Bool {
-    // Not offered. There is no implementation of translation on this server or
-    // in this fork, so the bar appeared, was tapped, and nothing happened. See
-    // Offered, which is where everything switched off is written down.
     if !Offered.translation {
         return false
     }

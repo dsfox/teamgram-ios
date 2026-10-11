@@ -850,11 +850,7 @@
                                     [_context updatePasswordInputRequiredForDatacenterWithId:mtProto.datacenterId required:true];
                                 }
                             } else {
-                                // Signed out only for the 401s that mean the
-                                // authorization is gone, which are the ones
-                                // Telegram's own server sends. Any other 401
-                                // text is a server fault, and an account is
-                                // not the price of one (ice9 #174).
+                                // ice9: sign out only for the 401s that mean the authorization is gone (#174)
                                 static NSArray<NSString *> *signOutReasons = nil;
                                 static dispatch_once_t signOutOnce;
                                 dispatch_once(&signOutOnce, ^{

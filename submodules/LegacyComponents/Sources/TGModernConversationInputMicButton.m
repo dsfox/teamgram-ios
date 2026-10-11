@@ -249,16 +249,7 @@ static const CGFloat outerCircleMinScale = innerCircleRadius / outerCircleRadius
     _innerIconView.center = center;
 }
 
-// ice9 #208, carried from upstream 53b92cce8f.
-// While the keyboard is up, -[ChatTextInputMediaRecordingButtonPresenter present] parks the overlay
-// container in UIRemoteKeyboardWindow, so the button and the overlay end up in two different windows.
-// On iOS 27 that keyboard window is hosted on a DIFFERENT UIScreen object than the app's window, even
-// though both cover the same display (measured; see upstream's docs/ios27-windows-and-touches.md). UIKit
-// refuses to convert between two screens' coordinate spaces: -convertPoint:toWindow: logs "Invalid
-// UIScreen coordinate space conversion" and returns a point derived from CGRectNull, whose infinite
-// origin becomes a NaN layer position at the assignments below and kills the app with
-// CALayerInvalidGeometry. This runs on every display-link tick while recording, so the mismatch has to
-// be predicted rather than detected after the fact - otherwise the invalid conversion is logged at frame rate.
+// ice9: carried from upstream 53b92cce8f, the overlay center across iOS 27's two screens (#208)
 - (CGPoint)overlayCenterInView:(UIView *)parentView
 {
     UIWindow *selfWindow = self.window;
@@ -273,9 +264,7 @@ static const CGFloat outerCircleMinScale = innerCircleRadius / outerCircleRadius
     if (parentWindow.screen == selfWindow.screen) {
         centerPointInParentWindow = [selfWindow convertPoint:centerPointInSelfWindow toWindow:parentWindow];
     } else {
-        // Both windows describe the same display, so relate them by their frames - which is what
-        // -convertPoint:toWindow: would have done had it accepted the pair. For two full-screen windows
-        // this is the identity.
+        // ice9: both windows cover one display, so they are related by their frames (#208)
         centerPointInParentWindow = CGPointMake(centerPointInSelfWindow.x + CGRectGetMinX(selfWindow.frame) - CGRectGetMinX(parentWindow.frame),
                                                 centerPointInSelfWindow.y + CGRectGetMinY(selfWindow.frame) - CGRectGetMinY(parentWindow.frame));
     }

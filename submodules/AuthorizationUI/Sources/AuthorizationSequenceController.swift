@@ -158,9 +158,7 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
         return controller
     }
     
-    /// Where the answer to "which server" is kept. Beside the accounts rather
-    /// than in one of them: it is asked before an account exists, and every
-    /// account on this phone reaches the same server. See ice9 #65.
+    // ice9: where the chosen server is kept, beside the accounts (#65)
     private var serverAddressStore: ServerAddressStore {
         return ServerAddressStore(rootPath: self.account.rootPath)
     }
@@ -168,8 +166,7 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
     /// A server link put the question back although it had been answered (#244).
     private var serverQuestionReopened = false
 
-    /// A server link, from the installer's QR code or a message: it fills the
-    /// server screen, bringing the screen back if it was answered already.
+    // ice9: a server link fills the server screen, bringing it back if already answered
     public func applyServerLink(_ link: ServerLink) {
         for c in self.viewControllers {
             if let c = c as? AuthorizationSequenceServerController {
@@ -192,8 +189,7 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
             self?.openUrl(url)
         })
         if self.serverQuestionReopened {
-            // Opened by a server link when the question had been answered
-            // already: whoever opened it may change their mind (#244).
+            // ice9: a server screen reopened by a link can be cancelled (#244)
             controller.cancelReopened = { [weak self] in
                 guard let strongSelf = self else {
                     return
@@ -207,9 +203,7 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
                 return
             }
             strongSelf.serverQuestionReopened = false
-            // The state has said phoneEntry all along - the screen the sequence
-            // builds for it is what changes, now that the question has an
-            // answer - so the stack is asked for again rather than pushed onto.
+            // ice9: the stack is asked for again, now that the server question has an answer
             strongSelf.updateState(state: .state(.phoneEntry(countryCode: countryCode, number: number)))
         }
         return controller
@@ -419,9 +413,7 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
         return controller
     }
     
-    /// The recovery phrase screen while it is up. The request it starts is the
-    /// code screen's, so a refusal arrives there - and would leave this one
-    /// spinning under a spinner forever if it were not told.
+    // ice9: the recovery phrase screen while it is up, told of refusals the code screen gets
     private weak var recoveryPhraseController: AuthorizationSequenceRecoveryPhraseController?
 
     private func codeEntryController(number: String, phoneCodeHash: String, email: String?, type: SentAuthorizationCodeType, nextType: AuthorizationCodeNextType?, timeout: Int32?, previousCodeType: SentAuthorizationCodeType?, isPrevious: Bool, termsOfService: (UnauthorizedAccountTermsOfService, Bool)?) -> AuthorizationSequenceCodeEntryController {
@@ -802,15 +794,12 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
                             return
                         }
                         strongSelf.recoveryPhraseController = nil
-                        // The stack is set rather than popped here: this is how
-                        // every other step of the sequence moves, and the state
-                        // machine rebuilds it from scratch on every change.
+                        // ice9: the stack is set rather than popped, as every other step moves
                         strongSelf.setViewControllers(strongSelf.viewControllers.dropLast(), animated: true)
                     })
                 phraseController.enterPhrase = { [weak phraseController] phrase in
                     phraseController?.inProgress = true
-                    // The same door as the code, because it is the same door:
-                    // phone_code carries whatever was typed, digits or words.
+                    // ice9: the phrase signs in as the code does; phone_code carries digits or words
                     controller?.loginWithCode?(phrase)
                 }
                 strongSelf.recoveryPhraseController = phraseController
@@ -1354,11 +1343,7 @@ public final class AuthorizationSequenceController: NavigationController, ASAuth
                         self.setViewControllers(controllers, animated: !self.viewControllers.isEmpty)
                     }
                 case let .phoneEntry(countryCode, number):
-                    // Which server this phone talks to, before the phone number
-                    // and not beside the name: the name is asked after the code,
-                    // and the code comes from the server. Only on a first
-                    // sign-in - a second account and a phone-number change both
-                    // happen against the server already chosen. See ice9 #65.
+                    // ice9: which server, asked before the phone number on a first sign-in only (#65)
                     if self.otherAccountPhoneNumbers.1.isEmpty, self.serverAddressStore.chosen == nil || self.serverQuestionReopened {
                         self.setViewControllers([self.serverController(countryCode: countryCode, number: number)], animated: !self.viewControllers.isEmpty)
                         return

@@ -178,8 +178,7 @@ typedef enum {
             _stage = MTDatacenterAuthStagePQ;
         }
     } else {
-        // ice9 (#244): a server of one's own is reached with exactly the key
-        // its code was checked against, never alongside the built-in one.
+        // ice9: an own server's key replaces the built-in keys (#244)
         NSString *serverPublicKey = mtProto.context.serverPublicKey;
         if (serverPublicKey != nil) {
             _publicKeys = @[[[MTDatacenterAuthPublicKey alloc] initWithPublicKey:serverPublicKey]];

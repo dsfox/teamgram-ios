@@ -360,8 +360,7 @@ private func makeTelegramUrl(_ path: String, queryItems: [URLQueryItem] = []) ->
 }
 
 func openExternalUrlImpl(context: AccountContext, urlContext: OpenURLContext, url: String, forceExternal: Bool, presentationData: PresentationData, navigationController: NavigationController?, dismissInput: @escaping () -> Void) {
-    // ice9 (#244): a link to a server of one's own, tapped in a chat, asks
-    // whether to change servers rather than being read as a person's name.
+    // ice9: a server link tapped in a chat asks to change servers (#244)
     if let link = ServerLink.parse(url) {
         dismissInput()
         context.sharedContext.presentGlobalController(serverLinkWhileSignedInController(context: context, link: link), nil)
@@ -871,8 +870,7 @@ func openExternalUrlImpl(context: AccountContext, urlContext: OpenURLContext, ur
                 case "premium_offer":
                     handleResolvedUrl(.premiumOffer(reference: nil))
                 case "restore_purchases":
-                    // ice9: there is nothing to restore - no purchases - and with
-                    // no purchase manager the spinner below never went away.
+                    // ice9: nothing to restore without a purchase manager
                     guard context.inAppPurchaseManager != nil else {
                         break
                     }

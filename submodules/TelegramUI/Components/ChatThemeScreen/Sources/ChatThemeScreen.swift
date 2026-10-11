@@ -428,9 +428,7 @@ private final class ThemeSettingsThemeItemIconNode : ListViewItemNode {
             
             let emoticon: String
             if case let .emoticon(value) = item.chatTheme, item.emojiFile == nil {
-                // ice9: drawn as text when the animated emoji set has none for
-                // it - ours offers no sticker sets, and a tile with no emoji is
-                // a colour nobody can name (#23).
+                // ice9: the emoji drawn as text when the animated set has none for it (#23)
                 emoticon = value
             } else if let _ = item.chatTheme {
                 emoticon = ""
@@ -445,9 +443,7 @@ private final class ThemeSettingsThemeItemIconNode : ListViewItemNode {
                 if let strongSelf = self {
                     strongSelf.item = item
                     
-                    // ice9: read aloud as the theme it is - its emoji, or "No
-                    // theme" - and whether it is the chosen one. VoiceOver had
-                    // nothing to say, and the walks find a tile by this (#23).
+                    // ice9: VoiceOver reads the theme's emoji or "No theme", and whether it is chosen (#23)
                     strongSelf.isAccessibilityElement = true
                     if case let .emoticon(value) = item.chatTheme {
                         strongSelf.accessibilityLabel = value
@@ -482,9 +478,7 @@ private final class ThemeSettingsThemeItemIconNode : ListViewItemNode {
                     }
                     
                     strongSelf.textNode.frame = CGRect(origin: CGPoint(x: floorToScreenPixels((90.0 - textLayout.size.width) / 2.0), y: 24.0), size: textLayout.size)
-                    // ice9: "No Theme" is the label of the tile without a theme.
-                    // Upstream read that off an empty emoji label, which a theme
-                    // tile no longer has when its emoji is drawn as text (#23).
+                    // ice9: "No Theme" labels only the tile without a theme (#23)
                     strongSelf.textNode.isHidden = item.chatTheme != nil
                     
                     strongSelf.containerNode.transform = CATransform3DMakeRotation(CGFloat.pi / 2.0, 0.0, 0.0, 1.0)
@@ -1226,7 +1220,6 @@ private final class ChatThemeSheetContentComponent: Component {
         private func primaryButtonTitle(strings: PresentationStrings) -> String {
             switch self.primaryAction() {
             case .chooseWallpaper:
-                // ice9: a wallpaper of one's own is not offered (#23). See Offered.
                 if !Offered.chatWallpapers {
                     return strings.Common_Close
                 }

@@ -3960,10 +3960,6 @@ public func avatarMediaPickerController(
                 openMediaPicker()
             })
         ]
-        // An avatar built out of an emoji, and there are no emoji to build it
-        // from: the editor opens on an empty field with a search box that finds
-        // nothing, over working background colours and an active Set button.
-        // Seen on the screen, not reasoned about. See Offered.
         if Offered.emojiAvatar {
             items.append(ActionSheetButtonItem(title: presentationData.strings.ProfilePhoto_SetEmoji, color: .accent, action: {
                 dismissAction()

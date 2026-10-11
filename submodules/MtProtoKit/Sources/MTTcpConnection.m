@@ -777,9 +777,7 @@ struct ctr_state {
 }
 
 - (void)socket:(GCDAsyncSocket *)socket didConnectToHost:(NSString *)host port:(uint16_t)port {
-    // The local port is what makes a client connection and a server log line the
-    // same object. Matching them by sampling lsof compared writes on one socket
-    // against captures of another and produced a confident wrong answer.
+    // ice9: log the local port, which matches a connection to the server's log
     if (MTLogEnabled()) {
         MTLog(@"[socket %p connected to %@:%d from local port %d]", socket, host, (int)port, (int)socket.localPort);
     }
@@ -789,10 +787,7 @@ struct ctr_state {
     }
 }
 
-// Nothing here reported a completed write, so bytes handed to the socket and
-// bytes that reached the wire were indistinguishable. With the socket
-// ESTABLISHED on both sides, writeData called, and the server receiving nothing,
-// this is what tells a write stuck inside GCDAsyncSocket from one that left.
+// ice9: log completed writes, so a write stuck in GCDAsyncSocket shows
 - (void)socket:(GCDAsyncSocket *)socket didWriteDataWithTag:(long)tag {
     if (MTLogEnabled()) {
         MTLog(@"[port %d] socket %p reports write complete: connected=%d disconnected=%d",
@@ -1390,12 +1385,7 @@ struct ctr_state {
                         if (MTLogEnabled()) {
                             MTLog(@"[MTTcpConnection#%" PRIxPTR " writing %d bytes]", (intptr_t)self, (int)completeData.length);
                         }
-                        // Measured on this network: a large first data packet on a
-                        // fresh connection is dropped on the way - 3 of 8 arrive -
-                        // while the same payload sent after a small one arrives 7
-                        // of 8. Plain sockets with random bytes behave identically,
-                        // so it is the path, not the protocol. A short first
-                        // segment costs nothing and keeps the rest flowing.
+                        // ice9: a short first segment, since the network drops a large first packet
                         const NSUInteger firstSegment = 64;
                         if (!_sentFirstSegment && completeData.length > firstSegment) {
                             _sentFirstSegment = true;
@@ -1447,9 +1437,7 @@ struct ctr_state {
     
     [[MTTcpConnection tcpQueue] dispatchOnQueue:^{
         [_pendingDataQueue addObject:[[MTTcpSendData alloc] initWithDataSet:datas completion:completion requestQuickAck:requestQuickAck expectDataInResponse:expectDataInResponse]];
-        // When the flag is false the data just sits here: no write, no error, no
-        // retry. If nothing sets the flag afterwards, those bytes never leave
-        // and the only symptom is the response timeout twelve seconds later.
+        // ice9: log data queued while the connection is not ready to send
         if (MTLogEnabled()) {
             MTLog(@"[MTTcpConnection#%" PRIxPTR " queued %d datas, ready=%d, pending=%d]",
                   (intptr_t)self, (int)datas.count, (int)_readyToSendData, (int)_pendingDataQueue.count);

@@ -96,8 +96,7 @@ final class NewContactScreenComponent: Component {
         
         private var updateFocusTag: Any?
         
-        // Off when the address book is not ours to write: the screen opens
-        // without the permission and never reads the book (#164).
+        // ice9: off when the address book is not ours to write (#164)
         private var syncContactToPhone = CNContactStore.authorizationStatus(for: .contacts) == .authorized
         private var addToPrivacyExceptions = false
         

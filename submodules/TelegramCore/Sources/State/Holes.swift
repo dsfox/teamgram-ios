@@ -1033,15 +1033,7 @@ func fetchMessageHistoryHole(accountPeerId: PeerId, source: FetchMessageHistoryH
                     }
                     
                     return withResolvedAssociatedMessages(postbox: postbox, source: source, accountPeerId: accountPeerId, parsedPeers: parsedPeers, storeMessages: storeMessages, resolveThreads: true, { transaction, additionalParsedPeers, additionalMessages -> FetchMessageHistoryHoleResult? in
-                        // Through the same guard as everything else that writes
-                        // a message the server sent back. What arrives here is
-                        // history, and for an encrypted chat every line of it is
-                        // ciphertext this device may already have opened - once,
-                        // because MLS will not open it twice. Written straight
-                        // in, it replaced the text with a lock the moment
-                        // somebody opened the chat after restarting the app, and
-                        // the chat list went on showing what the message really
-                        // said, which is how it was noticed.
+                        // ice9: history keeps the text already opened over the server's ciphertext
                         let _ = transaction.addMessages(mlsKeepingWhatIsReadable(storeMessages, transaction: transaction), location: .Random)
                         let _ = transaction.addMessages(mlsKeepingWhatIsReadable(additionalMessages, transaction: transaction), location: .Random)
                         var filledRange: ClosedRange<MessageId.Id>
@@ -1215,8 +1207,7 @@ func fetchChatListHole(postbox: Postbox, network: Network, accountPeerId: PeerId
             }
             
             transaction.updateCurrentPeerNotificationSettings(fetchedChats.notificationSettings)
-            // The same guard: the chat list is fetched whole after a sign-in and
-            // carries the last message of every chat, ciphertext included.
+            // ice9: the same guard for the last messages the chat list carries
             let _ = transaction.addMessages(mlsKeepingWhatIsReadable(fetchedChats.storeMessages, transaction: transaction), location: .UpperHistoryBlock)
             let _ = transaction.addMessages(mlsKeepingWhatIsReadable(additionalMessages, transaction: transaction), location: .Random)
             transaction.resetIncomingReadStates(fetchedChats.readStates)

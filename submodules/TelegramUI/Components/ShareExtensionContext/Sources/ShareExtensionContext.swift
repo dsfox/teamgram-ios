@@ -227,9 +227,7 @@ public class ShareRootControllerImpl {
         }
     }
     
-    /// Says why nothing was sent, and closes once that is read (#230). The
-    /// share sheet itself shows nothing for a refusal, and a spinner that
-    /// never stops looks like a send still on its way.
+    // ice9: says why nothing was sent, and closes once that is read (#230)
     fileprivate func explainNotSent(_ error: MlsSharedSendingError, presentationData: PresentationData) {
         let text: String
         switch error {
@@ -239,9 +237,7 @@ public class ShareRootControllerImpl {
             text = shareNotSentText(presentationData.strings)
         }
         Logger.shared.log("Share", "not sent: \(error)")
-        // Built on the main queue as well as shown there: the refusal arrives
-        // on a signal's queue, and an alert's nodes made off the main thread
-        // abort the extension before anything is on the screen.
+        // ice9: built and shown on the main queue; an alert made off it aborts the extension
         Queue.mainQueue().async { [weak self] in
             let controller = textAlertController(theme: AlertControllerTheme(presentationData: presentationData), title: nil, text: NSAttributedString(string: text), actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: { [weak self] in
                 self?.getExtensionContext()?.completeRequest(returningItems: nil, completionHandler: nil)
@@ -572,9 +568,7 @@ public class ShareRootControllerImpl {
                             } |> runOn(Queue.mainQueue())
                         }
                         
-                        // ice9: a whole account, to send through the app's own path. The
-                        // one the share sheet reads from has no sending of its own, and
-                        // upstream's standalone sending encrypted nothing (#230).
+                        // ice9: a whole account, to send through the app's own encrypted path (#230)
                         let sendingAccount: (AccountRecordId) -> Signal<Account?, NoError> = { id in
                             return accountWithId(
                                 accountManager: accountManager,
@@ -780,8 +774,6 @@ public class ShareRootControllerImpl {
                         }
                     }
                     
-                    // ice9: a chat export is shared as the file it is - the server
-                    // imports no history (#230). See Offered.
                     if Offered.chatImport, let strongSelf = self, let inputItems = strongSelf.getExtensionContext()?.inputItems, inputItems.count == 1, let item = inputItems[0] as? NSExtensionItem, let attachments = item.attachments {
                         for attachment in attachments {
                             if attachment.hasItemConformingToTypeIdentifier(kUTTypeFileURL as String) {

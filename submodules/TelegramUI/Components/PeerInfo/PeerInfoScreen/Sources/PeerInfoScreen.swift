@@ -167,8 +167,7 @@ enum PeerInfoSettingsSection {
     case dataAndStorage
     case appearance
     case language
-    // Which server this phone talks to, after the first launch has answered it
-    // (ice9 #65).
+    // ice9: which server this phone talks to (#65)
     case server
     case stickers
     case premium
@@ -1672,11 +1671,7 @@ final class PeerInfoScreenNode: ViewControllerTracingNode, PeerInfoScreenNodePro
                     }
                     if case let .user(peer) = data.peer {
                         if strongSelf.isSettings || strongSelf.isMyProfile, let cachedData = data.cachedData as? CachedUserData {
-                            // A field that is not on the screen must not be read
-                            // as an empty one: that is how a name gets erased by
-                            // saving a screen that never offered it, and an
-                            // account left with no name could not be given one
-                            // again from this client.
+                            // ice9: a field not on the screen keeps its value rather than saving as empty
                             let firstName = strongSelf.headerNode.editingContentNode.editingTextForKey(.firstName) ?? (peer.firstName ?? "")
                             let lastName = strongSelf.headerNode.editingContentNode.editingTextForKey(.lastName) ?? (peer.lastName ?? "")
                             let bio = strongSelf.state.updatingBio
@@ -5934,7 +5929,6 @@ final class PeerInfoScreenNode: ViewControllerTracingNode, PeerInfoScreenNodePro
                 if let data = self.data, !data.isPremiumRequiredForStoryPosting || data.accountIsPremium, case let .channel(channel) = data.peer, channel.hasPermission(.postStories) {
                     rightNavigationButtons.insert(PeerInfoHeaderNavigationButtonSpec(key: .postStory, isForExpandedView: false), at: 0)
                 } else if self.isMyProfile && Offered.stories {
-                    // ice9: posting a story is not offered (#224). See Offered.
                     rightNavigationButtons.insert(PeerInfoHeaderNavigationButtonSpec(key: .postStory, isForExpandedView: false), at: 0)
                 }
                 

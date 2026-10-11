@@ -14,9 +14,7 @@ import ComponentDisplayAdapters
 import AccountContext
 import ContextUI
 
-// ice9 #208, carried from upstream 12e2b157ef.
-// A 1x1 fully transparent image, used as layer contents purely so that the layer renders and therefore
-// takes part in touch delivery. Stretched by the layer's default `contentsGravity`, and invisible.
+// ice9: carried from upstream 12e2b157ef, a transparent image so a layer takes touches (#208)
 private let transparentHitTestImage: UIImage = {
     let size = CGSize(width: 1.0, height: 1.0)
     UIGraphicsBeginImageContextWithOptions(size, false, 1.0)
@@ -408,13 +406,7 @@ final class ContextSourceContainer: ASDisplayNode {
         
         self.addSubnode(self.backgroundNode)
         
-        // This is what catches a tap outside the menu contents, which is what dismisses the menu. A layer
-        // that renders nothing at all does not receive those taps: for menus with no full-screen background
-        // the colour below is `.clear`, and because NavigationBackgroundNode is constructed with `.clear`
-        // too, its `updateColor` early-returns and never even assigns a background colour, so the layer has
-        // neither a background nor contents. The filter is in touch delivery, not in `-hitTest:`, against
-        // what the layer actually renders. Invisible, and harmless for the dim/blur cases: CALayer paints
-        // `backgroundColor` behind `contents`.
+        // ice9: invisible contents, so a tap outside the menu reaches it and dismisses (#208)
         self.backgroundNode.layer.contents = transparentHitTestImage.cgImage
         
         for i in 0 ..< configuration.sources.count {

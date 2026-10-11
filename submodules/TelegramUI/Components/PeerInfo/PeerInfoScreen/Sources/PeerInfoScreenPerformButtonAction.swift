@@ -477,7 +477,6 @@ extension PeerInfoScreenNode {
                 }
                 
                 if case let .user(user) = peer {
-                    // Chat themes follow their switch (#23). See Offered.
                     if Offered.chatThemes && user.botInfo == nil && strongSelf.data?.encryptionKeyFingerprint == nil && !user.isDeleted {
                         items.append(.action(ContextMenuActionItem(text: presentationData.strings.UserInfo_ChangeWallpaper, icon: { theme in
                             generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/ApplyTheme"), color: theme.contextMenu.primaryColor)
@@ -550,8 +549,6 @@ extension PeerInfoScreenNode {
                         }
                     }
                     
-                    // ice9: Telegram's secret chats have no server here, and every
-                    // chat is already end-to-end encrypted (#181). See Offered.
                     if Offered.secretChats && strongSelf.peerId.namespace == Namespaces.Peer.CloudUser && user.botInfo == nil && !user.flags.contains(.isSupport) {
                         if let cachedUserData = strongSelf.data?.cachedData as? CachedUserData, let _ = cachedUserData.sendPaidMessageStars {
                             

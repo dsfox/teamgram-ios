@@ -1027,11 +1027,7 @@ public func authorizeWithCode(accountManager: AccountManager<TelegramAccountMana
                     switch code {
                         case let .phoneCode(code):
                             flags = 1 << 0
-                            // Words rather than digits mean a recovery phrase,
-                            // and the phrase itself does not travel: the server
-                            // is checked against a one-way derivation of it, so
-                            // that holding the server never means holding the
-                            // way into somebody's account.
+                            // ice9: a recovery phrase is sent as its one-way derived secret
                             if MlsRecovery.looksLikeAPhrase(code), let secret = try? MlsRecovery.authSecret(phrase: code) {
                                 phoneCode = secret
                             } else {
@@ -1535,19 +1531,7 @@ public func signUpWithName(accountManager: AccountManager<TelegramAccountManager
                     }
                     let appliedState = account.postbox.transaction { transaction -> Void in
                         let state = AuthorizedAccountState(isTestingEnvironment: account.testingEnvironment, masterDatacenterId: account.masterDatacenterId, peerId: user.id, state: nil, invalidatedChannels: [])
-                        // The hole stays. Upstream clears it here because a
-                        // newly registered account has no chats to fetch - and
-                        // ours does: the server puts a chat there while the
-                        // account is being created, with the sign-in code in
-                        // it and, until recently, the recovery phrase.
-                        //
-                        // Clearing it is what made that chat invisible for
-                        // good. The messages arrive as updates before the
-                        // client is listening, `updates.getState` then returns
-                        // a state that already includes them, and with no hole
-                        // nothing ever asks for the dialog list - so the chat
-                        // exists on the server, is counted in the badge, and
-                        // is nowhere on screen.
+                        // ice9: keep the chat list hole, so the chat made at sign-up is fetched
                         let _ = account.postbox.seedConfiguration.initializeChatListWithHole.topLevel
                         initializedAppSettingsAfterLogin(transaction: transaction, appVersion: account.networkArguments.appVersion, syncContacts: syncContacts)
                         transaction.setState(state)

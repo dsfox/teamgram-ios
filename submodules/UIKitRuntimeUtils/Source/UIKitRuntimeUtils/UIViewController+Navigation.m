@@ -734,10 +734,7 @@ static NSMutableDictionary<NSString *, TrustedWebRecord *> *trustedWebRecords() 
     }
 }*/
 
-// ice9 #208, carried from upstream 93af3a138e: +[UIRemoteKeyboardWindow
-// remoteKeyboardWindowForScreen:create:] traps when linked against the iOS 27
-// SDK; the keyboard scene delegate is the way in (upstream's
-// docs/ios27-windows-and-touches.md).
+// ice9: carried from upstream 93af3a138e, the keyboard window via the keyboard scene (#208)
 - (UIWindow * _Nullable)internalGetKeyboard {
     UIWindowScene *foundScene = nil;
     for (UIScene *scene in self.connectedScenes) {
@@ -769,8 +766,7 @@ static NSMutableDictionary<NSString *, TrustedWebRecord *> *trustedWebRecords() 
         return nil;
     }
 
-    // nil until the keyboard has been created for this scene, and also whenever the keyboard UI is
-    // hosted out of process - in that configuration there is no in-process keyboard window at all.
+    // ice9: nil until the keyboard exists for this scene, and while it is hosted out of process
     UIWindow *result = [(id<UIKeyboardSceneDelegateProtocol>)keyboardSceneDelegate keyboardWindow];
     if (![result isKindOfClass:[UIWindow class]]) {
         return nil;

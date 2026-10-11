@@ -1305,8 +1305,7 @@ public func deviceContactInfoController(context: ShareControllerAccountContext, 
         }
     }
     inviteImpl = { [weak controller] numbers in
-        // Only the app can mint a code; the share extension has no account
-        // to ask with, and an SMS without a code is not worth composing.
+        // ice9: only the app can mint a code, so the share extension invites nobody
         guard let controller, let context = (context as? ShareControllerAppAccountContext)?.context else {
             return
         }

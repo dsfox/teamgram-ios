@@ -9,9 +9,7 @@ import TelegramNotices
 import AccountContext
 
 private let baseTelegramMePaths = ["i.ice9.app"]
-// Upstream recognises its own web client's short links (a.t.me and the like).
-// We have no web client, so nothing is a short link here - the list stays
-// rather than the function, because callers ask it.
+// ice9: no web client, so no short-link hosts
 private let telegramWebShortLinkHosts: [String] = []
 private let baseTelegraPhPaths = [
     "i.ice9.app/iv?",

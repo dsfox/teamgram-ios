@@ -41,10 +41,6 @@ final class ComposeControllerNode: ASDisplayNode {
         var openCreateContactImpl: (() -> Void)?
         var openCreateNewChannelImpl: (() -> Void)?
         
-        // What the compose screen offers. A channel is not one of them: this is
-        // an invitation-only messenger for conversations between people, and
-        // broadcasting is a different thing with none of it built. See Offered,
-        // where everything switched off is written down.
         var composeOptions: [ContactListAdditionalOption] = [
             ContactListAdditionalOption(title: self.presentationData.strings.Compose_NewGroup, icon: .generic(UIImage(bundleImageName: "Contact List/CreateGroupActionIcon")!), action: {
                 openCreateNewGroupImpl?()

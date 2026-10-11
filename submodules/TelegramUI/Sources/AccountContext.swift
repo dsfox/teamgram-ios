@@ -300,8 +300,7 @@ public final class AccountContextImpl: AccountContext {
             self.themeUpdateManager = ThemeUpdateManagerImpl(sharedContext: sharedContext, account: account)
             
             self.inAppPurchaseManager = InAppPurchaseManager(engine: .authorized(self.engine))
-            // ice9: no Stars, TON or gift auctions, so nothing asks the server
-            // about them at launch (#181).
+            // ice9: no Stars, TON or gift auctions, so nothing asks the server about them (#181)
             self.starsContext = nil
             self.tonContext = nil
             self.giftAuctionsManager = nil

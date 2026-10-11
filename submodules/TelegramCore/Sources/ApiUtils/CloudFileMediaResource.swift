@@ -85,8 +85,7 @@ extension SecretFileMediaResource: TelegramCloudMediaResource, TelegramMultipart
 
 extension MlsEncryptedFileResource: TelegramCloudMediaResource, TelegramMultipartFetchableResource, TelegramCloudMediaResourceWithFileReference {
     func apiInputLocation(fileReference: Data?) -> Api.InputFileLocation? {
-        // A document like any other. The difference is in the bytes, not in
-        // where they live - which is why nothing new is needed on the server.
+        // ice9: fetched as an ordinary document; only its bytes are encrypted
         return .inputDocumentFileLocation(.init(id: self.fileId, accessHash: self.accessHash, fileReference: Buffer(data: fileReference ?? self.fileReference ?? Data()), thumbSize: ""))
     }
 }

@@ -92,8 +92,7 @@ private func isKeyboardViewContainer(view: NSObject) -> Bool {
 }
 
 private class ApplicationStatusBarHost: StatusBarHost {
-    // ice9 #183: read when asked. Under UIScene the window is made before its
-    // scene connects, so a scene taken at construction would be nil for good.
+    // ice9: the scene is read when asked; under UIScene it connects after the window (#183)
     private weak var window: UIWindow?
     private var scene: UIWindowScene? {
         return self.window?.windowScene
@@ -129,12 +128,7 @@ private class ApplicationStatusBarHost: StatusBarHost {
     }
     
     var keyboardWindow: UIWindow? {
-        // ice9 #208, carried from upstream 93af3a138e. The keyboard window
-        // belongs to an internal keyboard scene and is in no window list; it is
-        // reached through our own scene's keyboard scene delegate. The lookup
-        // by screen that stood here traps when linked against the iOS 27 SDK,
-        // and with nothing in its place, everything meant to sit above the
-        // keyboard was drawn under it on iOS 27.
+        // ice9: carried from upstream 93af3a138e, the keyboard window via the keyboard scene (#208)
         guard let scene = self.scene else {
             return nil
         }
@@ -309,7 +303,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         let appGroupName = "group.\(baseAppBundleId)"
 
         let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
-        // Только если группа реально доступна — иначе фоновая сессия не создастся
+        // ice9: the shared container only when the app group exists, or the background session fails
         if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName) != nil {
             configuration.sharedContainerIdentifier = appGroupName
         }
@@ -663,18 +657,12 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             isICloudEnabled: buildConfig.isICloudEnabled
         )
         
-        // The group container is what the app and the notification extension
-        // share (#42). Every build before it had no group and kept its data in
-        // the sandbox, so the data is moved into the group once - a rename -
-        // and only when that fails, or there is no group at all, does the app
-        // stay in its own sandbox rather than fail to start.
+        // ice9: data moves into the shared app group once, else stays in the sandbox (#42)
         guard let documentsUrl = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             self.mainWindow?.presentNative(UIAlertController(title: nil, message: "Error 2", preferredStyle: .alert))
             return true
         }
-        //
-        // Said into the log once there is one: the logger lives in the data
-        // root, which is what is being decided here.
+        // ice9: these lines are logged later; the logger lives in the data root chosen here
         var dataRootLines: [String] = []
         let appGroupUrl: URL
         if let groupUrl = maybeAppGroupUrl, moveDataRootIfNeeded(from: documentsUrl, to: groupUrl, log: { line in
@@ -1218,10 +1206,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         |> mapToSignal { sharedApplicationContext, loggingSettings -> Signal<SharedApplicationContext, NoError> in
             Logger.shared.logToFile = loggingSettings.logToFile
             Logger.shared.logToConsole = loggingSettings.logToConsole
-            // Kept on. The one line that says why a conversation could not be
-            // joined is worth more than the disk it costs: without it the
-            // failure has to be guessed at from outside, which is how two wrong
-            // explanations got as far as somebody's phone.
+            // ice9: logging to file is kept on
             Logger.shared.logToFile = true
             Logger.shared.redactSensitiveData = loggingSettings.redactSensitiveData
             
@@ -1992,17 +1977,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
 
         self.resetBadge()
 
-        // Ask every account what was missed while the screen was off.
-        //
-        // Tied to the app coming back rather than to it becoming master, which
-        // is what this was tied to first and was the wrong moment: a
-        // backgrounded app does not resign master, so returning from the
-        // background changed nothing and nothing asked. Measured on a phone
-        // afterwards - foreground at 20:51:38, no request for updates, and the
-        // message that a notification had just announced appeared at 20:51:55,
-        // dragged in by a hole in the update sequence. Seventeen seconds of an
-        // open chat with nothing in it, which is what a person reports as "the
-        // notification opened the chat and the message was not there".
+        // ice9: every account asks what it missed when the app comes back to the foreground
         let _ = (self.sharedContextPromise.get()
         |> take(1)
         |> deliverOnMainQueue).start(next: { sharedApplicationContext in
@@ -2516,8 +2491,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             }
         }
         |> deliverOnMainQueue).start(next: { sharedContext, context, authContext in
-            // ice9 (#244): a link to a server of one's own fills the server
-            // screen when signed out, and asks about changing servers when not.
+            // ice9: a server link fills the server screen, or asks to change servers if signed in (#244)
             if let link = ServerLink.parse(url.absoluteString) {
                 if let authContext = authContext {
                     authContext.rootController.applyServerLink(link)
@@ -2554,9 +2528,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
                     )
                     authContext.rootController.currentWindow?.present(alertController, on: .root, blockInteraction: false, completion: {})
                 } else {
-                    // Any other link while signed out - a person's, a group's -
-                    // used to be dropped without a word. Kept instead, and
-                    // opened the moment an account is signed in (#174).
+                    // ice9: any other link while signed out is kept and opened after sign-in (#174)
                     Logger.shared.log("App", "a link arrived while signed out; keeping it for after sign-in")
                     self.openUrlWhenReady(url: url, external: true)
                 }
@@ -2867,8 +2839,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
                         self.openUrlWhenReady(accountId: accountId, url: url, external: true)
                     }
                 } else {
-                    // Said out loud, because a tap that goes nowhere leaves no
-                    // trace at all and there are four places it can stop.
+                    // ice9: a notification tap is logged, since it can stop in four places
                     Logger.shared.log("Notification", "tapped: account \(String(describing: accountId)), sender \(String(describing: peerIdFromNotification(response.notification)?.peerId))")
                     if let (peerId, threadId) = peerIdFromNotification(response.notification) {
                         var messageId: MessageId? = nil

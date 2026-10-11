@@ -526,20 +526,11 @@ func initializedNetwork(accountId: AccountRecordId, arguments: NetworkInitializa
                 }
             }
             
-            // Where to dial before anything has been dialled. One datacenter,
-            // because there is one; the five upstream seeds are Telegram's and
-            // named nothing we run.
-            //
-            // Not a constant: which server this phone talks to is a thing its
-            // owner answers on the first screen (ice9 #65), and the answer is
-            // kept beside the accounts rather than in one of them, because it
-            // is needed before any account exists. The account path is
-            // rootPath/account-<id>, and the answer sits one level up.
+            // ice9: one seed datacenter, the server chosen on the first screen (#65)
             let rootPath = (basePath as NSString).deletingLastPathComponent
             let seedAddress = ServerAddressStore(rootPath: rootPath).effective
             Logger.shared.log("Network", "seeding datacenter 1 from \(seedAddress.described)\(seedAddress.key != nil ? " with the server's own key" : "")")
-            // A server of one's own is reached with the key its code was
-            // checked against, in every process that opens this network (#244).
+            // ice9: an own server is reached with its own key, in every process (#244)
             context.serverPublicKey = seedAddress.publicKeyPem
             context.setSeedAddressSetForDatacenterWithId(1, seedAddressSet: MTDatacenterAddressSet(addressList: [
                 MTDatacenterAddress(ip: seedAddress.host, port: UInt16(seedAddress.port), preferForMedia: false, restrictToTcp: false, cdn: false, preferForProxy: false, secret: nil)
@@ -626,11 +617,7 @@ func initializedNetwork(accountId: AccountRecordId, arguments: NetworkInitializa
             let requestService = MTRequestMessageService(context: context)!
             let connectionStatusDelegate = MTProtoConnectionStatusDelegate()
             connectionStatusDelegate.action = { [weak connectionStatus] info in
-                // Diagnostics: the exact reason the title bar shows "Updating".
-                // The two flags mean different things - one is the connection
-                // context being actualized (a ping without a pong yet), the other
-                // is unfinished service tasks - and telling them apart is the
-                // whole point of this log line.
+                // ice9: log which flag keeps the title bar on "Updating"
                 Logger.shared.log("Network", "state: connected=\(info.flags.contains(.Connected)) updatingContext=\(info.flags.contains(.UpdatingConnectionContext)) serviceTasks=\(info.flags.contains(.PerformingServiceTasks)) networkAvailable=\(info.flags.contains(.NetworkAvailable))")
                 if info.flags.contains(.Connected) {
                     if !info.flags.intersection([.UpdatingConnectionContext, .PerformingServiceTasks]).isEmpty {

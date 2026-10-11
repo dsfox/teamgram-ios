@@ -24,8 +24,7 @@ public final class AuthorizationSequenceCodeEntryController: ViewController {
     public var signInWithApple: (() -> Void)?
     public var openFragment: ((String) -> Void)?
 
-    /// Set only where a phone number is being opened. The screen shows its way
-    /// out for a lost phone when this is here, and nothing when it is not.
+    // ice9: set only where a phone number is being opened; shows the lost-phone way out
     public var openRecovery: (() -> Void)?
     
     var reset: (() -> Void)?

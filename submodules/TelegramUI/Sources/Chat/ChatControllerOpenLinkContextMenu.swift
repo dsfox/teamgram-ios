@@ -78,9 +78,7 @@ private func chatLinkContextMenuOpenMode(context: AccountContext, url: String) -
     if host.isEmpty {
         return .single(nil)
     }
-    // Our own links are opened by the app rather than offered to a browser, so
-    // they get no "open in" menu. Upstream named its own three hosts here; ours
-    // is one, and somebody else's link is a link like any other (#87).
+    // ice9: no "open in" menu for our own host (#87)
     if host == "i.ice9.app" {
         return .single(nil)
     }

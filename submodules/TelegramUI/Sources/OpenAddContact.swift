@@ -18,9 +18,7 @@ func openAddContactImpl(context: AccountContext, peer: EnginePeer?, firstName: S
         case .notDetermined:
             DeviceAccess.authorizeAccess(to: .contacts)
         default:
-            // Allowed, denied or restricted alike: the screen takes a typed
-            // number and reads nothing from the book (#164). Saving to the
-            // book is its own toggle, off when the book is not ours to write.
+            // ice9: any permission opens the number screen, which reads nothing from the book (#164)
             let controller = context.sharedContext.makeNewContactScreen(
                 context: context,
                 peer: peer,

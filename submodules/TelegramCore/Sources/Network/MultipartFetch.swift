@@ -1124,11 +1124,7 @@ func multipartFetch(
     continueInBackground: Bool = false,
     useMainConnection: Bool = false
 ) -> Signal<MediaResourceDataFetchResult, MediaResourceDataFetchError> {
-    // A file from an encrypted conversation is only ever wanted opened, and it
-    // carries its own key and sizes. Taken from it here rather than trusted to
-    // every caller: the notification extension fetches any cloud file with no
-    // key and no size, and stored this one's ciphertext as the finished picture,
-    // which the app then never fetched again (#217).
+    // ice9: an MLS file's key and sizes come from the resource, whoever the caller (#217)
     var size = size
     var encryptionKey = encryptionKey
     var decryptedSize = decryptedSize

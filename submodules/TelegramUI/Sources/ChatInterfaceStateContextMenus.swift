@@ -1540,9 +1540,7 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
             }
         }
         
-        // ice9: every TestFlight and App Review install logs, so this showed on
-        // every photo during review - a hidden feature (2.3.1(a), #181). Logs
-        // are sent from the Server screen, where the listing says so.
+        // ice9: no Send Logs on photos in a store build (2.3.1(a), #181)
         if !GlobalExperimentalSettings.isAppStoreBuild && (loggingSettings.logToFile || loggingSettings.logToConsole) && !downloadableMediaResourceInfos.isEmpty {
             actions.append(.action(ContextMenuActionItem(text: "Send Logs", icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Message"), color: theme.actionSheet.primaryTextColor)

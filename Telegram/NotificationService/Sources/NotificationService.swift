@@ -1936,11 +1936,7 @@ private final class NotificationServiceHandler {
                                         }
                                         |> restartIfError
                                         
-                                        // The encryption first, so that the messages the
-                                        // poll stores are opened as they are stored - and
-                                        // every write it made is on disk before the
-                                        // notification is handed over and this process is
-                                        // suspended (#42).
+                                        // ice9: wake MLS before the poll and wait until it settles (#42)
                                         let runtime = MlsRuntime.instance(postbox: stateManager.postbox, accountPeerId: stateManager.accountPeerId)
                                         pollSignal = (runtime.wake(network: stateManager.network)
                                         |> ignoreValues)
@@ -2037,13 +2033,7 @@ private final class NotificationServiceHandler {
                                                         content.body = messagePrefix + message.text
                                                     }
                                                 }
-                                                // Our server sends "New message" and nothing
-                                                // else: the text is encrypted for this device
-                                                // alone. Now that the poll has stored the
-                                                // message and the encryption has opened it,
-                                                // the notification says what it says and
-                                                // who said it - unless it is still held, and
-                                                // then "New message" is the truth (#42).
+                                                // ice9: show the decrypted text and its author (#42)
                                                 var prefix = ""
                                                 if message.id.peerId.namespace != Namespaces.Peer.CloudUser, let author = message.author {
                                                     prefix = "\(author.debugDisplayTitle): "
@@ -2051,8 +2041,7 @@ private final class NotificationServiceHandler {
                                                 if !message.attributes.contains(where: { $0 is MlsCiphertextMessageAttribute }), !message.text.isEmpty, !MlsRuntime.isCiphertext(message.text) {
                                                     content.body = prefix + message.text
                                                 } else if !prefix.isEmpty {
-                                                    // Still held: the words are not ours to show
-                                                    // yet, but who wrote is (#166).
+                                                    // ice9: still encrypted, only the author (#166)
                                                     content.body = prefix + (content.body ?? "")
                                                 }
                                                 if let peer = transaction.getPeer(message.id.peerId) {

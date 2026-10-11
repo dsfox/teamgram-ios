@@ -413,9 +413,7 @@ public final class PendingMessageManager {
 
         self.queue.async {
             self.unsentMessageIds = allMessageIds
-            // ice9: every process that holds the account sees the same unsent
-            // messages, and the share extension would send the app's whole
-            // queue beside its own. An extension sends what it enqueued (#230).
+            // ice9: an extension sends only the messages it enqueued itself (#230)
             let messageIds = MlsRuntime.inAnExtension ? allMessageIds.intersection(self.ownMessageIds) : allMessageIds
             Logger.shared.log("PendingMessageManager", "update: \(messageIds)")
             
@@ -540,8 +538,7 @@ public final class PendingMessageManager {
         }
     }
     
-    /// What an extension may send: the messages it enqueued itself (#230).
-    /// Ignored in the app, which sends everything unsent.
+    /// ice9: what an extension may send, the messages it enqueued itself; the app sends all (#230)
     public func sendOwn(_ messageIds: [MessageId]) {
         self.queue.async {
             self.ownMessageIds.formUnion(messageIds)
@@ -1470,9 +1467,7 @@ public final class PendingMessageManager {
                         var quoteText: String?
                         var quoteEntities: [Api.MessageEntity]?
                         var quoteOffset: Int32?
-                        // Not for an encrypted conversation - see the reply
-                        // path below: a quote hands the server the piece of a
-                        // message it was never able to read.
+                        // ice9: no reply quote in an encrypted chat, it would be sent in the clear
                         if let replyQuote = replyQuote, !MlsRuntime.isEncrypted(peerId: messages[0].0.id.peerId) {
                             replyFlags |= 1 << 2
                             quoteText = replyQuote.text
@@ -1887,12 +1882,7 @@ public final class PendingMessageManager {
                             var quoteText: String?
                             var quoteEntities: [Api.MessageEntity]?
                             var quoteOffset: Int32?
-                            // Not for an encrypted conversation. A quote is a
-                            // piece of a message the server was never able to
-                            // read, and sending it beside the reply hands over
-                            // exactly the part somebody chose to point at. The
-                            // reply still points at the message; what is lost is
-                            // the fragment being shown on the other side.
+                            // ice9: no reply quote in an encrypted chat, it would be sent in the clear
                             if let replyQuote = replyQuote, !MlsRuntime.isEncrypted(peerId: messageId.peerId) {
                                 replyFlags |= 1 << 2
                                 quoteText = replyQuote.text
@@ -1998,12 +1988,7 @@ public final class PendingMessageManager {
                             var quoteText: String?
                             var quoteEntities: [Api.MessageEntity]?
                             var quoteOffset: Int32?
-                            // Not for an encrypted conversation. A quote is a
-                            // piece of a message the server was never able to
-                            // read, and sending it beside the reply hands over
-                            // exactly the part somebody chose to point at. The
-                            // reply still points at the message; what is lost is
-                            // the fragment being shown on the other side.
+                            // ice9: no reply quote in an encrypted chat, it would be sent in the clear
                             if let replyQuote = replyQuote, !MlsRuntime.isEncrypted(peerId: messageId.peerId) {
                                 replyFlags |= 1 << 2
                                 quoteText = replyQuote.text
@@ -2159,12 +2144,7 @@ public final class PendingMessageManager {
                             var quoteText: String?
                             var quoteEntities: [Api.MessageEntity]?
                             var quoteOffset: Int32?
-                            // Not for an encrypted conversation. A quote is a
-                            // piece of a message the server was never able to
-                            // read, and sending it beside the reply hands over
-                            // exactly the part somebody chose to point at. The
-                            // reply still points at the message; what is lost is
-                            // the fragment being shown on the other side.
+                            // ice9: no reply quote in an encrypted chat, it would be sent in the clear
                             if let replyQuote = replyQuote, !MlsRuntime.isEncrypted(peerId: messageId.peerId) {
                                 replyFlags |= 1 << 2
                                 quoteText = replyQuote.text

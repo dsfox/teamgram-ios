@@ -1363,8 +1363,6 @@ final class UserAppearanceScreenComponent: Component {
                                 },
                                 tag: addIconsTag
                             )))
-                        // ice9: the add-icons row (id 1) opens an empty picker while
-                        // colour icons are off (#222). See Offered.
                         ].filter { Offered.colourIcons || $0.id != AnyHashable(1) },
                         displaySeparators: true,
                         extendsItemHighlightToSection: false
@@ -1536,8 +1534,6 @@ final class UserAppearanceScreenComponent: Component {
                     forceUpdate: forceGiftsUpdate,
                     containerSize: CGSize(width: availableSize.width - sideInset * 2.0, height: .greatestFiniteMagnitude)
                 )
-                // ice9: gifts are not offered, and the section is a way into
-                // buying them (#24). See Offered.
                 if Offered.gifts {
                 let giftsSectionFrame = CGRect(origin: CGPoint(x: sideInset, y: contentHeight), size: giftsSectionSize)
                 if let giftsSectionView = self.profileGiftsSection.view {
@@ -1701,8 +1697,6 @@ final class UserAppearanceScreenComponent: Component {
                                 },
                                 tag: addIconsTag
                             )))
-                        // ice9: the add-icons row (id 1) opens an empty picker while
-                        // colour icons are off (#222). See Offered.
                         ].filter { Offered.colourIcons || $0.id != AnyHashable(1) },
                         displaySeparators: true,
                         extendsItemHighlightToSection: false
@@ -1793,8 +1787,6 @@ final class UserAppearanceScreenComponent: Component {
                     forceUpdate: forceGiftsUpdate,
                     containerSize: CGSize(width: availableSize.width - sideInset * 2.0, height: .greatestFiniteMagnitude)
                 )
-                // ice9: gifts are not offered, and the section is a way into
-                // buying them (#24). See Offered.
                 if Offered.gifts {
                 let giftsSectionFrame = CGRect(origin: CGPoint(x: sideInset, y: contentHeight), size: giftsSectionSize)
                 if let giftsSectionView = self.nameGiftsSection.view {

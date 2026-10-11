@@ -1435,11 +1435,7 @@ final class MessageHistoryTable: Table {
                 let _ = self.messageMediaTable.removeReference(mediaId)
             }
         
-            // Asked for unconditionally, unlike the two places that add. Whether
-            // a chat is indexed is answered by something that loads after the
-            // app starts, so a message deleted early would be asked about too
-            // soon, kept in the index, and later found by a search that then has
-            // no message to show for it.
+            // ice9: removed from the text index unconditionally, whatever the chat's namespace
             self.textIndexTable.remove(messageId: message.id)
         
             resultTags = message.tags

@@ -400,10 +400,7 @@ static const NSTimeInterval MTTcpTransportSleepWatchdogTimeout = 60.0;
     [[MTTcpTransport tcpTransportQueue] dispatchOnQueue:^
     {
         if (transportContext.connection != connection) {
-            // The socket is open and nobody will ever write to it: the transport
-            // has moved on to another connection, so it never asks the delegate
-            // for a transaction. The server sees a connection that says nothing
-            // and reaps it; the app sits on it until its own response timeout.
+            // ice9: log a connection opened after the transport moved on to another
             if (MTLogEnabled()) {
                 MTLog(@"[MTTcpTransport#%" PRIxPTR " opened connection is not the current one, orphaned]", (intptr_t)self);
             }
@@ -624,9 +621,7 @@ static const NSTimeInterval MTTcpTransportSleepWatchdogTimeout = 60.0;
     
     id<MTTransportDelegate> delegate = self.delegate;
     MTTransportScheme *scheme = transportContext.connection.scheme;
-    // Falling through this condition asks nobody for anything and leaves no
-    // trace: the socket stays open and empty while the app waits out its own
-    // response timeout. Whatever is missing here has to be visible.
+    // ice9: log what is missing when no transaction is requested
     if (scheme == nil || delegate == nil) {
         if (MTLogEnabled()) {
             MTLog(@"[MTTcpTransport#%" PRIxPTR " no transaction requested: scheme %s, delegate %s, connection %s]",
@@ -695,13 +690,7 @@ static const NSTimeInterval MTTcpTransportSleepWatchdogTimeout = 60.0;
                     MTLog(@"[MTTcpTransport probe: transport gone before writing]");
                 }
                 if (strongSelf != nil) {
-                    // Why this is logged: a connection can look connected, take
-                    // requests, and never put a byte on the wire. Nothing above
-                    // says so - "preparing" is logged when a message is built,
-                    // not when it is sent - and from the outside the only symptom
-                    // is the status stuck on "Updating" until the response
-                    // timeout fires. Counting what actually leaves here tells the
-                    // two cases apart.
+                    // ice9: log how many parts and bytes actually leave for the wire
                     if (MTLogEnabled()) {
                         NSInteger totalBytes = 0;
                         for (MTTransportTransaction *t in transactionList) {

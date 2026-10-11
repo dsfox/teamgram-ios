@@ -369,8 +369,7 @@ public class ContactsController: ViewController {
                 return
             }
             strongSelf.view.endEditing(true)
-            // A typed number: somebody on ice9 opens, anybody else is invited
-            // by SMS with a code. The address book plays no part (#164).
+            // ice9: a typed number opens somebody on ice9 or invites anybody else by SMS (#164)
             let _ = (strongSelf.context.engine.peers.resolvePeerByPhone(phone: phoneNumber)
             |> deliverOnMainQueue).startStandalone(next: { peer in
                 guard let strongSelf = self else {
@@ -386,8 +385,7 @@ public class ContactsController: ViewController {
         }
         
         self.contactsNode.openInviteByNumber = { [weak self] in
-            // A window that asks for the number; it then goes where a number
-            // typed into the search goes.
+            // ice9: asks for the number in a window, then goes where a searched number goes
             guard let strongSelf = self else {
                 return
             }
@@ -740,8 +738,7 @@ public class ContactsController: ViewController {
                 case .notDetermined:
                     DeviceAccess.authorizeAccess(to: .contacts)
                 default:
-                    // Allowed, denied or restricted alike: the screen takes a
-                    // typed number and reads nothing from the book (#164).
+                    // ice9: any permission opens the number screen, which reads nothing from the book (#164)
                     if let navigationController = strongSelf.context.sharedContext.mainWindow?.viewController as? NavigationController {
                         let controller = strongSelf.context.sharedContext.makeNewContactScreen(
                             context: strongSelf.context,

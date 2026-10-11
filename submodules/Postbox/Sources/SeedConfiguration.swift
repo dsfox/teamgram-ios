@@ -65,12 +65,7 @@ public final class SeedConfiguration {
     public let messageTagsWithThreadSummary: MessageTags
     public let existingGlobalMessageTags: GlobalMessageTags
     public let peerNamespacesRequiringMessageTextIndex: [PeerId.Namespace]
-    /// Chats outside those namespaces whose text is still only searchable here.
-    ///
-    /// A whole namespace is the wrong unit for an encrypted chat that lives in
-    /// the cloud one: its neighbours in the same namespace are searched by the
-    /// server, and indexing them too would return every one of their messages
-    /// twice - once from the server, once from here.
+    /// ice9: chats outside those namespaces that are still searched only locally (encrypted ones)
     public let peersRequiringMessageTextIndex: (PeerId) -> Bool
     public let peerSummaryCounterTags: (Peer, Bool) -> PeerSummaryCounterTags
     public let peerSummaryIsThreadBased: (Peer, Peer?) -> (value: Bool, threadsArePeers: Bool)

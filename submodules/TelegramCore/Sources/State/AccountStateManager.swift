@@ -238,14 +238,7 @@ public final class AccountStateManager {
             }
         }
 
-        // ice9: which operation the queue is on, and for how long (#233). On a
-        // phone a processUpdateGroups started and never finished, every update
-        // behind it waited, and the title said "Updating" until the app was
-        // killed - and nothing in the log said which operation it was or how
-        // far it got. Every change to the queue goes through the setter above,
-        // so the end of an operation is seen there, whichever path removes it.
-        // The watchdog only says so: dropping an operation from under its own
-        // completion handler would make that handler remove the wrong one.
+        // ice9: log which operation the queue is on, for how long, and when it is stuck (#233)
         private var watchedOperation: AccountStateManagerOperation?
         private var watchedSince: Double = 0
         private var stuckTimer: SignalKitTimer?
@@ -489,19 +482,7 @@ public final class AccountStateManager {
             self.updateEmojiGameInfoDisposable.dispose()
         }
         
-        /// Asks the server what was missed, without tearing anything down.
-        ///
-        /// For the moment the app comes back to the screen. Updates ride the
-        /// connection, and while the app was away there was no connection to
-        /// ride: the server wrote them into a session nobody was reading and
-        /// sent a notification instead. Nothing here asked afterwards, so a
-        /// message written while the phone was in a pocket waited until its
-        /// conversation was opened - minutes, and looking like it had been lost.
-        ///
-        /// Unlike reset() this leaves the update service and everything else
-        /// alone; it is one poll, and it answers with nothing when nothing was
-        /// missed. When the service has not been started yet there is nothing to
-        /// catch up on, and reset() is what runs instead.
+        /// ice9: one poll for what was missed while away, leaving the update service alone
         public func forceUpdate() {
             self.queue.async {
                 guard self.updateService != nil else {

@@ -8,8 +8,7 @@ public final class LoggingSettings: Codable {
     #if DEBUG
     public static var defaultSettings = LoggingSettings(logToFile: true, logToConsole: false, redactSensitiveData: true)
     #else
-    // Diagnostics build: file logging on by default. A packet capture proved the
-    // client opens a connection and sends nothing; only its own log can say why.
+    // ice9: file logging on by default, for diagnostics
     public static var defaultSettings = LoggingSettings(logToFile: true, logToConsole: false, redactSensitiveData: true)
     #endif
     

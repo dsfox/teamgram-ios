@@ -90,9 +90,7 @@ func fetchResource(
         return .single(.reset)
         |> then(.never())
     } else if let mlsFileResource = resource as? MlsEncryptedFileResource {
-        // The same fetch as any document, told the key on the way in. The
-        // decryption happens as the parts arrive, in code secret chats have
-        // been using for years.
+        // ice9: fetched like any document, decrypted with its key as the parts arrive
         return .single(.dataPart(resourceOffset: 0, data: Data(), range: 0 ..< 0, complete: false))
         |> then(multipartFetch(
             accountPeerId: accountPeerId,

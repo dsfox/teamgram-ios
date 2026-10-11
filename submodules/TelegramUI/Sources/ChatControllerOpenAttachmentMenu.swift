@@ -236,10 +236,7 @@ extension ChatControllerImpl {
                 availableButtons.append(.contact)
             }
             
-            // Polls and to-do lists need a server that stores them and counts
-            // votes, and nothing here implements either - messages.sendVote and
-            // the rest have no handler at all. Offering the button means
-            // composing a poll that vanishes on send. Tasks #20 and #21.
+            // ice9: no polls or to-do lists in the attachment menu (#20, #21)
             let _ = canSendPolls
             let _ = canSendTodos
 
@@ -373,7 +370,6 @@ extension ChatControllerImpl {
                 if !premiumGiftOptions.isEmpty {
                     buttons.insert(.gift, at: 1)
                 }
-                // ice9: an article goes nowhere - the server blocks it (#181). See Offered.
                 if Offered.articles {
                     buttons.insert(.richText, at: 1)   // rich text is default-on (legacy is the opt-out)
                 }

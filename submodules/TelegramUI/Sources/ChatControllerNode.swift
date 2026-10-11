@@ -5739,11 +5739,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
     }
 }
 
-// A local empty input view. Two public `EmptyInputView` types exist in imported
-// modules (TextFieldComponent, ChatEntityKeyboardInputNode); Xcode 27's stricter
-// Swift rejects the ambiguous reference that Xcode 26 tolerated, and both module
-// names are shadowed by same-named types so a module qualifier does not help.
-// This trivial local copy sidesteps the clash. (iOS 27 build compatibility.)
+// ice9: a local empty input view; Xcode 27 rejects the ambiguous EmptyInputView
 private final class ChatEmptyInputView: UIView, UIInputViewAudioFeedback {
     var enableInputClicksWhenVisible: Bool {
         return true

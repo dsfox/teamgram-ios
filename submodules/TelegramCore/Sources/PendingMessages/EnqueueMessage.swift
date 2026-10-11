@@ -1127,15 +1127,7 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
                         }
                         
                         if sourceMessage.id.namespace == Namespaces.Message.Cloud && peerId.namespace != Namespaces.Peer.SecretChat {
-                            // Not when either end is encrypted. A forward on the
-                            // wire is the server copying a message by its id,
-                            // and that copy is only readable by the people the
-                            // original was encrypted to - so out of an encrypted
-                            // chat it arrives unreadable, and into one it does
-                            // too. Both directions are sent as a new message
-                            // instead, exactly as a secret chat does, except
-                            // that the attribution is kept: it goes inside the
-                            // ciphertext and comes out as "forwarded from".
+                            // ice9: a forward to or from an encrypted chat is sent as a new message
                             if !MlsRuntime.isEncrypted(peerId: peerId) && !MlsRuntime.isEncrypted(peerId: sourceMessage.id.peerId) {
                                 attributes.append(ForwardSourceInfoAttribute(messageId: sourceMessage.id))
                             }

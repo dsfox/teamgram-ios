@@ -324,9 +324,7 @@ private enum PreferencesKeyValues: Int32 {
     case displaySavedChatsAsTopics = 35
     case shortcutMessages = 37
     case timezoneList = 38
-    // Ours. Numbered well clear of upstream's so that a number added there
-    // cannot collide with this one and read somebody's crypto state as a
-    // timezone list.
+    // ice9: MLS keys, numbered well clear of upstream's
     case mlsDeviceState = 1001
     case mlsConversations = 1002
     case mlsRecovery = 1003
@@ -442,38 +440,28 @@ public struct PreferencesKeys {
         return key
     }()
     
-    /// Where this device's end-to-end encryption state lives: its signature
-    /// key, the conversations it is in, and where each ratchet had got to.
-    ///
-    /// In the account's own storage rather than the keychain, for the same
-    /// reason secret chat state is: it grows with the number of conversations,
-    /// and it has to be dropped with the account when the account is dropped.
+    /// ice9: this device's MLS state, kept in the account's storage
     public static let mlsDeviceState: ValueBoxKey = {
         let key = ValueBoxKey(length: 4)
         key.setInt32(0, value: PreferencesKeyValues.mlsDeviceState.rawValue)
         return key
     }()
 
-    /// Which MLS group belongs to which peer. Not a secret - a note about
-    /// which conversation is which - so it lives beside the state rather than
-    /// inside it.
+    /// ice9: which MLS group belongs to which peer
     public static let mlsConversations: ValueBoxKey = {
         let key = ValueBoxKey(length: 4)
         key.setInt32(0, value: PreferencesKeyValues.mlsConversations.rawValue)
         return key
     }()
 
-    /// The words that get this account back. Made on this device and kept
-    /// here: the server is told only a one-way derivation of them.
+    /// ice9: the account's recovery phrase, kept on this device
     public static let mlsRecovery: ValueBoxKey = {
         let key = ValueBoxKey(length: 4)
         key.setInt32(0, value: PreferencesKeyValues.mlsRecovery.rawValue)
         return key
     }()
 
-    /// Which conversations have already been written into the search index, so
-    /// that the walk over an existing history happens once and not on every
-    /// launch.
+    /// ice9: conversations already written into the search index
     public static let mlsSearchIndex: ValueBoxKey = {
         let key = ValueBoxKey(length: 4)
         key.setInt32(0, value: PreferencesKeyValues.mlsSearchIndex.rawValue)

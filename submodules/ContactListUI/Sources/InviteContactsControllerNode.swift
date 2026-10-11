@@ -142,8 +142,7 @@ struct InviteContactsGroupSelectionState: Equatable {
         self.nextSelectionIndex = 0
     }
     
-    /// One invitation is one person vouched for (#47): picking a second
-    /// contact replaces the first rather than adding to it.
+    // ice9: one invitation is one person - a second pick replaces the first (#47)
     func withToggledContactId(_ contactId: String) -> InviteContactsGroupSelectionState {
         if let _ = self.selectedContactIndices[contactId] {
             return self.withClearedSelection()
@@ -172,10 +171,7 @@ struct InviteContactsGroupSelectionState: Equatable {
 private func inviteContactsEntries(accountPeer: EnginePeer?, sortedContacts: [(DeviceContactStableId, DeviceContactBasicData, Int32)]?, selectionState: InviteContactsGroupSelectionState, theme: PresentationTheme, strings: PresentationStrings, nameSortOrder: PresentationPersonNameOrder, nameDisplayOrder: PresentationPersonNameOrder, interaction: InviteContactsInteraction) -> [InviteContactsEntry] {
     var entries: [InviteContactsEntry] = []
         
-    // No "Share ice9" row: it handed the invite text with no code to the
-    // share sheet, and an invitation without a code opens nothing (#47).
-    // Inviting is by number, through the composer, from the rows below and
-    // from the Contacts search (#164). Issue #174.
+    // ice9: No "Share ice9" row - an invitation without a code opens nothing (#47, #164, #174)
 
     var index = 0
     if let sortedContacts = sortedContacts {

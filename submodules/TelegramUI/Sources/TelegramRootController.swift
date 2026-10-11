@@ -231,8 +231,7 @@ public final class TelegramRootController: NavigationController, TelegramRootCon
         
         let accountSettingsController = PeerInfoScreenImpl(context: self.context, updatedPresentationData: nil, peerId: self.context.account.peerId, avatarInitiallyExpanded: false, isOpenedFromChat: false, reactionSourceMessageId: nil, callMessages: [], isSettings: true)
         accountSettingsController.tabBarItemDebugTapAction = { [weak self] in
-            // ice9: ten taps on the Settings tab opened the debug menu in a
-            // store build too - a hidden feature to App Review (2.3.1(a), #181).
+            // ice9: no debug menu from Settings tab taps in a store build (2.3.1(a), #181)
             guard let strongSelf = self, !GlobalExperimentalSettings.isAppStoreBuild else {
                 return
             }
@@ -315,9 +314,6 @@ public final class TelegramRootController: NavigationController, TelegramRootCon
     
     @discardableResult
     public func openStoryCamera(mode: StoryCameraMode, customTarget: Stories.PendingTarget?, resumeLiveStream: Bool, transitionIn: StoryCameraTransitionIn?, transitionedIn: @escaping () -> Void, transitionOut: @escaping (Stories.PendingTarget?, Bool) -> StoryCameraTransitionOut?) -> StoryCameraTransitionInCoordinator? {
-        // Stories are not offered. This is the shared implementation behind
-        // every posting entry - profiles, grids, deep links - so the door is
-        // held here for all of them at once. See Offered.
         if !Offered.stories {
             return nil
         }

@@ -692,10 +692,6 @@ private func privacyAndSecurityControllerEntries(
     if let hasTwoStepAuth = hasTwoStepAuth {
         twoStepAuthString = hasTwoStepAuth ? presentationData.strings.PrivacySettings_PasscodeOn : presentationData.strings.PrivacySettings_PasscodeOff
     }
-    // A cloud password protects nothing here: the server answers
-    // account.getPassword with "there is no password" and has no handler for
-    // setting one, so the screen would take a password and leave the account
-    // exactly as open as before. See Offered.
     if Offered.cloudPassword {
         entries.append(.twoStepVerification(presentationData.theme, presentationData.strings.PrivacySettings_TwoStepAuth, twoStepAuthString, twoStepAuthData))
     }
@@ -740,10 +736,6 @@ private func privacyAndSecurityControllerEntries(
         if let loginEmail {
             hasLoginEmail = !loginEmail.contains(" ")
         }
-        // An address to receive login codes at, from a server that refuses to
-        // send them: account.sendVerifyEmailCode is not implemented. Offering
-        // the row means a screen that takes an address and never confirms it.
-        // See Offered.
         if Offered.loginEmail {
             entries.append(.loginEmail(presentationData.theme, presentationData.strings.PrivacySettings_LoginEmail, loginEmail))
             entries.append(.loginEmailInfo(presentationData.theme, !hasLoginEmail ? presentationData.strings.PrivacySettings_LoginEmailSetupInfo : presentationData.strings.PrivacySettings_LoginEmailInfo))
@@ -756,17 +748,12 @@ private func privacyAndSecurityControllerEntries(
         entries.append(.lastSeenPrivacy(presentationData.theme, presentationData.strings.PrivacySettings_LastSeen, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.presence)))
         entries.append(.profilePhotoPrivacy(presentationData.theme, presentationData.strings.Privacy_ProfilePhoto, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.profilePhoto)))
         entries.append(.bioPrivacy(presentationData.theme, presentationData.strings.Privacy_Bio, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.bio)))
-        // Who may send you a gift, in a messenger where nobody can send one.
-        // See Offered.
         if Offered.gifts {
         entries.append(.giftsAutoSavePrivacy(presentationData.theme, presentationData.strings.Privacy_Gifts, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.giftsAutoSave)))
         }
         entries.append(.birthdayPrivacy(presentationData.theme, presentationData.strings.Privacy_Birthday, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.birthday)))
         entries.append(.savedMusicPrivacy(presentationData.theme, presentationData.strings.Privacy_SavedMusic, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.savedMusic)))
         entries.append(.forwardPrivacy(presentationData.theme, presentationData.strings.Privacy_Forwards, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.forwards)))
-        // Who may call you is not a choice worth offering while nobody can
-        // call anybody (#14). Android drops the same row. The switch used to
-        // be videoChats, which is #28 and a different thing.
         if Offered.calls {
         entries.append(.voiceCallPrivacy(presentationData.theme, presentationData.strings.Privacy_Calls, stringForSelectiveSettings(strings: presentationData.strings, settings: privacySettings.voiceCalls)))
         }

@@ -153,14 +153,7 @@ func managedSynchronizeChatInputStateOperations(postbox: Postbox, network: Netwo
 }
 
 private func synchronizeChatInputState(transaction: Transaction, postbox: Postbox, network: Network, messageMediaPreuploadManager: MessageMediaPreuploadManager, auxiliaryMethods: AccountAuxiliaryMethods, helper: Atomic<ManagedSynchronizeChatInputStateOperationsHelper>, peerId: PeerId, threadId: Int64?, operation: SynchronizeChatInputStateOperation) -> Signal<Void, NoError> {
-    // A half-written message in an encrypted conversation stays on this device.
-    // Nothing is sent at all - not even an empty draft.
-    //
-    // It used to send one: the request went out with the text stripped, which
-    // says "there is no draft here" and comes back as an update that clears the
-    // one on this device too. On screen that is a draft in the chat list which
-    // is gone the moment the chat is opened, and it is what a person found on
-    // the checklist.
+    // ice9: a draft in an encrypted chat stays on this device, nothing is sent
     if MlsRuntime.isEncrypted(peerId: peerId) {
         return .complete()
     }

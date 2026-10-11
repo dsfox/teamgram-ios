@@ -356,10 +356,7 @@ private func usernameSetupControllerEntries(presentationData: PresentationData, 
             }
             entries.append(.publicLinkInfo(presentationData.theme, infoText))
         } else {
-            // Only the explanation. The line under it offered the name as a link
-            // on i.ice9.app - a domain that is not ours, does not open this app,
-            // and cannot be made to (#87). Android's username screen shows no
-            // domain either.
+            // ice9: only the explanation, without the name offered as a link (#87)
             entries.append(.publicLinkInfo(presentationData.theme, presentationData.strings.Username_Help))
         }
         

@@ -937,9 +937,7 @@ public enum ContactListPresentation {
         public var searchChannels: Bool
         public var globalSearch: Bool
         public var displaySavedMessages: Bool
-        /// A typed number that nobody on ice9 holds becomes one row, and this
-        /// is what the row does with it: the composer, from the picker that
-        /// knows its group (#164). Nil means no such row.
+        // ice9: what the invite row for a typed number nobody holds does; nil means no row (#164)
         public var inviteByNumber: ((String) -> Void)?
         
         public init(signal: Signal<String, NoError>, searchChatList: Bool, searchDeviceContacts: Bool, searchGroups: Bool, searchChannels: Bool, globalSearch: Bool, displaySavedMessages: Bool, inviteByNumber: ((String) -> Void)? = nil) {
@@ -1200,8 +1198,7 @@ public final class ContactListNode: ASDisplayNode {
     private let presentationDataPromise: Promise<PresentationData>
     
     private var authorizationNode: PermissionContentNode
-    // ice9: where the list's rows end when it is at rest, and how far it is
-    // pulled from rest now. See followListWithAuthorizationNode.
+    // ice9: where the rows end at rest and how far they are pulled now
     private var authorizationRowsBottom: CGFloat?
     private var authorizationShift: CGFloat = 0.0
     private let displayPermissionPlaceholder: Bool
@@ -1535,8 +1532,7 @@ public final class ContactListNode: ASDisplayNode {
                             |> delay(0.2, queue: Queue.concurrentDefaultQueue())
                         )
                     }
-                    // A typed number: the person behind it, if there is one on
-                    // ice9 - contacts.search is by name and would find nobody (#164).
+                    // ice9: a typed number is resolved by phone; contacts.search is by name (#164)
                     if search.inviteByNumber != nil, isViablePhoneNumber(query) {
                         foundRemoteContacts = foundRemoteContacts
                         |> then(
@@ -1809,8 +1805,7 @@ public final class ContactListNode: ASDisplayNode {
                                     return false
                                 }
                                 if !taken {
-                                    // Nobody on ice9 holds it: one row, and the
-                                    // composer behind it (#164).
+                                    // ice9: nobody on ice9 holds it - one row, the composer behind it (#164)
                                     let title = presentationData.strings.Invite_NumberBySms(formatPhoneNumber(context: context, number: query)).string
                                     entries.insert(.option(0, ContactListAdditionalOption(title: title, icon: .generic(UIImage(bundleImageName: "Contact List/AddMemberIcon")!), action: {
                                         inviteByNumber(query)
@@ -2353,9 +2348,7 @@ public final class ContactListNode: ASDisplayNode {
     }
     
     private func layoutAuthorizationNode(layout: ContainerViewLayout, insets: UIEdgeInsets, transition: ContainedViewLayoutTransition) {
-        // ice9: below the rows rather than as if there were none. With the two
-        // invite rows (#164) the second one met the icon, and a short screen
-        // would draw it across.
+        // ice9: laid out below the rows rather than over them (#164)
         var insets = insets
         if let rowsBottom = self.authorizationRowsBottom {
             insets.top = max(insets.top, rowsBottom)
@@ -2371,10 +2364,7 @@ public final class ContactListNode: ASDisplayNode {
         transition.updateFrame(node: self.authorizationNode, frame: self.bounds.offsetBy(dx: 0.0, dy: self.authorizationShift))
     }
 
-    /// ice9: the permission block is a node of its own over the list, so it
-    /// stayed where it was while the rows above it were pulled down across it.
-    /// It follows them now: laid out below where they end at rest, and moved
-    /// by as much as they are pulled.
+    // ice9: the permission block follows the rows: below them at rest, moved as they are pulled
     private func followListWithAuthorizationNode() {
         guard case let .known(offset) = self.listNode.visibleContentOffset() else {
             return
@@ -2383,13 +2373,10 @@ public final class ContactListNode: ASDisplayNode {
         self.listNode.forEachItemNode { itemNode in
             bottom = max(bottom ?? 0.0, itemNode.frame.maxY)
         }
-        // The offset is how far the list is scrolled past rest: negative when
-        // it is pulled down, so a row now at `bottom` sits at `bottom + offset`
-        // at rest.
+        // ice9: the offset is negative when pulled down, so a row at bottom rests at bottom + offset
         let rowsBottom = bottom.flatMap { $0 + offset }
         self.authorizationShift = -offset
-        // Laid out again only when the rows themselves change, not on every
-        // frame of a pull whose arithmetic lands a fraction apart.
+        // ice9: laid out again only when the rows move, not on every frame of a pull
         let moved: Bool
         switch (rowsBottom, self.authorizationRowsBottom) {
         case let (now?, before?):

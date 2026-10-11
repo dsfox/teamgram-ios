@@ -144,8 +144,7 @@ public final class AuthorizationSequencePhoneEntryController: ViewController, MF
     
     override public func loadDisplayNode() {
         self.displayNode = AuthorizationSequencePhoneEntryControllerNode(sharedContext: self.sharedContext, account: self.account, strings: self.presentationData.strings, theme: self.presentationData.theme, debugAction: { [weak self] in
-            // ice9: ten taps on the title opened the debug menu before sign-in,
-            // in a store build too (2.3.1(a), #181).
+            // ice9: no debug menu from title taps in a store build (2.3.1(a), #181)
             guard let strongSelf = self, !GlobalExperimentalSettings.isAppStoreBuild else {
                 return
             }
@@ -206,9 +205,7 @@ public final class AuthorizationSequencePhoneEntryController: ViewController, MF
     }
     
     private func loadAndPresentPasskey(force: Bool) {
-        // Our server has no passkeys, so asking for them only produces a refusal
-        // on every visit to the login screen. The Android build carries the same
-        // decision as BuildVars.SUPPORTS_PASSKEYS.
+        // ice9: no passkeys on our server, as BuildVars.SUPPORTS_PASSKEYS on Android
         if true {
             return
         }

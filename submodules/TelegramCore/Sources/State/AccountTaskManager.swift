@@ -91,8 +91,7 @@ final class AccountTaskManager {
                     tasks.add(managedApplyPendingMessageReactionsActions(postbox: self.stateManager.postbox, network: self.stateManager.network, stateManager: self.stateManager).start())
                     
                     
-                    // ice9: no paid reactions or messages, Stars gifts, the TON stakes game or
-                    // Premium promotion, so none of their tasks run (#181).
+                    // ice9: no paid reactions, paid messages, Stars gifts, TON game or Premium promo (#181)
                     tasks.add(managedSynchronizeEmojiKeywordsOperations(postbox: self.stateManager.postbox, network: self.stateManager.network).start())
                     tasks.add(managedApplyPendingScheduledMessagesActions(postbox: self.stateManager.postbox, network: self.stateManager.network, stateManager: self.stateManager).start())
                     tasks.add(managedSynchronizeAvailableReactions(postbox: self.stateManager.postbox, network: self.stateManager.network).start())

@@ -112,9 +112,7 @@ func openResolvedUrlImpl(
         updatedPresentationData = nil
     }
     let presentationData = updatedPresentationData?.initial ?? context.sharedContext.currentPresentationData.with { $0 }
-    // ice9: a link is a way in like any other, and these led to what nothing
-    // on screen offers - App Review rejected 12.9.2 under 2.3.1(a), hidden
-    // features (5 October). See Offered.
+    // ice9: a link opens only what the app offers (2.3.1(a))
     if !ice9OffersWhatTheLinkOpens(resolvedUrl) {
         completion?()
         return

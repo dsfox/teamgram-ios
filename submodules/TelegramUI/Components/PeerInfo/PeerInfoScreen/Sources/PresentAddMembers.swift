@@ -50,8 +50,6 @@ public func presentAddMembersImpl(context: AccountContext, updatedPresentationDa
             }
         }
         
-        // An invitation is an SMS with a code, and a member is added from
-        // contacts; the link would admit anyone holding it. See Offered.
         if canCreateInviteLink && Offered.groupInviteLinks {
             options.append(ContactListAdditionalOption(title: presentationData.strings.GroupInfo_InviteByLink, icon: .generic(UIImage(bundleImageName: "Contact List/LinkActionIcon")!), action: {
                 createInviteLinkImpl?()
@@ -59,8 +57,7 @@ public func presentAddMembersImpl(context: AccountContext, updatedPresentationDa
         }
         
         var askForNumberImpl: (() -> Void)?
-        // An invitation is an SMS with a code; this row asks for the number
-        // in a window of its own (#164).
+        // ice9: invite by phone number, asked for in a window of its own (#164)
         options.append(ContactListAdditionalOption(title: presentationData.strings.Invite_ByPhoneNumber, icon: .generic(UIImage(bundleImageName: "Contact List/AddMemberIcon")!), action: {
             askForNumberImpl?()
         }, clearHighlightAutomatically: true))
@@ -80,8 +77,7 @@ public func presentAddMembersImpl(context: AccountContext, updatedPresentationDa
             guard let contactsController else {
                 return
             }
-            // The code leads into this group: the server puts the person into
-            // it when they sign up (#164).
+            // ice9: the code leads into this group; the server adds the person on sign-up (#164)
             InvitationComposer.invite(context: context, phone: phone, chat: groupPeer.id.id._internalGetInt64Value(), from: contactsController)
         }
             contactsController.navigationPresentation = .modal

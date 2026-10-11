@@ -1397,19 +1397,7 @@ public class Account {
             if value {
                 Logger.shared.log("Account", "Became master")
 
-                // And ask what was missed while it was not.
-                //
-                // Updates are pushed down the connection, and a connection the
-                // app was not holding cannot carry them: the server writes the
-                // message into a session nobody is reading, sends a
-                // notification instead, and that is the end of it. Nothing then
-                // asked - a message written while the phone was in somebody's
-                // pocket sat on the server until they opened the conversation,
-                // which took minutes and looked like the message had been lost.
-                //
-                // This is the moment the app is back and the connection is
-                // being kept again, so it is the moment to ask. A poll costs
-                // one request and answers with nothing when nothing was missed.
+                // ice9: on becoming master, poll for the updates missed in the background
                 strongSelf.stateManager.forceUpdate()
 
                 let data = managedServiceViews(accountPeerId: peerId, network: network, postbox: postbox, stateManager: strongSelf.stateManager, pendingMessageManager: strongSelf.pendingMessageManager)
@@ -1577,26 +1565,18 @@ public class Account {
     
     private func restartConfigurationUpdates() {
         self.managedOperationsDisposable.add(managedConfigurationUpdates(accountManager: self.accountManager, postbox: self.postbox, network: self.network).start())
-        // An extension that holds a whole account - the share extension, to
-        // send through the app's own encrypted path - runs none of what keeps
-        // the device going: it wakes the encryption the way the notification
-        // extension does, sends, and is gone (#230).
+        // ice9: an extension holding an account runs none of the MLS upkeep below (#230)
         if MlsRuntime.inAnExtension {
             return
         }
-        // Keeps this device reachable for encrypted conversations: a supply of
-        // key packages, refilled when the server says it is low. Invisible
-        // until somebody starts one - and without it, they could not.
+        // ice9: keep a supply of MLS key packages, refilled when the server says it is low
         self.managedOperationsDisposable.add(managedMlsKeyPackages(postbox: self.postbox, network: self.network, accountPeerId: self.peerId).start())
         // Joins the conversations other people have started with this device.
         self.managedOperationsDisposable.add(managedMlsWelcomes(postbox: self.postbox, network: self.network, accountPeerId: self.peerId).start())
-        // And the other box: the membership changes this device has to apply
-        // before it can read anything said after them (#40).
+        // ice9: apply the MLS membership commits waiting for this device (#40)
         self.managedOperationsDisposable.add(managedMlsCommits(postbox: self.postbox, network: self.network, accountPeerId: self.peerId).start())
         MlsRuntime.instance(postbox: self.postbox, accountPeerId: self.peerId).attach(network: self.network)
-        // Each time the app comes to the front, the encryption reads back what
-        // the notification extension wrote while it was away (#42). The same
-        // signal that puts this account online.
+        // ice9: on each return to the front, reload the MLS state the extension wrote (#42)
         self.managedOperationsDisposable.add((self.shouldKeepOnlinePresence.get()
         |> distinctUntilChanged
         |> filter { $0 }).start(next: { [weak self] _ in

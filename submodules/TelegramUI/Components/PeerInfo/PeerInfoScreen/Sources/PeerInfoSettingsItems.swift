@@ -200,11 +200,7 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
     items[.shortcuts]!.append(PeerInfoScreenDisclosureItem(id: 1, text: presentationData.strings.Settings_SavedMessages, icon: PresentationResourcesSettings.savedMessages, action: {
         interaction.openSettings(.savedMessages)
     }))
-    // Calls are hidden until they work (task #14), and this row opens the very
-    // list the rest of the app pretends does not exist.
-    // items[.shortcuts]!.append(PeerInfoScreenDisclosureItem(id: 2, text: presentationData.strings.CallSettings_RecentCalls, icon: PresentationResourcesSettings.recentCalls, action: {
-    //     interaction.openSettings(.recentCalls)
-    // }))
+    // ice9: no Recent Calls row (#14)
     
     let devicesLabel: String
     if let settings = data.globalSettings, let otherSessionsCount = settings.otherSessionsCount {
@@ -254,9 +250,7 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
         interaction.openSettings(.language)
     }))
 
-    // Which server this phone talks to, with the address on the row rather than
-    // one screen in: a promise about whose machine your messages are on is worth
-    // nothing if checking it takes a search. See ice9 #65.
+    // ice9: which server this phone talks to, with the address on the row (#65)
     items[.advanced]!.append(PeerInfoScreenDisclosureItem(id: 7, label: .text(ServerAddressStore(rootPath: context.sharedContext.basePath).effective.described), text: serverSettingsTitle(presentationData.strings), icon: PresentationResourcesSettings.proxy, action: {
         interaction.openSettings(.server)
     }))
@@ -487,19 +481,12 @@ func settingsEditingItems(data: PeerInfoScreenData?, state: PeerInfoState, conte
         }
         let colorImage = generateSettingsMenuPeerColorsLabelIcon(colors: colors)
 
-        // Name and profile colours follow their switch on both clients (#24):
-        // the two must offer the same things, or a person moving between
-        // their own phones finds a different messenger on each. See Offered.
         if Offered.nameColours {
         items[.info]!.append(PeerInfoScreenDisclosureItem(id: ItemPeerColor, label: .image(colorImage, colorImage.size), text: presentationData.strings.Settings_YourColor, icon: PresentationResourcesSettings.yourColor, action: {
             interaction.editingOpenNameColorSetup()
         }))
         }
         
-        // A channel to put on your profile, in a messenger with no channels
-        // (#16). Latent rather than visible - it needs a channel to exist
-        // before it draws - but a row that appears the moment the server grows
-        // one is a row nobody will remember to hide. See Offered.
         var displayPersonalChannel = false
         if !Offered.channels {
             displayPersonalChannel = false
@@ -527,9 +514,6 @@ func settingsEditingItems(data: PeerInfoScreenData?, state: PeerInfoState, conte
     } else {
         automationBotTitle = presentationData.strings.Settings_ChatAutomationOff
     }
-    // "Add a bot to reply to messages on your behalf", in a messenger where no
-    // account can be a bot: the server has no bots service and not one bots.*
-    // handler (#105). Android dropped this row; this one kept it. See Offered.
     if Offered.bots {
     items[.info]!.append(PeerInfoScreenDisclosureItem(id: ItemPeerChatAutomation, label: .text(automationBotTitle), additionalBadgeLabel: nil, text: presentationData.strings.Settings_ChatAutomation, icon: PresentationResourcesSettings.aiTools, action: {
         interaction.editingOpenBusinessChatBots()

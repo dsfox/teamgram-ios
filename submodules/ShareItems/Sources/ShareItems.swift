@@ -50,10 +50,7 @@ public enum PreparedShareItemError {
     case fileTooBig(Int64)
 }
 
-// ice9: nothing is uploaded here (#230). Upstream's standalone uploads put the
-// file on the server as it is - readable - before anything else happened. What
-// is shared is kept as a local file instead, and the app's own sending path
-// uploads it encrypted, the way it uploads a photo picked in a chat.
+// ice9: nothing is uploaded here; kept local for the app's encrypted sending path (#230)
 private func localUploadedImage(postbox: Postbox, network: Network, peerId: PeerId, text: String, source: MultipartUploadSource, thumbnailData: Data? = nil, dimensions: PixelDimensions) -> Signal<StandaloneUploadMediaEvent, StandaloneUploadMediaError> {
     guard let (resource, _) = localSharedResource(postbox: postbox, source: source) else {
         return .fail(.generic)
@@ -76,8 +73,7 @@ private func localUploadedFile(postbox: Postbox, network: Network, peerId: PeerI
     return .single(.result(.media(.standalone(media: file))))
 }
 
-/// The bytes put into this account's media box, or the resource already made
-/// for them (a video still to be converted keeps its own).
+// ice9: the bytes put into this account's media box, or the resource already made for them
 private func localSharedResource(postbox: Postbox, source: MultipartUploadSource) -> (TelegramMediaResource, Int64?)? {
     switch source {
     case let .data(data):
@@ -484,10 +480,7 @@ public func preparedShareItems(postbox: Postbox, network: Network, to peerId: Pe
     })
 }
 
-// ice9: composed as upstream composed it - an album of pictures, the comment as
-// the first one's caption, the comment on its own when nothing carries it - and
-// sent through the app's own encrypted path rather than upstream's standalone
-// one, which had no encryption at all (#230). Paid messages do not exist here.
+// ice9: composed as upstream did, sent through the app's encrypted path; no paid messages (#230)
 public func sentShareItems(account: Account, to peerIds: [PeerId], threadIds: [PeerId: Int64], requireStars: [PeerId: StarsAmount], items: [PreparedShareItemContent], silently: Bool, additionalText: String) -> Signal<Float, MlsSharedSendingError> {
     var messages: [(text: String, media: AnyMediaReference?, groupingKey: Int64?)] = []
     var groupingKey: Int64?
@@ -562,8 +555,7 @@ public func sentShareItems(account: Account, to peerIds: [PeerId], threadIds: [P
     let attributes: [MessageAttribute] = silently ? [NotificationInfoMessageAttribute(flags: .muted)] : []
     let _ = requireStars
     let batches = peerIds.map { peerId -> (peerId: PeerId, messages: [EnqueueMessage]) in
-        // An album is grouped per chat: the same key in two chats would be one
-        // album to the database.
+        // ice9: album keys are made per chat, so two chats never share one album
         var albumKeys: [Int64: Int64] = [:]
         return (peerId: peerId, messages: messages.map { message -> EnqueueMessage in
             var localGroupingKey: Int64?

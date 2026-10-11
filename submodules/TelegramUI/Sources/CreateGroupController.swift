@@ -855,8 +855,6 @@ public func createGroupControllerImpl(context: AccountContext, peerIds: [PeerId]
                                 let controller = ChatControllerImpl(context: context, chatLocation: .peer(id: result.peerId))
                                 replaceControllerImpl?(controller)
                                 
-                                // The screen that sends the raw link to whoever could not be
-                                // added: the link is not how anybody gets in. See Offered.
                                 if Offered.groupInviteLinks, !result.result.forbiddenPeers.isEmpty {
                                     context.account.viewTracker.forceUpdateCachedPeerData(peerId: result.peerId)
                                     let _ = (context.engine.data.subscribe(

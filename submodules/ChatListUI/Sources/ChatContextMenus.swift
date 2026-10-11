@@ -381,8 +381,6 @@ func chatContextMenuItems(context: AccountContext, peerId: EnginePeer.Id, promoI
                             }
                         }
                         
-                        // The archive is not offered: moving a chat there has
-                        // no handler on the server. See Offered.
                         let archiveEnabled = Offered.archive && !isSavedMessages && peerId != EnginePeer.Id(namespace: Namespaces.Peer.CloudUser, id: EnginePeer.Id.Id._internalFromInt64Value(777000)) && peerId == context.account.peerId
                         if let group = peerGroup {
                             if archiveEnabled {
