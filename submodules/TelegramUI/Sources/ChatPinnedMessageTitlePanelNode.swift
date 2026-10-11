@@ -1037,7 +1037,7 @@ final class ChatPinnedMessageTitlePanelNode: ChatTitleAccessoryPanelNode {
             for media in message.media {
                 if let webpage = media as? TelegramMediaWebpage, case let .Loaded(content) = webpage.content, content.type == "telegram_call" {
                     var isConcealed = true
-                    if content.url.hasPrefix("tg://") {
+                    if content.url.hasPrefix("tg2://") {
                         isConcealed = false
                     }
                     let progressPromise = Promise<Bool>()
