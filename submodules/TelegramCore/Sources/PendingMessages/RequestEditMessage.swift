@@ -209,7 +209,9 @@ private func requestEditMessageInternal(accountPeerId: PeerId, postbox: Postbox,
                     flags |= Int32(1 << 17)
                 }
                 
-                let outgoingText = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).editedText(peerId: messageId.peerId, text: text, entities: &apiEntities, flags: &flags) // ice9: an edit stays encrypted
+                guard let outgoingText = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).editedText(peer: peer, text: text, entities: &apiEntities, flags: &flags) else { // ice9: an edit stays encrypted, or is refused (#256)
+                    return .fail(.error(.generic))
+                }
                 return network.request(Api.functions.messages.editMessage(flags: flags, peer: inputPeer, id: messageId.id, message: outgoingText, media: inputMedia, replyMarkup: nil, entities: apiEntities, scheduleDate: effectiveScheduleTime, scheduleRepeatPeriod: effectiveScheduleRepeatPeriod, quickReplyShortcutId: quickReplyShortcutId, richMessage: apiRichMessage))
                 |> map { result -> Api.Updates? in
                     return result

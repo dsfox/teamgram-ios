@@ -13,8 +13,8 @@ extension MlsRuntime {
     /// the server could read.
     ///
     /// This costs one round trip, once per person, and completes rather than
-    /// fails when no conversation can be made: then the message goes in the
-    /// clear, as it always did.
+    /// fails when no conversation can be made yet: then the message waits for
+    /// one (#256).
     func beforeSending(to peerId: PeerId, _ send: @escaping () -> Signal<Void, NoError>) -> Signal<Void, NoError> {
         return self.ensureConversation(peerId: peerId)
         |> mapToSignal { _ -> Signal<Void, NoError> in
@@ -22,13 +22,13 @@ extension MlsRuntime {
         }
     }
 
-    /// The text a message goes out with: encrypted if this conversation can
-    /// carry it, and exactly as before if it cannot. A messenger that refuses
-    /// to send is worse than one whose server can read a message, so every
-    /// failure here falls back rather than stopping - except in an extension,
-    /// which sends nothing in the clear, the picture included: a file whose key
-    /// is not inside a ciphertext went up readable (#230). Then this is nil and
-    /// the caller fails the message.
+    /// The text a message goes out with: encrypted, or as it is in a chat that
+    /// does not encrypt at all - a bot, Saved Messages. Nil when the chat
+    /// encrypts and this message cannot be encrypted yet: it waits for its
+    /// conversation and is never sent in the clear (the owner's word of 12
+    /// October, #256). An extension cannot wait, so there nil fails the
+    /// message, whatever the chat - a file whose key is not inside a ciphertext
+    /// went up readable (#230).
     ///
     /// Inside the transaction the message is sent in (#230). A caption is text
     /// like any other; `media` is the key to its file, which travels inside the
@@ -37,7 +37,10 @@ extension MlsRuntime {
         if let ciphertext = self.encryptedText(peerId: peerId, text: text, entities: &entities, flags: &flags, forwarded: forwarded, media: media, transaction: transaction) {
             return ciphertext
         }
-        return MlsRuntime.inAnExtension ? nil : text
+        if MlsRuntime.inAnExtension || MlsRuntime.encrypts(peer: transaction.getPeer(peerId), peerId: peerId, accountPeerId: self.accountPeerId) {
+            return nil
+        }
+        return text
     }
 
     /// The same for one picture of an album, whose flags are worked out from the
@@ -53,9 +56,17 @@ extension MlsRuntime {
     /// The new text of an edit. Editing used to undo the encryption of a
     /// message that had already been sent encrypted: the new text went up in
     /// the clear, and the server ended up holding what it had never been able
-    /// to read.
-    func editedText(peerId: PeerId, text: String, entities: inout [Api.MessageEntity]?, flags: inout Int32) -> String {
-        return self.encryptedText(peerId: peerId, text: text, entities: &entities, flags: &flags, forwarded: nil, media: nil, transaction: nil) ?? text
+    /// to read. Nil in a chat that encrypts and cannot right now: the edit is
+    /// refused rather than kept for later the way a new message is (#256).
+    func editedText(peer: Peer, text: String, entities: inout [Api.MessageEntity]?, flags: inout Int32) -> String? {
+        // A caption taken away carries nothing to hide.
+        if text.isEmpty {
+            return text
+        }
+        if let ciphertext = self.encryptedText(peerId: peer.id, text: text, entities: &entities, flags: &flags, forwarded: nil, media: nil, transaction: nil) {
+            return ciphertext
+        }
+        return MlsRuntime.encrypts(peer: peer, peerId: peer.id, accountPeerId: self.accountPeerId) ? nil : text
     }
 
     /// Bold, links, mentions are offsets into the text, so they go inside the

@@ -39,7 +39,7 @@ public final class MlsRuntime {
     /// that code was reached.
     private static let results = Queue(name: "MlsRuntimeResults")
     private let postbox: Postbox
-    private let accountPeerId: PeerId
+    let accountPeerId: PeerId
     /// This process's device, as the registry holds it right now - and nil
     /// until `reload()` has read it off disk, which happens at `attach`.
     ///
@@ -356,7 +356,9 @@ public final class MlsRuntime {
     /// oneself would be one where every message is written by the only person
     /// who cannot read it back, and the notes would go in unreadable.
     private func worthEncrypting(to peerId: PeerId) -> Bool {
+        // The service account has no device and sends the login codes: never asked about (#256).
         let isPerson = peerId.namespace == Namespaces.Peer.CloudUser && peerId != self.accountPeerId
+            && peerId.id._internalGetInt64Value() != 777000
         let isGroup = peerId.namespace == Namespaces.Peer.CloudGroup
         guard isPerson || isGroup else {
             return false
@@ -374,8 +376,32 @@ public final class MlsRuntime {
     /// updated does not cost a round trip on every message sent to them.
     private var withoutDevices: [Int64: Double] = [:]
 
+    /// Whether messages in this chat are encrypted at all (#256): a person other
+    /// than this account who is not a bot or the service account, or a basic
+    /// group. Such a chat sends nothing in the clear - what cannot be encrypted
+    /// yet waits for its conversation. A peer this device knows nothing about
+    /// counts as one that encrypts: waiting can be undone, a word in the clear
+    /// cannot.
+    public static func encrypts(peer: Peer?, peerId: PeerId, accountPeerId: PeerId) -> Bool {
+        switch peerId.namespace {
+        case Namespaces.Peer.CloudUser:
+            if peerId == accountPeerId || peerId.id._internalGetInt64Value() == 777000 {
+                return false
+            }
+            if let user = peer as? TelegramUser {
+                return user.botInfo == nil
+            }
+            return true
+        case Namespaces.Peer.CloudGroup:
+            return true
+        default:
+            return false
+        }
+    }
+
     /// What to send instead of this message, or nothing when this conversation
-    /// cannot carry it - and then it goes as it always did.
+    /// cannot carry it - and then it waits for one (#256), unless the chat does
+    /// not encrypt at all.
     public func encrypt(peerId: PeerId, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded? = nil, media: Api.mls.Content.Media? = nil, transaction: Transaction? = nil) -> String? {
         // An empty text is nothing to encrypt - unless something else has to
         // travel inside the message anyway: the key to a picture sent without a
@@ -399,11 +425,8 @@ public final class MlsRuntime {
         }
 
         guard let (identity, group) = self.group(for: peerId) else {
-            // Nothing to encrypt to yet. This message goes in the clear and a
-            // conversation is started behind it, so the next one does not - the
-            // alternative is holding a message until a handshake finishes,
-            // which is a messenger that pauses for reasons a person cannot see.
-            // Not from an extension: it sends nothing in the clear, and a
+            // Nothing to encrypt to yet. This message waits (#256) and a
+            // conversation is started behind it. Not from an extension: a
             // conversation is started by the app.
             if self.worthEncrypting(to: peerId) && !MlsRuntime.inAnExtension {
                 self.startConversation(with: peerId)
@@ -670,6 +693,7 @@ public final class MlsRuntime {
         guard self.onTheSlowRound() else {
             return
         }
+        MlsRuntime.letWaitingTryAgain()
         let postbox = self.postbox
         let accountPeerId = self.accountPeerId
         Queue.concurrentDefaultQueue().async {
@@ -860,9 +884,8 @@ public final class MlsRuntime {
     /// that says why somebody is writing. Waiting costs a round trip, once per
     /// person, and only the first time.
     ///
-    /// It completes rather than fails when a conversation cannot be made: the
-    /// caller then sends in the clear, because a messenger that refuses to send
-    /// is worse than one whose server can read a message.
+    /// It completes rather than fails when a conversation cannot be made yet,
+    /// and the message then waits for one (#256).
     public func ensureConversation(peerId: PeerId) -> Signal<Void, NoError> {
         self.queue.lock()
         let haveGroup = self.group(for: peerId) != nil
@@ -888,33 +911,29 @@ public final class MlsRuntime {
         if !worth || MlsRuntime.inAnExtension {
             return .single(Void())
         }
-        guard let network = network, let identity = identity else {
+        guard network != nil, identity != nil else {
             return .single(Void())
         }
 
         let key = peerId.mlsKey
-        let postbox = self.postbox
-        return MlsConversations.start(postbox: postbox, accountPeerId: self.accountPeerId, network: network, identity: identity, peerId: peerId)
-        |> mapToSignal { [weak self] groupId -> Signal<Void, NoError> in
-            guard let self = self else {
-                return .complete()
+        // Started where nothing a send does can cut it short. The ten seconds
+        // below are how long this message looks, not how long the conversation
+        // may take: a start cut off half way could win its claim and never
+        // write it down (#256). What waits goes when it lands.
+        return Signal { [weak self] subscriber in
+            let landed = (MlsRuntime.waitingMayGo
+            |> filter { $0?.contains(key) ?? false }
+            |> take(1)).start(next: { _ in
+                subscriber.putNext(Void())
+                subscriber.putCompletion()
+            })
+            if let self = self {
+                self.queue.lock()
+                self.startConversation(with: peerId)
+                self.queue.unlock()
             }
-            self.queue.lock()
-            if let groupId = groupId {
-                self.remember(key: key, groupId: groupId)
-                // Counted as a rebuild wherever it happened, so that a message
-                // which will not open a moment later does not start another one.
-                self.markRebuilt(key)
-            } else {
-                self.withoutDevices[key] = CFAbsoluteTimeGetCurrent()
-            }
-            self.queue.unlock()
-            return .single(Void())
+            return landed
         }
-        // Encryption must never be able to stop a message. If the handshake has
-        // not finished in ten seconds - a slow network, a server that does not
-        // answer, anything - the message goes in the clear rather than waiting
-        // behind something a person cannot see.
         |> timeout(10.0, queue: Queue.concurrentDefaultQueue(), alternate: .single(Void()))
     }
 
@@ -1151,9 +1170,27 @@ public final class MlsRuntime {
     /// Says that these people are talked to in private now. Called with `queue`
     /// held, and takes no other lock than its own.
     private static func publishEncrypted<S: Sequence>(_ peers: S) where S.Element == Int64 {
+        let published = Set(peers)
         encryptedPeersLock.lock()
-        encryptedPeers.formUnion(peers)
+        encryptedPeers.formUnion(published)
         encryptedPeersLock.unlock()
+        // Off every lock: whoever listens may well ask this runtime something.
+        Queue.concurrentDefaultQueue().async {
+            mayGo.putNext(published)
+        }
+    }
+
+    /// Who may be written to now (#256): a conversation was built, joined or read
+    /// back for these people - or, as nil, a round came and whatever waits tries
+    /// again, since a person with no device may have one by now.
+    private static let mayGo = ValuePipe<Set<Int64>?>()
+    public static var waitingMayGo: Signal<Set<Int64>?, NoError> {
+        return mayGo.signal()
+    }
+    static func letWaitingTryAgain() {
+        Queue.concurrentDefaultQueue().async {
+            mayGo.putNext(nil)
+        }
     }
 
     /// - Parameter at: the date on the message, which decides whether it may
@@ -1464,6 +1501,7 @@ public final class MlsRuntime {
         }
         |> deliverOn(MlsRuntime.results)).start(next: { [weak self] _ in
             self?.boxHasSomething()
+            MlsRuntime.letWaitingTryAgain()
         })
     }
 

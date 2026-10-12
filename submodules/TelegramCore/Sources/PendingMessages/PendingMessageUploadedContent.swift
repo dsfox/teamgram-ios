@@ -183,6 +183,9 @@ func messageContentToUpload(accountPeerId: PeerId, network: Network, postbox: Po
         |> castError(PendingMessageUploadError.self), .text)
     } else if let media = media.first as? TelegramMediaWebpage, case let .Loaded(content) = media.content {
         return .signal(postbox.transaction { transaction -> PendingMessageUploadedContentResult in
+            if MlsRuntime.encrypts(peer: transaction.getPeer(peerId), peerId: peerId, accountPeerId: accountPeerId) { // ice9: a preview would name the link beside the ciphertext (#256)
+                return .content(PendingMessageUploadedContentAndReuploadInfo(content: .text(text), reuploadInfo: nil, cacheReferenceKey: nil))
+            }
             var flags: Int32 = 0
             flags |= 1 << 2
             if let attribute = attributes.first(where: { $0 is WebpagePreviewMessageAttribute }) as? WebpagePreviewMessageAttribute {

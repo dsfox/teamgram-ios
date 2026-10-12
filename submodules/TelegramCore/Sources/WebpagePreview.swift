@@ -40,11 +40,10 @@ public enum WebpagePreviewWithProgressResult {
 }
 
 public func webpagePreviewWithProgress(account: Account, urls: [String], webpageId: MediaId? = nil, forPeerId: PeerId? = nil) -> Signal<WebpagePreviewWithProgressResult, NoError> {
-    // ice9: no link preview in an encrypted chat, the server would see the link
-    if let forPeerId = forPeerId, MlsRuntime.isEncrypted(peerId: forPeerId) {
-        return .single(.result(nil))
-    }
     return account.postbox.transaction { transaction -> Signal<WebpagePreviewWithProgressResult, NoError> in
+        if let forPeerId, MlsRuntime.encrypts(peer: transaction.getPeer(forPeerId), peerId: forPeerId, accountPeerId: account.peerId) { // ice9: no link preview in a chat that encrypts, the server would see the link (#256)
+            return .single(.result(nil))
+        }
         if let webpageId = webpageId, let webpage = transaction.getMedia(webpageId) as? TelegramMediaWebpage, let url = webpage.content.url {
             var sourceUrl = url
             if urls.count == 1 {

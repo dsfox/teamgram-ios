@@ -31,6 +31,7 @@ private enum PendingMessageState {
     case uploading(groupId: Int64?)
     case waitingToBeSent(groupId: Int64?, content: PendingMessageUploadedContentAndReuploadInfo)
     case waitingForSendGate(groupId: Int64?, content: PendingMessageUploadedContentAndReuploadInfo)
+    case waitingForConversation(groupId: Int64?, content: PendingMessageUploadedContentAndReuploadInfo) // ice9: a message that cannot be encrypted yet waits (#256)
     case waitingForForwardSendGate
     case sending(groupId: Int64?)
     case waitingForNewTopic(message: Message)
@@ -48,6 +49,8 @@ private enum PendingMessageState {
         case let .waitingToBeSent(groupId, _):
             return groupId
         case let .waitingForSendGate(groupId, _):
+            return groupId
+        case let .waitingForConversation(groupId, _):
             return groupId
         case .waitingForForwardSendGate:
             return nil
@@ -239,6 +242,7 @@ public final class PendingMessageManager {
     private var ownMessageIds = Set<MessageId>()
     private var liveTypingDraftKeys: Set<PeerAndThreadId> = []
     private let allTypingDraftsDisposable = MetaDisposable()
+    private let waitingForConversationDisposable = MetaDisposable() // ice9: what waits to be encrypted goes when it can (#256)
     private var forwardSendGateGroups: [PeerAndThreadId: [[(PendingMessageContext, Message, ForwardSourceInfoAttribute)]]] = [:]
     private let beginSendingMessagesDisposables = DisposableSet()
     
@@ -268,6 +272,9 @@ public final class PendingMessageManager {
                 self?.handleLiveTypingDraftsUpdate(view)
             })
         )
+        self.waitingForConversationDisposable.set((MlsRuntime.waitingMayGo |> deliverOn(queue)).start(next: { [weak self] peers in // ice9: a conversation made or joined, or a round: what waits tries again (#256)
+            self?.drainWaitingForConversation(peers: peers)
+        }))
     }
     
     deinit {
@@ -276,6 +283,7 @@ public final class PendingMessageManager {
             disposable.dispose()
         }
         self.allTypingDraftsDisposable.dispose()
+        self.waitingForConversationDisposable.dispose()
     }
     
     private func handleLiveTypingDraftsUpdate(_ combined: CombinedView) {
@@ -384,6 +392,58 @@ public final class PendingMessageManager {
 
         self.updateWaitingUploads(peerId: key.peerId)
         self.updatePendingMediaUploads()
+    }
+
+    // ice9: a message that cannot be encrypted yet waits here, and goes when its conversation does (#256)
+    private func waitForConversation(_ messages: [(MessageId, PendingMessageUploadedContentAndReuploadInfo)]) -> Signal<Void, NoError> {
+        let queue = self.queue
+        return Signal { [weak self] subscriber in
+            queue.async {
+                for (id, content) in messages {
+                    if let context = self?.messageContexts[id] {
+                        context.state = .waitingForConversation(groupId: context.state.groupId, content: content)
+                    }
+                }
+                if let first = messages.first {
+                    Logger.shared.log("Mls", "\(messages.count) message(s) to \(first.0.peerId): each waits until it can be encrypted")
+                }
+                subscriber.putCompletion()
+            }
+            return EmptyDisposable
+        }
+    }
+
+    private func drainWaitingForConversation(peers: Set<Int64>?) {
+        assert(self.queue.isCurrent())
+
+        var singles: [(context: PendingMessageContext, messageId: MessageId, content: PendingMessageUploadedContentAndReuploadInfo)] = []
+        var groups: [Int64: Int32] = [:]
+        for (id, context) in self.messageContexts {
+            guard case let .waitingForConversation(groupId, content) = context.state else {
+                continue
+            }
+            if let peers = peers, !peers.contains(id.peerId.mlsKey) {
+                continue
+            }
+            if let groupId = groupId {
+                groups[groupId] = min(groups[groupId] ?? id.id, id.id)
+            } else {
+                singles.append((context, id, content))
+            }
+        }
+        if singles.isEmpty && groups.isEmpty {
+            return
+        }
+        Logger.shared.log("Mls", "\(singles.count) message(s) and \(groups.count) album(s) try again")
+        singles.sort(by: { $0.messageId.id < $1.messageId.id })
+        for entry in singles {
+            self.commitSendingSingleMessage(messageContext: entry.context, messageId: entry.messageId, content: entry.content)
+        }
+        for (groupId, _) in groups.sorted(by: { $0.value < $1.value }) {
+            if let data = self.dataForPendingMessageGroup(groupId) {
+                self.commitSendingMessageGroup(groupId: groupId, messages: data)
+            }
+        }
     }
 
     private func updatePendingMediaUploads() {
@@ -957,6 +1017,10 @@ public final class PendingMessageManager {
                 if contextGroupId == groupId {
                     result.append((context, id, content))
                 }
+            case let .waitingForConversation(contextGroupId, content):
+                if contextGroupId == groupId {
+                    result.append((context, id, content))
+                }
             case let .sending(contextGroupId):
                 if contextGroupId == groupId {
                     return nil
@@ -1412,7 +1476,7 @@ public final class PendingMessageManager {
                                     
                                     // ice9: encrypted, and an extension sends nothing in the clear (#230)
                                     guard let outgoingText = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).outgoingCaption(peerId: message.id.peerId, text: text, entities: &messageEntities, forwarded: MlsRuntime.forwarded(from: message), media: content.mlsMedia, transaction: transaction) else {
-                                        return failMessages(postbox: postbox, ids: group.map { $0.0 })
+                                        return MlsRuntime.inAnExtension ? failMessages(postbox: postbox, ids: group.map { $0.0 }) : (self?.waitForConversation(group.map { ($0.0, $0.1) }) ?? .complete())
                                     }
                                     var singleFlags: Int32 = 0
                                     if let _ = messageEntities {
@@ -1958,7 +2022,7 @@ public final class PendingMessageManager {
                     
                         // ice9: encrypted, and an extension sends nothing in the clear (#230)
                         guard let outgoingText = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).outgoingText(peerId: messageId.peerId, text: message.text, entities: &messageEntities, flags: &flags, forwarded: MlsRuntime.forwarded(from: message), transaction: transaction) else {
-                            return failMessages(postbox: postbox, ids: [messageId])
+                            return MlsRuntime.inAnExtension ? failMessages(postbox: postbox, ids: [messageId]) : (self?.waitForConversation([(messageId, content)]) ?? .complete())
                         }
                         sendMessageRequest = network.requestWithAdditionalInfo(Api.functions.messages.sendMessage(flags: flags, peer: inputPeer, replyTo: replyTo, message: outgoingText, randomId: uniqueId, replyMarkup: nil, entities: messageEntities, scheduleDate: scheduleTime, scheduleRepeatPeriod: scheduleRepeatPeriod, sendAs: sendAsInputPeer, quickReplyShortcut: quickReplyShortcut, effect: messageEffectId, allowPaidStars: allowPaidStars, suggestedPost: suggestedPost, richMessage: apiRichMessage), info: .acknowledgement, tag: dependencyTag)
                     case let .media(inputMedia, text):
@@ -2065,7 +2129,7 @@ public final class PendingMessageManager {
                     
                         // ice9: encrypted, and an extension sends nothing in the clear (#230)
                         guard let outgoingText = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).outgoingText(peerId: messageId.peerId, text: text, entities: &messageEntities, flags: &flags, forwarded: MlsRuntime.forwarded(from: message), media: content.mlsMedia, transaction: transaction) else {
-                            return failMessages(postbox: postbox, ids: [messageId])
+                            return MlsRuntime.inAnExtension ? failMessages(postbox: postbox, ids: [messageId]) : (self?.waitForConversation([(messageId, content)]) ?? .complete())
                         }
                         sendMessageRequest = network.request(Api.functions.messages.sendMedia(flags: flags, peer: inputPeer, replyTo: replyTo, media: inputMedia, message: outgoingText, randomId: uniqueId, replyMarkup: nil, entities: messageEntities, scheduleDate: scheduleTime, scheduleRepeatPeriod: scheduleRepeatPeriod, sendAs: sendAsInputPeer, quickReplyShortcut: quickReplyShortcut, effect: messageEffectId, allowPaidStars: allowPaidStars, suggestedPost: suggestedPost), tag: dependencyTag)
                         |> map(NetworkRequestResult.result)

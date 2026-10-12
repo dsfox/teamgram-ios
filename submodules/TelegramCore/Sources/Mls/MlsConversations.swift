@@ -270,14 +270,15 @@ public enum MlsConversations {
         return members(postbox: postbox, accountPeerId: accountPeerId, peerId: peerId)
         |> mapToSignal { members -> Signal<Data?, NoError> in
             guard !members.isEmpty else {
-                Logger.shared.log("Mls", "no membership for \(peerId), so this goes in the clear")
+                Logger.shared.log("Mls", "no membership for \(peerId), so this waits")
                 return .single(nil)
             }
-            // Every member's packages before anything is created. All of them
-            // or none: a member whose devices we cannot reach would sit in a
-            // chat where every message is unreadable, and unreadable messages
-            // are hidden - a silent empty chat rather than an honest
-            // unencrypted one.
+            // Every member's packages before anything is created. A member with
+            // no device is left out and let in by the comparison once a device
+            // of theirs appears (the owner's word of 12 October, #256): all of
+            // them or none sent a whole group into the clear for one person,
+            // and with nothing in the clear it would keep the group waiting.
+            // Nobody else with a device, and there is no conversation yet.
             return combineLatest(members.map { member in
                 network.request(Api.functions.mls.claimKeyPackages(userId: member.id._internalGetInt64Value()))
                 |> map(Optional.init)
@@ -285,14 +286,26 @@ public enum MlsConversations {
             })
             |> mapToSignal { answers -> Signal<Data?, NoError> in
                 var packages: [Data] = []
+                var reached: [PeerId] = []
                 for (index, answer) in answers.enumerated() {
-                    guard let answer = answer, !answer.packages.isEmpty else {
-                        Logger.shared.log("Mls", "no key packages for \(members[index]), so this goes in the clear")
+                    guard let answer = answer else {
+                        Logger.shared.log("Mls", "no answer about the devices of \(members[index]), so this waits")
                         return .single(nil)
                     }
+                    if answer.packages.isEmpty {
+                        if members.count > 1 {
+                            Logger.shared.log("Mls", "\(members[index]) has no devices, so \(peerId) starts without them")
+                        }
+                        continue
+                    }
                     packages.append(contentsOf: answer.packages.map { $0.makeData() })
+                    reached.append(members[index])
                 }
-                return build(postbox: postbox, accountPeerId: accountPeerId, network: network, identity: identity, peerId: peerId, members: members, packages: packages)
+                guard !reached.isEmpty else {
+                    Logger.shared.log("Mls", "nobody in \(peerId) has a device, so this waits")
+                    return .single(nil)
+                }
+                return build(postbox: postbox, accountPeerId: accountPeerId, network: network, identity: identity, peerId: peerId, members: reached, packages: packages)
             }
         }
     }
@@ -351,8 +364,7 @@ public enum MlsConversations {
                 // An unanswered claim adopts nothing. Going ahead on a claim
                 // that was not granted is exactly the split this exists to stop,
                 // and it is the one mistake here with no way back; a chat can
-                // wait for the next attempt, and until then a message goes as it
-                // always did.
+                // wait for the next attempt, and so can its messages (#256).
                 // And the roster, which is where the delivery service learns a
                 // new group's membership at all: this is the one commit that is
                 // never posted - accepted above, with nobody to have raced with -
@@ -401,9 +413,8 @@ public enum MlsConversations {
                         |> map(Optional.init)
                         |> `catch` { _ -> Signal<Api.mls.Ok?, NoError> in
                             // The group exists here and somebody was never
-                            // invited. Sending in the clear from here on is
-                            // right: a message they cannot read is worse than
-                            // one the server can.
+                            // invited; the comparison lets them in later, and
+                            // nothing goes in the clear meanwhile (#256).
                             Logger.shared.log("Mls", "the welcome for \(member) was not delivered")
                             return .single(nil)
                         }
