@@ -64,6 +64,12 @@ public enum Offered {
     /// without formatting" does - and no Premium prompt is shown for it.
     public static let richMessages = false
 
+    /// A draft synced through the server (messages.saveDraft): it put the words
+    /// on the server before anybody decided to send them - here only for chats
+    /// without a conversation, on Android for every chat (#264). Off: a draft
+    /// stays on this phone, as the checklist says it does.
+    public static let cloudDrafts = false
+
     /// Telegram's own secret chats ("Start Secret Chat" on a profile). The
     /// server has no messages.requestEncryption; every chat here is already
     /// end-to-end encrypted with MLS. #181.

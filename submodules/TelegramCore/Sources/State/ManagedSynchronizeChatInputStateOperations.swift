@@ -153,8 +153,8 @@ func managedSynchronizeChatInputStateOperations(postbox: Postbox, network: Netwo
 }
 
 private func synchronizeChatInputState(transaction: Transaction, postbox: Postbox, network: Network, messageMediaPreuploadManager: MessageMediaPreuploadManager, auxiliaryMethods: AccountAuxiliaryMethods, helper: Atomic<ManagedSynchronizeChatInputStateOperationsHelper>, peerId: PeerId, threadId: Int64?, operation: SynchronizeChatInputStateOperation) -> Signal<Void, NoError> {
-    // ice9: a draft in an encrypted chat stays on this device, nothing is sent
-    if MlsRuntime.isEncrypted(peerId: peerId) {
+    // ice9: a draft stays on this device, whatever the chat; nothing is sent (#264)
+    if !Offered.cloudDrafts {
         return .complete()
     }
 
