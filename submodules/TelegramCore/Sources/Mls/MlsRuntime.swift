@@ -684,7 +684,7 @@ public final class MlsRuntime {
     }
 
     /// Asks for the membership of every group this device holds a conversation
-    /// for.
+    /// for, and compares every chat between two it holds one for.
     ///
     /// A change that happened while the app was not running never arrives as an
     /// update - it is already in the history by then - and the hook that acts on
@@ -747,11 +747,16 @@ public final class MlsRuntime {
 
     private func catchUpOnMembership(conversations: [PeerId], network: Network) {
         let groups = conversations.filter { $0.namespace == Namespaces.Peer.CloudGroup }
+        // A chat between two has no participant list to fetch, and was compared
+        // only when this phone wrote into it: a peer who set up a new phone was
+        // never let in while nobody here wrote, though the server said all
+        // along who was short (#247).
+        let pairs = conversations.filter { $0.namespace == Namespaces.Peer.CloudUser }
         // Counted out loud. Without it a pass over an empty list and a pass that
         // was never called read exactly the same from the log, which is where an
         // evening went on the Android side.
-        Logger.shared.log("Mls", "asking for the membership of \(groups.count) group(s)")
-        guard !groups.isEmpty else {
+        Logger.shared.log("Mls", "asking for the membership of \(groups.count) group(s), comparing \(pairs.count) chat(s) between two")
+        guard !groups.isEmpty || !pairs.isEmpty else {
             return
         }
         let postbox = self.postbox
@@ -761,6 +766,12 @@ public final class MlsRuntime {
                 let _ = _internal_fetchAndUpdateCachedPeerData(
                     accountPeerId: accountPeerId, peerId: peerId,
                     network: network, postbox: postbox).start()
+            }
+            for peerId in pairs {
+                let _ = reconcileMembership(
+                    postbox: postbox, accountPeerId: accountPeerId, network: network,
+                    peerId: peerId, listIsFromTheServer: false, named: NamedInTheMessage()
+                ).start()
             }
         }
     }
