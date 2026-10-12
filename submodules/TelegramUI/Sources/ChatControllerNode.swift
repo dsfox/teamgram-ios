@@ -4875,6 +4875,10 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
             let effectiveInputText: NSAttributedString
             let composeContent = effectivePresentationInterfaceState.interfaceState.composeInputState.content
             let isNewMessage = effectivePresentationInterfaceState.interfaceState.editMessage == nil
+            if !Offered.richMessages && isNewMessage && !sendWithoutFormatting && !composeContent.isEmpty && !composeContent.isEntityExpressible() { // ice9: structure goes flattened inside the ciphertext, never beside it (#253)
+                self.sendCurrentMessage(silentPosting: silentPosting, scheduleTime: scheduleTime, repeatPeriod: repeatPeriod, postpone: postpone, messageEffect: messageEffect, sendWithoutFormatting: true, completion: completion)
+                return
+            }
             let requiresPremiumRichContent = isNewMessage
                 && !self.context.isPremium
                 && !composeContent.isEmpty

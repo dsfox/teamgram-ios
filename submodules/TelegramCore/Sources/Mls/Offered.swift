@@ -57,6 +57,13 @@ public enum Offered {
     /// 5 October; #181).
     public static let articles = false
 
+    /// Headings, lists and tables sent as Telegram's rich message: the
+    /// structure goes in messages.sendMessage and editMessage beside the
+    /// ciphertext, where the server reads it (#253). Off: such text goes
+    /// flattened to text with entities, inside the ciphertext - what "Send
+    /// without formatting" does - and no Premium prompt is shown for it.
+    public static let richMessages = false
+
     /// Telegram's own secret chats ("Start Secret Chat" on a profile). The
     /// server has no messages.requestEncryption; every chat here is already
     /// end-to-end encrypted with MLS. #181.
