@@ -1127,8 +1127,8 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
                         }
                         
                         if sourceMessage.id.namespace == Namespaces.Message.Cloud && peerId.namespace != Namespaces.Peer.SecretChat {
-                            // ice9: a forward to or from an encrypted chat is sent as a new message
-                            if !MlsRuntime.isEncrypted(peerId: peerId) && !MlsRuntime.isEncrypted(peerId: sourceMessage.id.peerId) {
+                            // ice9: a forward into a chat that encrypts, or out of an encrypted one, is sent as a new message (#259)
+                            if !MlsRuntime.encrypts(peer: transaction.getPeer(peerId), peerId: peerId, accountPeerId: account.peerId) && !MlsRuntime.isEncrypted(peerId: sourceMessage.id.peerId) {
                                 attributes.append(ForwardSourceInfoAttribute(messageId: sourceMessage.id))
                             }
                         

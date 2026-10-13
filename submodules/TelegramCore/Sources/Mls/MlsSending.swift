@@ -29,7 +29,9 @@ extension MlsRuntime {
     /// with a caption went beside its ciphertext; an inline bot's result is
     /// made by the server. Each fails instead, where the person sees it. A
     /// location and a contact go inside the ciphertext as a text (#267), and
-    /// never reach this as media.
+    /// never reach this as media. A forward is a copy the server makes by id,
+    /// of words nobody encrypted for this chat: one queued as a forward fails
+    /// here, a forward queued now is a copy (#259).
     static func refusingPlain(_ content: MessageContentToUpload, encrypts: Bool, messageId: MessageId) -> MessageContentToUpload {
         guard encrypts else {
             return content
@@ -41,7 +43,7 @@ extension MlsRuntime {
             switch uploaded.content {
             case .media:
                 return uploaded.mlsMedia == nil
-            case .chatContextResult:
+            case .chatContextResult, .forward:
                 return true
             default:
                 return false
