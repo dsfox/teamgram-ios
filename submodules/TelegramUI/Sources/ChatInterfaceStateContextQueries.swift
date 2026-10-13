@@ -56,6 +56,7 @@ func contextQueryResultStateForChatInterfacePresentationState(_ chatPresentation
 private func updatedContextQueryResultStateForQuery(context: AccountContext, peer: EngineRawPeer?, chatLocation: ChatLocation, inputQuery: ChatPresentationInputQuery, previousQuery: ChatPresentationInputQuery?, requestBotLocationStatus: @escaping (EnginePeer.Id) -> Void) -> Signal<(ChatPresentationInputQueryResult?) -> ChatPresentationInputQueryResult?, ChatContextQueryError> {
     switch inputQuery {
         case let .emoji(query):
+            guard Offered.stickersAndGifs else { return .single({ _ in return .stickers([]) }) } // ice9: no sticker suggestions (#258)
             var signal: Signal<(ChatPresentationInputQueryResult?) -> ChatPresentationInputQueryResult?, ChatContextQueryError> = .complete()
             if let previousQuery = previousQuery {
                 switch previousQuery {
@@ -274,7 +275,7 @@ private func updatedContextQueryResultStateForQuery(context: AccountContext, pee
             |> castError(ChatContextQueryError.self)
             return signal |> then(commands)
         case let .contextRequest(addressName, query):
-            guard let chatPeerId = chatLocation.peerId else {
+            guard Offered.bots, let chatPeerId = chatLocation.peerId else { // ice9: no inline bots (#258)
                 return .single({ _ in return .contextRequestResult(nil, nil) })
             }
         

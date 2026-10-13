@@ -236,9 +236,12 @@ extension ChatControllerImpl {
                 availableButtons.append(.contact)
             }
             
-            // ice9: no polls or to-do lists in the attachment menu (#20, #21)
-            let _ = canSendPolls
-            let _ = canSendTodos
+            if canSendPolls && Offered.polls { // ice9: no polls (#20, #258)
+                availableButtons.insert(.poll, at: max(0, availableButtons.count - 1))
+            }
+            if canSendTodos && Offered.polls { // ice9: no to-do lists (#21, #258)
+                availableButtons.insert(.todo, at: max(0, availableButtons.count - 1))
+            }
 
             if "".isEmpty {
                 availableButtons.insert(.audio, at: max(0, availableButtons.count - 1))
@@ -602,7 +605,7 @@ extension ChatControllerImpl {
                             }
                             let hasLiveLocation: Bool
                             if let peer = strongSelf.presentationInterfaceState.renderedPeer?.peer {
-                                hasLiveLocation = peer.id.namespace != Namespaces.Peer.SecretChat && peer.id != strongSelf.context.account.peerId && strongSelf.presentationInterfaceState.subject != .scheduledMessages
+                                hasLiveLocation = Offered.liveLocation && peer.id.namespace != Namespaces.Peer.SecretChat && peer.id != strongSelf.context.account.peerId && strongSelf.presentationInterfaceState.subject != .scheduledMessages // ice9: no live location (#258)
                             } else {
                                 hasLiveLocation = false
                             }
@@ -1168,7 +1171,7 @@ extension ChatControllerImpl {
                     actionSheet?.dismissAnimated()
                     self?.presentLocationPicker()
                 }))
-                if canSendPolls {
+                if canSendPolls && Offered.polls { // ice9: no polls (#258)
                     items.append(ActionSheetButtonItem(title: strongSelf.presentationData.strings.AttachmentMenu_Poll, color: .accent, action: { [weak actionSheet] in
                         actionSheet?.dismissAnimated()
                         if let controller = self?.configurePollCreation() {
@@ -1232,7 +1235,7 @@ extension ChatControllerImpl {
                 saveEditedPhotos: settings.storeEditedPhotos,
                 allowGrouping: true,
                 hasSchedule: hasSchedule,
-                canSendPolls: canSendPolls,
+                canSendPolls: canSendPolls && Offered.polls, // ice9: no polls (#258)
                 updatedPresentationData: strongSelf.updatedPresentationData,
                 parentController: legacyController,
                 recentlyUsedInlineBots: strongSelf.recentlyUsedInlineBotsValue.map(EnginePeer.init),
@@ -1810,7 +1813,7 @@ extension ChatControllerImpl {
             guard let strongSelf = self, let selfPeer = selfPeer else {
                 return
             }
-            let hasLiveLocation = peer.id.namespace != Namespaces.Peer.SecretChat && peer.id != strongSelf.context.account.peerId && strongSelf.presentationInterfaceState.subject != .scheduledMessages
+            let hasLiveLocation = Offered.liveLocation && peer.id.namespace != Namespaces.Peer.SecretChat && peer.id != strongSelf.context.account.peerId && strongSelf.presentationInterfaceState.subject != .scheduledMessages // ice9: no live location (#258)
             let controller = LocationPickerController(context: strongSelf.context, style: .glass, updatedPresentationData: strongSelf.updatedPresentationData, mode: .share(peer: EnginePeer(peer), selfPeer: selfPeer, hasLiveLocation: hasLiveLocation), completion: { [weak self] location, _, _, _, _ in
                 guard let strongSelf = self else {
                     return

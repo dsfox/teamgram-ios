@@ -22,6 +22,43 @@ extension MlsRuntime {
         }
     }
 
+    /// The content of a message, unless the server would read it beside the
+    /// ciphertext (#258). In a chat that encrypts, media goes only as the blob
+    /// whose key travels inside the ciphertext. A location, a contact, a poll
+    /// or a dice - nothing here carries them yet - waited for good since #256,
+    /// and with a caption went beside its ciphertext; an inline bot's result
+    /// is made by the server. Each fails instead, where the person sees it.
+    static func refusingPlain(_ content: MessageContentToUpload, encrypts: Bool, messageId: MessageId) -> MessageContentToUpload {
+        guard encrypts else {
+            return content
+        }
+        func besideTheCiphertext(_ result: PendingMessageUploadedContentResult) -> Bool {
+            guard case let .content(uploaded) = result else {
+                return false
+            }
+            switch uploaded.content {
+            case .media:
+                return uploaded.mlsMedia == nil
+            case .chatContextResult:
+                return true
+            default:
+                return false
+            }
+        }
+        func refusal() -> Signal<PendingMessageUploadedContentResult, PendingMessageUploadError> {
+            Logger.shared.log("Mls", "message \(messageId) would go beside the ciphertext, so it fails")
+            return .fail(.generic)
+        }
+        switch content {
+        case let .immediate(result, type):
+            return besideTheCiphertext(result) ? .signal(refusal(), type) : content
+        case let .signal(signal, type):
+            return .signal(signal |> mapToSignal { result -> Signal<PendingMessageUploadedContentResult, PendingMessageUploadError> in
+                return besideTheCiphertext(result) ? refusal() : .single(result)
+            }, type)
+        }
+    }
+
     /// The text a message goes out with: encrypted, or as it is in a chat that
     /// does not encrypt at all - a bot, Saved Messages. Nil when the chat
     /// encrypts and this message cannot be encrypted yet: it waits for its

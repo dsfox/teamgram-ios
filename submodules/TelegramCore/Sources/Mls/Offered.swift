@@ -132,6 +132,28 @@ public enum Offered {
     /// work and stay.
     public static let stickerPacks = false
 
+    /// The sticker and GIF tabs of the emoji panel, and stickers suggested for
+    /// an emoji as it is typed. Every list of them is answered empty, so the
+    /// tabs held only what this phone had saved, and each emoji typed asked the
+    /// server for stickers to match it. Issue #258.
+    public static let stickersAndGifs = false
+
+    /// Sharing a live location. It is a stream of edits the server applies to
+    /// a location it can read; in a chat that encrypts it would have to be a
+    /// stream of ciphertexts nothing here builds yet. A location sent once
+    /// travels encrypted (the step after #258). Issue #258.
+    public static let liveLocation = false
+
+    /// Polls and to-do lists. A poll is a count the server keeps, and this
+    /// server keeps none: a poll arrived as an unsupported message, after its
+    /// question and answers had reached the server. Issues #20, #21, #258.
+    public static let polls = false
+
+    /// A lone dice or dart emoji sent as a throw. The server rolls it, so it
+    /// has to read it; the emoji goes as the word it is, as it does in
+    /// Telegram's secret chats. Issue #258.
+    public static let dice = false
+
     /// A cloud password - the second step asked for when signing in.
     ///
     /// account.getPassword is answered with "there is no password" and nothing

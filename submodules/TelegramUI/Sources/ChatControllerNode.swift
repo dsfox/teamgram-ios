@@ -876,7 +876,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
         }
         |> deliverOnMainQueue).startStrict(next: { [weak self] emojis in
             if let strongSelf = self {
-                strongSelf.interactiveEmojis = emojis
+                strongSelf.interactiveEmojis = Offered.dice ? emojis : nil // ice9: a dice goes as the word it is (#258)
             }
         })
     
@@ -4041,6 +4041,7 @@ class ChatControllerNode: ASDisplayNode, ASScrollViewDelegate {
                     chatPeerId: self.chatLocation.peerId,
                     areCustomEmojiEnabled: self.chatPresentationInterfaceState.customEmojiAvailable,
                     hasEdit: true,
+                    hasStickers: Offered.stickersAndGifs, hasGifs: Offered.stickersAndGifs, // ice9: no sticker or GIF tabs (#258)
                     hideBackground: true,
                     maskEdge: .clip,
                     sendGif: { [weak self] fileReference, sourceView, sourceRect, silentPosting, schedule in
