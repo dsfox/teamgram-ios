@@ -218,6 +218,7 @@ func mediaContentToUpload(accountPeerId: PeerId, network: Network, postbox: Post
        let content = mlsUploadedMediaContent(network: network, postbox: postbox, peerId: peerId, media: media, text: text) {
         return content
     }
+    if encrypts == true, let carried = mlsCarriedInside(media: media, text: text) { return carried } // ice9: a location or a contact goes inside the ciphertext (#267)
 
     if let paidContent = media as? TelegramMediaPaidContent {
         var signals: [Signal<PendingMessageUploadedContentResult, PendingMessageUploadError>] = []

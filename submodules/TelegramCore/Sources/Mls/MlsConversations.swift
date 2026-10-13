@@ -437,9 +437,9 @@ public enum MlsConversations {
     /// The formatting goes inside rather than beside it. An entity - bold, a
     /// link, a mention - is a pair of offsets into the text, and next to a
     /// ciphertext they point at nothing.
-    public static func encrypt(postbox: Postbox, accountPeerId: PeerId, identity: MlsIdentity, group: MlsGroup, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded?, media: Api.mls.Content.Media?, transaction: Transaction? = nil) -> String? {
+    public static func encrypt(postbox: Postbox, accountPeerId: PeerId, identity: MlsIdentity, group: MlsGroup, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded?, media: Api.mls.Content.Media?, inside: Api.mls.Content.Inside? = nil, transaction: Transaction? = nil) -> String? {
         do {
-            let ciphertext = try group.encrypt(identity: identity, plaintext: Api.mls.Content.encode(text: text, entities: entities, forwarded: forwarded, media: media))
+            let ciphertext = try group.encrypt(identity: identity, plaintext: Api.mls.Content.encode(text: text, entities: entities, forwarded: forwarded, media: media, inside: inside))
             let state = try identity.export()
 
             // The ratchet has moved, so it is written back. Inside the
@@ -547,7 +547,8 @@ public enum MlsConversations {
                     text: content.text,
                     entities: messageTextEntitiesFromApiEntities(content.entities),
                     forwarded: content.forwarded,
-                    media: content.media))
+                    media: content.media,
+                    inside: content.inside))
             }
             // From a version that encrypted the bare text. Read as text rather
             // than refused: those messages are still in people's chats.
@@ -599,12 +600,15 @@ public struct MlsMessageContent {
     /// What the file in this message actually is, when there is one. The server
     /// is holding it as a blob of random bytes and knows nothing else about it.
     public let media: Api.mls.Content.Media?
+    /// The location or the contact it carries inside (#267).
+    public let inside: Api.mls.Content.Inside?
 
-    public init(text: String, entities: [MessageTextEntity], forwarded: Api.mls.Content.Forwarded? = nil, media: Api.mls.Content.Media? = nil) {
+    public init(text: String, entities: [MessageTextEntity], forwarded: Api.mls.Content.Forwarded? = nil, media: Api.mls.Content.Media? = nil, inside: Api.mls.Content.Inside? = nil) {
         self.text = text
         self.entities = entities
         self.forwarded = forwarded
         self.media = media
+        self.inside = inside
     }
 
     /// Who wrote it first, as the store keeps it: the same whether the message
@@ -742,6 +746,7 @@ public func repairUnreadableMessages(postbox: Postbox, runtime: MlsRuntime, peer
                 if let descriptor = readable.media, let real = mlsIncomingMedia(from: media, descriptor: descriptor) {
                     media = real
                 }
+                media = readable.withInside(media)
                 let (tags, _) = tagsForStoreMessage(incoming: true, attributes: attributes, media: media, textEntities: readable.entities, isPinned: currentMessage.tags.contains(.pinned))
                 return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: readable.text, attributes: attributes, media: media))
             })

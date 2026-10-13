@@ -2020,8 +2020,8 @@ public final class PendingMessageManager {
                             flags |= 1 << 22
                         }
                     
-                        // ice9: encrypted, and an extension sends nothing in the clear (#230)
-                        guard let outgoingText = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).outgoingText(peerId: messageId.peerId, text: message.text, entities: &messageEntities, flags: &flags, forwarded: MlsRuntime.forwarded(from: message), transaction: transaction) else {
+                        // ice9: encrypted, a location or a contact inside; an extension sends nothing in the clear (#230, #267)
+                        guard let outgoingText = MlsRuntime.instance(postbox: postbox, accountPeerId: accountPeerId).outgoingText(peerId: messageId.peerId, text: message.text, entities: &messageEntities, flags: &flags, forwarded: MlsRuntime.forwarded(from: message), inside: MlsRuntime.inside(of: message), transaction: transaction) else {
                             return MlsRuntime.inAnExtension ? failMessages(postbox: postbox, ids: [messageId]) : (self?.waitForConversation([(messageId, content)]) ?? .complete())
                         }
                         sendMessageRequest = network.requestWithAdditionalInfo(Api.functions.messages.sendMessage(flags: flags, peer: inputPeer, replyTo: replyTo, message: outgoingText, randomId: uniqueId, replyMarkup: nil, entities: messageEntities, scheduleDate: scheduleTime, scheduleRepeatPeriod: scheduleRepeatPeriod, sendAs: sendAsInputPeer, quickReplyShortcut: quickReplyShortcut, effect: messageEffectId, allowPaidStars: allowPaidStars, suggestedPost: suggestedPost, richMessage: apiRichMessage), info: .acknowledgement, tag: dependencyTag)

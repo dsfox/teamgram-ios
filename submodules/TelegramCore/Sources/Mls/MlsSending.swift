@@ -24,10 +24,12 @@ extension MlsRuntime {
 
     /// The content of a message, unless the server would read it beside the
     /// ciphertext (#258). In a chat that encrypts, media goes only as the blob
-    /// whose key travels inside the ciphertext. A location, a contact, a poll
-    /// or a dice - nothing here carries them yet - waited for good since #256,
-    /// and with a caption went beside its ciphertext; an inline bot's result
-    /// is made by the server. Each fails instead, where the person sees it.
+    /// whose key travels inside the ciphertext. A poll, a dice or a live
+    /// location - nothing here carries them - waited for good since #256, and
+    /// with a caption went beside its ciphertext; an inline bot's result is
+    /// made by the server. Each fails instead, where the person sees it. A
+    /// location and a contact go inside the ciphertext as a text (#267), and
+    /// never reach this as media.
     static func refusingPlain(_ content: MessageContentToUpload, encrypts: Bool, messageId: MessageId) -> MessageContentToUpload {
         guard encrypts else {
             return content
@@ -70,8 +72,8 @@ extension MlsRuntime {
     /// Inside the transaction the message is sent in (#230). A caption is text
     /// like any other; `media` is the key to its file, which travels inside the
     /// same ciphertext.
-    func outgoingText(peerId: PeerId, text: String, entities: inout [Api.MessageEntity]?, flags: inout Int32, forwarded: Api.mls.Content.Forwarded?, media: Api.mls.Content.Media? = nil, transaction: Transaction) -> String? {
-        if let ciphertext = self.encryptedText(peerId: peerId, text: text, entities: &entities, flags: &flags, forwarded: forwarded, media: media, transaction: transaction) {
+    func outgoingText(peerId: PeerId, text: String, entities: inout [Api.MessageEntity]?, flags: inout Int32, forwarded: Api.mls.Content.Forwarded?, media: Api.mls.Content.Media? = nil, inside: Api.mls.Content.Inside? = nil, transaction: Transaction) -> String? {
+        if let ciphertext = self.encryptedText(peerId: peerId, text: text, entities: &entities, flags: &flags, forwarded: forwarded, media: media, inside: inside, transaction: transaction) {
             return ciphertext
         }
         if MlsRuntime.inAnExtension || MlsRuntime.encrypts(peer: transaction.getPeer(peerId), peerId: peerId, accountPeerId: self.accountPeerId) {
@@ -111,8 +113,8 @@ extension MlsRuntime {
     /// what the other side reads back, so the entities are dropped, and with
     /// them bit 3 of `flags`, which says they follow in sendMessage, sendMedia
     /// and editMessage alike.
-    private func encryptedText(peerId: PeerId, text: String, entities: inout [Api.MessageEntity]?, flags: inout Int32, forwarded: Api.mls.Content.Forwarded?, media: Api.mls.Content.Media?, transaction: Transaction?) -> String? {
-        guard let ciphertext = self.encrypt(peerId: peerId, text: text, entities: entities ?? [], forwarded: forwarded, media: media, transaction: transaction) else {
+    private func encryptedText(peerId: PeerId, text: String, entities: inout [Api.MessageEntity]?, flags: inout Int32, forwarded: Api.mls.Content.Forwarded?, media: Api.mls.Content.Media?, inside: Api.mls.Content.Inside? = nil, transaction: Transaction?) -> String? {
+        guard let ciphertext = self.encrypt(peerId: peerId, text: text, entities: entities ?? [], forwarded: forwarded, media: media, inside: inside, transaction: transaction) else {
             return nil
         }
         entities = nil

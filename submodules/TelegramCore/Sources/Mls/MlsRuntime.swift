@@ -402,11 +402,11 @@ public final class MlsRuntime {
     /// What to send instead of this message, or nothing when this conversation
     /// cannot carry it - and then it waits for one (#256), unless the chat does
     /// not encrypt at all.
-    public func encrypt(peerId: PeerId, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded? = nil, media: Api.mls.Content.Media? = nil, transaction: Transaction? = nil) -> String? {
+    public func encrypt(peerId: PeerId, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded? = nil, media: Api.mls.Content.Media? = nil, inside: Api.mls.Content.Inside? = nil, transaction: Transaction? = nil) -> String? {
         // An empty text is nothing to encrypt - unless something else has to
         // travel inside the message anyway: the key to a picture sent without a
         // caption, or the attribution of a forward.
-        guard !text.isEmpty || forwarded != nil || media != nil else {
+        guard !text.isEmpty || forwarded != nil || media != nil || inside != nil else {
             return nil
         }
 
@@ -439,7 +439,7 @@ public final class MlsRuntime {
         // The comparison with the chat that used to be kicked off here, beside
         // the send, runs before it now - in ensureConversation, which is the
         // step ahead of this one on the same path (#158).
-        return MlsConversations.encrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text, entities: entities, forwarded: forwarded, media: media, transaction: transaction)
+        return MlsConversations.encrypt(postbox: self.postbox, accountPeerId: self.accountPeerId, identity: identity, group: group, text: text, entities: entities, forwarded: forwarded, media: media, inside: inside, transaction: transaction)
     }
 
     /// Whether this process is an app extension - the notification one or the

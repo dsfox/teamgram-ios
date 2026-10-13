@@ -1272,6 +1272,7 @@ extension StoreMessage {
                     }
                 }
                 
+                medias = decrypted?.withInside(medias) ?? medias // ice9: a location or a contact came inside the ciphertext (#267)
                 if let ttlPeriod = ttlPeriod {
                     attributes.append(AutoremoveTimeoutMessageAttribute(timeout: ttlPeriod, countdownBeginTime: date))
                 }

@@ -41,6 +41,7 @@ extension CLLocationCoordinate2D {
 }
 
 public func nearbyVenues(context: AccountContext, story: Bool = false, latitude: Double, longitude: Double, query: String? = nil) -> Signal<ChatContextResultCollection?, NoError> {
+    guard Offered.bots else { return .single(nil) } // ice9: no venue bot, it would be told where the phone is (#267)
     let botUsername: Signal<String, NoError>
     if story {
         botUsername = context.engine.data.get(TelegramEngine.EngineData.Item.Configuration.App())

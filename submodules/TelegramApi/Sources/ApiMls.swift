@@ -576,6 +576,65 @@ public extension Api {
             public static let messageConstructor: Int32 = 995434673
             /// mls.forward from_id:long from_name:string date:int = mls.Forward;
             public static let forwardConstructor: Int32 = 940936156
+            /// mls.geo lat:double long:double accuracy_radius:int title:string address:string provider:string venue_id:string venue_type:string = mls.Geo;
+            ///
+            /// A location sent once (#267), on flags.2 of mls.message after the
+            /// file: a place when it has a title, a point when not.
+            public static let geoConstructor: Int32 = -2123525959
+            /// mls.contact phone_number:string first_name:string last_name:string vcard:string user_id:long = mls.Contact;
+            ///
+            /// A contact (#267), on flags.3. The id stays the one of mls.message
+            /// above: a reader that does not know these skips them and opens an
+            /// empty text instead of failing the message.
+            public static let contactConstructor: Int32 = 104717692
+
+            public struct Geo {
+                public let latitude: Double
+                public let longitude: Double
+                /// Zero when there is none.
+                public let accuracyRadius: Int32
+                /// Empty for a point, a place's name otherwise.
+                public let title: String
+                public let address: String
+                public let provider: String
+                public let venueId: String
+                public let venueType: String
+
+                public init(latitude: Double, longitude: Double, accuracyRadius: Int32, title: String, address: String, provider: String, venueId: String, venueType: String) {
+                    self.latitude = latitude
+                    self.longitude = longitude
+                    self.accuracyRadius = accuracyRadius
+                    self.title = title
+                    self.address = address
+                    self.provider = provider
+                    self.venueId = venueId
+                    self.venueType = venueType
+                }
+            }
+
+            public struct Contact {
+                public let phoneNumber: String
+                public let firstName: String
+                public let lastName: String
+                /// Empty when it was too long to carry.
+                public let vCard: String
+                /// Zero when the person is not known to the sender as an account.
+                public let userId: Int64
+
+                public init(phoneNumber: String, firstName: String, lastName: String, vCard: String, userId: Int64) {
+                    self.phoneNumber = phoneNumber
+                    self.firstName = firstName
+                    self.lastName = lastName
+                    self.vCard = vCard
+                    self.userId = userId
+                }
+            }
+
+            /// What a message carries inside besides words and a file (#267).
+            public enum Inside {
+                case geo(Geo)
+                case contact(Contact)
+            }
 
             public struct Media {
                 /// 0 a file, 1 a picture, 2 a video, 3 a voice message,
@@ -608,12 +667,17 @@ public extension Api {
                 }
             }
 
-            public static func encode(text: String, entities: [Api.MessageEntity], forwarded: Forwarded? = nil, media: Media? = nil) -> Data {
+            public static func encode(text: String, entities: [Api.MessageEntity], forwarded: Forwarded? = nil, media: Media? = nil, inside: Inside? = nil) -> Data {
                 let buffer = Buffer()
                 buffer.appendInt32(messageConstructor)
                 var flags: Int32 = 0
                 if forwarded != nil { flags |= 1 << 0 }
                 if media != nil { flags |= 1 << 1 }
+                switch inside {
+                case .geo: flags |= 1 << 2
+                case .contact: flags |= 1 << 3
+                case .none: break
+                }
                 serializeInt32(flags, buffer: buffer, boxed: false)
                 serializeString(text, buffer: buffer, boxed: false)
                 buffer.appendInt32(481674261)
@@ -640,6 +704,27 @@ public extension Api {
                     serializeBytes(Buffer(data: media.iv), buffer: buffer, boxed: false)
                     serializeBytes(Buffer(data: media.thumb), buffer: buffer, boxed: false)
                 }
+                switch inside {
+                case let .geo(geo):
+                    buffer.appendInt32(geoConstructor)
+                    serializeDouble(geo.latitude, buffer: buffer, boxed: false)
+                    serializeDouble(geo.longitude, buffer: buffer, boxed: false)
+                    serializeInt32(geo.accuracyRadius, buffer: buffer, boxed: false)
+                    serializeString(geo.title, buffer: buffer, boxed: false)
+                    serializeString(geo.address, buffer: buffer, boxed: false)
+                    serializeString(geo.provider, buffer: buffer, boxed: false)
+                    serializeString(geo.venueId, buffer: buffer, boxed: false)
+                    serializeString(geo.venueType, buffer: buffer, boxed: false)
+                case let .contact(contact):
+                    buffer.appendInt32(contactConstructor)
+                    serializeString(contact.phoneNumber, buffer: buffer, boxed: false)
+                    serializeString(contact.firstName, buffer: buffer, boxed: false)
+                    serializeString(contact.lastName, buffer: buffer, boxed: false)
+                    serializeString(contact.vCard, buffer: buffer, boxed: false)
+                    serializeInt64(contact.userId, buffer: buffer, boxed: false)
+                case .none:
+                    break
+                }
                 return buffer.makeData()
             }
 
@@ -648,7 +733,7 @@ public extension Api {
             /// to reading the bytes as text rather than showing nothing.
             ///
             /// The two older shapes are still read. They are in people's chats.
-            public static func decode(_ data: Data) -> (text: String, entities: [Api.MessageEntity], forwarded: Forwarded?, media: Media?)? {
+            public static func decode(_ data: Data) -> (text: String, entities: [Api.MessageEntity], forwarded: Forwarded?, media: Media?, inside: Inside?)? {
                 let reader = BufferReader(Buffer(data: data))
                 guard let signature = reader.readInt32() else {
                     return nil
@@ -710,7 +795,33 @@ public extension Api {
                     media = Media(kind: kind, mime: mime, name: name, size: size, width: width, height: height, duration: duration, key: key.makeData(), iv: iv.makeData(), thumb: thumb.makeData())
                 }
 
-                return (text, entities, forwarded, media)
+                // Leniently: a shape this client does not know, or one cut
+                // short, leaves the rest of the message readable (#267).
+                var inside: Inside?
+                if (flags & (1 << 2)) != 0 {
+                    if let inner = reader.readInt32(), inner == geoConstructor,
+                       let latitude = reader.readDouble(),
+                       let longitude = reader.readDouble(),
+                       let accuracyRadius = reader.readInt32(),
+                       let title = parseString(reader),
+                       let address = parseString(reader),
+                       let provider = parseString(reader),
+                       let venueId = parseString(reader),
+                       let venueType = parseString(reader) {
+                        inside = .geo(Geo(latitude: latitude, longitude: longitude, accuracyRadius: accuracyRadius, title: title, address: address, provider: provider, venueId: venueId, venueType: venueType))
+                    }
+                } else if (flags & (1 << 3)) != 0 {
+                    if let inner = reader.readInt32(), inner == contactConstructor,
+                       let phoneNumber = parseString(reader),
+                       let firstName = parseString(reader),
+                       let lastName = parseString(reader),
+                       let vCard = parseString(reader),
+                       let userId = reader.readInt64() {
+                        inside = .contact(Contact(phoneNumber: phoneNumber, firstName: firstName, lastName: lastName, vCard: vCard, userId: userId))
+                    }
+                }
+
+                return (text, entities, forwarded, media, inside)
             }
         }
     }
