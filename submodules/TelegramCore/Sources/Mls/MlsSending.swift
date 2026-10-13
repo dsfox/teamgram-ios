@@ -63,6 +63,20 @@ extension MlsRuntime {
         }
     }
 
+    /// Whether a send that goes around PendingMessageManager - and so around
+    /// every step of MLS - must stop here (#260): Siri's, the share sheet's
+    /// outside the app, a quick reply, a game. None of them can encrypt, so in
+    /// a chat that encrypts each is refused. Without the peer at hand a
+    /// person or a group counts as a chat that encrypts: the door is shut
+    /// unless it is known to be safe.
+    static func refusesBypass(peerId: PeerId, accountPeerId: PeerId, what: String) -> Bool {
+        guard MlsRuntime.encrypts(peer: nil, peerId: peerId, accountPeerId: accountPeerId) else {
+            return false
+        }
+        Logger.shared.log("Mls", "\(what) to \(peerId) would go around the ciphertext, so it is refused")
+        return true
+    }
+
     /// The text a message goes out with: encrypted, or as it is in a chat that
     /// does not encrypt at all - a bot, Saved Messages. Nil when the chat
     /// encrypts and this message cannot be encrypted yet: it waits for its

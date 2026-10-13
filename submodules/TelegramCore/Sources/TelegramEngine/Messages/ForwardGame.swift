@@ -8,6 +8,7 @@ public enum SendBotGameError {
 }
 
 func _internal_sendBotGame(account: Account, botPeerId: PeerId, game: String, to peerId: PeerId, threadId: Int64?) -> Signal<Void, SendBotGameError> {
+    if MlsRuntime.refusesBypass(peerId: peerId, accountPeerId: account.peerId, what: "a game") { return .fail(.generic) } // ice9: it cannot encrypt (#260)
     return account.postbox.transaction { transaction -> Signal<Void, SendBotGameError> in
         guard !game.isEmpty, let botPeer = transaction.getPeer(botPeerId), let inputBot = apiInputUser(botPeer), let peer = transaction.getPeer(peerId), let inputPeer = apiInputPeer(peer) else {
             return .fail(.generic)
@@ -36,6 +37,7 @@ func _internal_sendBotGame(account: Account, botPeerId: PeerId, game: String, to
 }
 
 func _internal_forwardGameWithScore(account: Account, messageId: MessageId, to peerId: PeerId, threadId: Int64?, as sendAsPeerId: PeerId?) -> Signal<Void, NoError> {
+    if MlsRuntime.refusesBypass(peerId: peerId, accountPeerId: account.peerId, what: "a game's score") { return .complete() } // ice9: a copy the server makes by id (#260)
     return account.postbox.transaction { transaction -> Signal<Void, NoError> in
         if let _ = transaction.getMessage(messageId), let fromPeer = transaction.getPeer(messageId.peerId), let fromInputPeer = apiInputPeer(fromPeer), let toPeer = transaction.getPeer(peerId), let toInputPeer = apiInputPeer(toPeer) {
             var flags: Int32 = 1 << 8

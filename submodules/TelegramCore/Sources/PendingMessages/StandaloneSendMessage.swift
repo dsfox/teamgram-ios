@@ -126,6 +126,7 @@ public func standaloneSendEnqueueMessages(
     threadId: Int64?,
     messages: [StandaloneSendEnqueueMessage]
 ) -> Signal<StandaloneSendMessageStatus, StandaloneSendMessagesError> {
+    if MlsRuntime.refusesBypass(peerId: peerId, accountPeerId: accountPeerId, what: "a standalone send") { return .fail(StandaloneSendMessagesError(peerId: peerId, reason: nil)) } // ice9: it cannot encrypt (#260)
     struct MessageResult {
         var result: PendingMessageUploadedContentResult
         var media: [Media]
@@ -648,6 +649,7 @@ private func sendUploadedMessageContent(
 }
 
 public func standaloneSendMessage(account: Account, peerId: PeerId, text: String, attributes: [MessageAttribute], media: StandaloneMedia?, replyToMessageId: MessageId?, threadId: Int32? = nil) -> Signal<Float, StandaloneSendMessageError> {
+    if MlsRuntime.refusesBypass(peerId: peerId, accountPeerId: account.peerId, what: "a standalone send") { return .fail(.generic) } // ice9: it cannot encrypt (#260)
     let content: Signal<StandaloneSendMessageEvent, StandaloneSendMessageError>
     if let media = media {
         switch media {

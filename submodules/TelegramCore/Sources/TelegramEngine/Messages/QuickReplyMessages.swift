@@ -383,6 +383,7 @@ func _internal_reorderMessageShortcuts(account: Account, ids: [Int32], localComp
 }
 
 func _internal_sendMessageShortcut(account: Account, peerId: PeerId, id: Int32) -> Signal<Never, NoError> {
+    if MlsRuntime.refusesBypass(peerId: peerId, accountPeerId: account.peerId, what: "a quick reply") { return .complete() } // ice9: the server would copy readable messages in (#260)
     return account.postbox.transaction { transaction -> Peer? in
         return transaction.getPeer(peerId)
     }
