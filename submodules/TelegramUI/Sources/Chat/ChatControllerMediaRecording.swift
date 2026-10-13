@@ -164,7 +164,7 @@ extension ChatControllerImpl {
                 var viewOnceAvailable = false
                 if let peerId = self.chatLocation.peerId {
                     // ice9: no live upload where the chat encrypts; the finished video goes up encrypted
-                    allowLiveUpload = peerId.namespace != Namespaces.Peer.SecretChat && !MlsRuntime.isEncrypted(peerId: peerId)
+                    allowLiveUpload = peerId.namespace != Namespaces.Peer.SecretChat && !MlsRuntime.encrypts(peer: self.presentationInterfaceState.renderedPeer?.peer, peerId: peerId, accountPeerId: self.context.account.peerId)
                     viewOnceAvailable = !isScheduledMessages && peerId.namespace == Namespaces.Peer.CloudUser && peerId != self.context.account.peerId && !isBot && self.presentationInterfaceState.sendPaidMessageStars == nil
                 } else if case .customChatContents = self.chatLocation {
                     allowLiveUpload = true
