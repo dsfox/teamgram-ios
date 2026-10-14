@@ -3,32 +3,18 @@ load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
 swift_library(
     name = "WalletSettingsScreen",
     module_name = "WalletSettingsScreen",
-    srcs = glob([
-        "Sources/**/*.swift",
-    ]),
+    # ice9: no wallet here (#278); see Ice9NoPayments.
+    srcs = ["//submodules/Ice9NoPayments:WalletSettingsScreenStub"],
     copts = [
         "-warnings-as-errors",
     ],
     deps = [
-        "//submodules/PasscodeCore",
-        "//submodules/AccountContext",
-        "//submodules/ComponentFlow",
-        "//submodules/Components/MultilineTextComponent",
-        "//submodules/Components/ViewControllerComponent",
         "//submodules/Display",
-        "//submodules/PresentationDataUtils",
+        "//submodules/AccountContext",
         "//submodules/SSignalKit/SwiftSignalKit",
-        "//submodules/TelegramNotices",
+        "//submodules/TelegramCore",
         "//submodules/TelegramPresentationData",
-        "//submodules/TelegramStringFormatting",
-        "//submodules/TelegramUI/Components/ListActionItemComponent",
-        "//submodules/TelegramUI/Components/ListSectionComponent",
-        "//submodules/TelegramUI/Components/AlertComponent",
-        "//submodules/TelegramUI/Components/AlertComponent/AlertCheckComponent",
-        "//submodules/UndoUI",
         "//submodules/WalletContext",
-        "//submodules/TelegramUI/Components/Wallet/WalletAuthorizationUI",
-        "//submodules/TelegramUI/Components/Wallet/WalletImportScreen",
     ],
     visibility = [
         "//visibility:public",

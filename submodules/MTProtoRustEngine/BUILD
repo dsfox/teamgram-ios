@@ -15,17 +15,14 @@ swift_library(
 swift_library(
     name = "MTProtoRustEngine",
     module_name = "MTProtoRustEngine",
-    srcs = glob(["Sources/MTProtoRustEngine/**/*.swift"]),
+    # ice9: no Rust MTProto engine here (#278); see Ice9NoPayments.
+    srcs = ["//submodules/Ice9NoPayments:MTProtoRustEngineStub"],
     copts = [
         "-warnings-as-errors",
     ],
     deps = [
-        ":MTProtoRustEngineMapping",
         "//submodules/MtProtoKit:MtProtoKit",
-        "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",
         "//submodules/TelegramCore:TelegramCore",
-        "//submodules/WebProxyTransport:WebProxyTransport",
-        "//third-party/mtproto-engine:MTProtoEngineFFI",
     ],
     visibility = ["//visibility:public"],
 )

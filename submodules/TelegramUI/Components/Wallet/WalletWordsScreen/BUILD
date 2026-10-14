@@ -3,28 +3,18 @@ load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
 swift_library(
     name = "WalletWordsScreen",
     module_name = "WalletWordsScreen",
-    srcs = glob([
-        "Sources/**/*.swift",
-    ]),
+    # ice9: no wallet here (#278); see Ice9NoPayments.
+    srcs = ["//submodules/Ice9NoPayments:WalletWordsScreenStub"],
     copts = [
         "-warnings-as-errors",
     ],
     deps = [
         "//submodules/Display",
-        "//submodules/LottieSettings:LottieSettings",
         "//submodules/AccountContext",
-        "//submodules/TelegramPresentationData",
-        "//submodules/PresentationDataUtils",
-        "//submodules/ComponentFlow",
         "//submodules/SSignalKit/SwiftSignalKit",
-        "//submodules/Components/ViewControllerComponent",
-        "//submodules/Components/ResizableSheetComponent",
-        "//submodules/Components/MultilineTextComponent",
-        "//submodules/Components/BalancedTextComponent",
-        "//submodules/Components/BundleIconComponent",
-        "//submodules/TelegramUI/Components/LottieComponent",
-        "//submodules/TelegramUI/Components/ButtonComponent",
-        "//submodules/TelegramUI/Components/GlassBarButtonComponent",
+        "//submodules/TelegramCore",
+        "//submodules/TelegramPresentationData",
+        "//submodules/WalletContext",
     ],
     visibility = [
         "//visibility:public",

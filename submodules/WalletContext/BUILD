@@ -3,20 +3,16 @@ load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
 swift_library(
     name = "WalletContext",
     module_name = "WalletContext",
-    srcs = glob([
-        "Sources/**/*.swift",
-    ]),
+    # ice9: no wallet here (#278); see Ice9NoPayments.
+    srcs = ["//submodules/Ice9NoPayments:WalletContextStub"],
     copts = [
         "-warnings-as-errors",
-        "-enable-testing",
     ],
     deps = [
-      "//third-party/wallet-engine:WalletEngineFFI",
-      "//submodules/SSignalKit/SwiftSignalKit",
-      "//submodules/TelegramCore",
-      "//submodules/TelegramUIPreferences",
-      "//submodules/WalletBackupCrypto",
-      "//submodules/PasscodeCore",
+        "//submodules/SSignalKit/SwiftSignalKit",
+        "//submodules/TelegramCore",
+        "//submodules/TelegramUIPreferences",
+        "//submodules/PasscodeCore",
     ],
     visibility = [
         "//visibility:public",

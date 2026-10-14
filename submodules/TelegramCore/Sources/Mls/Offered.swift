@@ -208,6 +208,14 @@ public enum Offered {
     /// the stores are given the address directly.
     public static let help = false
 
+    /// The TON wallet Telegram 13.0 ships: a balance, transfers in chats, TON
+    /// Connect. The server offers no TON, and Apple refused 12.9.2 for payment
+    /// code it could read in the binary (#181), so the wallet's context and its
+    /// screens compile ice9's stubs (#278) and nothing links the Rust engine.
+    /// Coming back means a server with TON behind it and a decision about
+    /// payments on the App Store, in that order.
+    public static let wallet = false
+
     // A round video in a conversation that encrypts used to be switched off
     // here: the one message uploaded while it was still being recorded, which
     // an encrypted upload cannot take. It is offered again since #80 - the

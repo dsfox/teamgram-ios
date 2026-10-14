@@ -3,32 +3,17 @@ load("@build_bazel_rules_swift//swift:swift.bzl", "swift_library")
 swift_library(
     name = "WalletAppsScreen",
     module_name = "WalletAppsScreen",
-    srcs = glob([
-        "Sources/**/*.swift",
-    ]),
+    # ice9: no wallet here (#278); see Ice9NoPayments.
+    srcs = ["//submodules/Ice9NoPayments:WalletAppsScreenStub"],
     copts = [
         "-warnings-as-errors",
     ],
     deps = [
-        "//submodules/AccountContext",
-        "//submodules/ComponentFlow",
-        "//submodules/Components/BalancedTextComponent",
-        "//submodules/Components/BundleIconComponent",
-        "//submodules/Components/MultilineTextComponent",
-        "//submodules/Components/SheetComponent",
-        "//submodules/Components/ViewControllerComponent",
         "//submodules/Display",
-        "//submodules/ItemListUI",
-        "//submodules/PresentationDataUtils",
+        "//submodules/AccountContext",
         "//submodules/SSignalKit/SwiftSignalKit",
+        "//submodules/TelegramCore",
         "//submodules/TelegramPresentationData",
-        "//submodules/TelegramUI/Components/AlertComponent",
-        "//submodules/TelegramUI/Components/ButtonComponent",
-        "//submodules/TelegramUI/Components/GlassBarButtonComponent",
-        "//submodules/TelegramUI/Components/ListActionItemComponent",
-        "//submodules/TelegramUI/Components/ListSectionComponent",
-        "//submodules/TelegramUI/Components/Wallet/WalletConnectScreen",
-        "//submodules/UndoUI",
         "//submodules/WalletContext",
     ],
     visibility = [
