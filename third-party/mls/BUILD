@@ -10,6 +10,9 @@
 # missing and Bazel says so plainly, which is better than a build that quietly
 # links yesterday's crypto.
 
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:objc_library.bzl", "objc_library")
+
 licenses(["notice"])
 
 cc_library(

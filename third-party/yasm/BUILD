@@ -42,7 +42,8 @@ set -x
     pushd "$$BUILD_DIR/yasm-1.3.0"
     mkdir build
     cd build
-    "$$CMAKE_BIN" .. -DYASM_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DPYTHON_EXECUTABLE="$$(which python3)"
+    # ice9: a host tool builds against the selected Xcode's macOS SDK, asked for by name (#276)
+    "$$CMAKE_BIN" .. -DCMAKE_OSX_SYSROOT="$$(xcrun --sdk macosx --show-sdk-path)" -DYASM_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DPYTHON_EXECUTABLE="$$(which python3)"
     make -j $$core_count
     popd
 

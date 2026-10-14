@@ -240,7 +240,7 @@ public final class ServerLinkInbox {
 /// nothing to send - which is what it did, and it looked exactly like a server
 /// that never answered.
 public func reseedFromAddress(network: Network, address: ServerAddress) {
-    let datacenterId = network.mtProto.datacenterId
+    let datacenterId = network.datacenterId
     let addressSet: MTDatacenterAddressSet = MTDatacenterAddressSet(addressList: [
         MTDatacenterAddress(ip: address.host, port: UInt16(address.port), preferForMedia: false, restrictToTcp: false, cdn: false, preferForProxy: false, secret: nil)
     ])

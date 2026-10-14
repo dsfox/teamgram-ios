@@ -50,6 +50,8 @@ public final class InAppPurchaseManager: NSObject {
     }
 
     public enum PurchaseState {
+        case waiting
+        case pending
         case purchased(transactionId: String)
     }
 
@@ -89,7 +91,7 @@ public final class InAppPurchaseManager: NSObject {
         }
     }
 
-    public func buyProduct(_ product: Product, quantity: Int32 = 1, purpose: AppStoreTransactionPurpose) -> Signal<PurchaseState, PurchaseError> {
+    public func buyProduct(_ product: Product, quantity: Int32 = 1, purpose: AppStoreTransactionPurpose, reportPending: Bool = false) -> Signal<PurchaseState, PurchaseError> {
         return .fail(.cantMakePayments)
     }
 

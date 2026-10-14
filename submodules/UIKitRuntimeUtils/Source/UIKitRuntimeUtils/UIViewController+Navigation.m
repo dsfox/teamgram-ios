@@ -330,6 +330,13 @@ static NSMutableArray<CALayerSpringParametersOverride *> *currentSpringParameter
 
 @end
 
+// The keyboard lives in a UIRemoteKeyboardWindow that belongs to an internal keyboard scene, so it is
+// absent from UIWindowScene.windows and from UIApplication.windows (both filter internal windows since
+// iOS 16). It is reached through the window scene's keyboard scene delegate.
+//
+// Do NOT go back to +[UIRemoteKeyboardWindow remoteKeyboardWindowForScreen:create:]: as of iOS 27 that
+// method traps (`brk #0`) when the calling binary is linked against the iOS 27 SDK or newer. The path
+// below has no such guard.
 @protocol UIKeyboardSceneDelegateProtocol
 
 - (UIWindow * _Nullable)keyboardWindow;
@@ -569,7 +576,6 @@ static NSMutableDictionary<NSString *, TrustedWebRecord *> *trustedWebRecords() 
         if (@available(iOS 26.0, *)) {
             registerEffectViewOverrides();
         }
-        
         /*#if DEBUG
         Class cls = NSClassFromString(@"WKBrowsingContextController");
         SEL sel = NSSelectorFromString(@"registerSchemeForCustomProtocol:");
@@ -766,7 +772,8 @@ static NSMutableDictionary<NSString *, TrustedWebRecord *> *trustedWebRecords() 
         return nil;
     }
 
-    // ice9: nil until the keyboard exists for this scene, and while it is hosted out of process
+    // nil until the keyboard has been created for this scene, and also whenever the keyboard UI is
+    // hosted out of process — in that configuration there is no in-process keyboard window at all.
     UIWindow *result = [(id<UIKeyboardSceneDelegateProtocol>)keyboardSceneDelegate keyboardWindow];
     if (![result isKindOfClass:[UIWindow class]]) {
         return nil;
