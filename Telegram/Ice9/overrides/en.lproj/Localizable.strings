@@ -87,3 +87,6 @@
 "RichText.RemoveFormattingText" = "This message includes rich formatting, which requires Premium.";
 "RichText.PremiumToastText" = "Sending a message with this formatting will require [Premium]().";
 "Ice9.MessageFromAnotherDevice" = "🔒 Message from another device";
+
+/* The passcode guards no wallet here (#278); upstream's text says it does. */
+"PasscodeSettings.TurnOffWalletProtectionWarning" = "This also turns off biometric unlocking.";
