@@ -215,7 +215,9 @@ private func notificationsAndSoundsEntries(presentationData: PresentationData, d
     
     var entries: [NotificationSoundSelectionEntry] = []
     
-    entries.append(.cloudHeader(presentationData.strings.Notifications_TelegramTones))
+    if Offered.uploadedSounds { // ice9: no uploads, so no section of one's own (#282)
+        entries.append(.cloudHeader(presentationData.strings.Notifications_TelegramTones))
+    }
     if let notificationSoundList = notificationSoundList {
         let cloudSounds = notificationSoundList.sounds.filter({ CloudSoundBuiltinCategory(id: $0.file.fileId.id) == nil })
         let modernSounds = notificationSoundList.sounds.filter({ CloudSoundBuiltinCategory(id: $0.file.fileId.id) == .modern })
@@ -229,8 +231,10 @@ private func notificationsAndSoundsEntries(presentationData: PresentationData, d
             entries.append(.sound(section: .cloud, index: Int32(entries.count), theme: presentationData.theme, text: localizedPeerNotificationSoundString(strings: presentationData.strings, notificationSoundList: notificationSoundList, sound: sound), sound: sound, selected: selectedSound.id == sound.id, canBeDeleted: true))
         }
     
-        entries.append(.uploadSound(presentationData.strings.Notifications_UploadSound))
-        entries.append(.cloudInfo(presentationData.strings.Notifications_MessageSoundInfo))
+        if Offered.uploadedSounds { // ice9: the server takes no uploads (#282)
+            entries.append(.uploadSound(presentationData.strings.Notifications_UploadSound))
+            entries.append(.cloudInfo(presentationData.strings.Notifications_MessageSoundInfo))
+        }
         
         entries.append(.modernHeader(presentationData.theme, presentationData.strings.Notifications_AlertTones))
         if let defaultSound = defaultSound {
@@ -242,7 +246,9 @@ private func notificationsAndSoundsEntries(presentationData: PresentationData, d
             entries.append(.sound(section: .modern, index: Int32(100 + i), theme: presentationData.theme, text: localizedPeerNotificationSoundString(strings: presentationData.strings, notificationSoundList: notificationSoundList, sound: sound), sound: sound, selected: sound.id == selectedSound.id, canBeDeleted: false))
         }
         
-        entries.append(.classicHeader(presentationData.theme, presentationData.strings.Notifications_ClassicTones))
+        if !classicSounds.isEmpty { // ice9: no heading over nothing (#282)
+            entries.append(.classicHeader(presentationData.theme, presentationData.strings.Notifications_ClassicTones))
+        }
         for i in 0 ..< classicSounds.count {
             let sound: PeerMessageSound = .cloud(fileId: classicSounds[i].file.fileId.id)
             entries.append(.sound(section: .classic, index: Int32(200 + i), theme: presentationData.theme, text: localizedPeerNotificationSoundString(strings: presentationData.strings, notificationSoundList: notificationSoundList, sound: sound), sound: sound, selected: sound.id == selectedSound.id, canBeDeleted: false))

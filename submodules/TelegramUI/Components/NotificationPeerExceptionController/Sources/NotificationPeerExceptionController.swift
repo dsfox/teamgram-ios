@@ -755,7 +755,9 @@ private func notificationPeerExceptionEntries(presentationData: PresentationData
     if displaySounds {
         let defaultSound = isStories == true ? state.defaultStoriesSound : state.defaultSound
         
-        entries.append(.cloudHeader(index: index, text: presentationData.strings.Notifications_TelegramTones))
+        if Offered.uploadedSounds { // ice9: no uploads, so no section of one's own (#282)
+            entries.append(.cloudHeader(index: index, text: presentationData.strings.Notifications_TelegramTones))
+        }
         index += 1
         
         index = 1000
@@ -776,10 +778,11 @@ private func notificationPeerExceptionEntries(presentationData: PresentationData
             
             index = 2000
             
-            entries.append(.uploadSound(index: index, text: presentationData.strings.Notifications_UploadSound))
-            index += 1
-            entries.append(.cloudInfo(index: index, text: presentationData.strings.Notifications_MessageSoundInfo))
-            index += 1
+            if Offered.uploadedSounds { // ice9: the server takes no uploads (#282)
+                entries.append(.uploadSound(index: index, text: presentationData.strings.Notifications_UploadSound))
+                entries.append(.cloudInfo(index: index + 1, text: presentationData.strings.Notifications_MessageSoundInfo))
+            }
+            index += 2
             
             entries.append(.soundModernHeader(index: index, theme: presentationData.theme, title: presentationData.strings.Notifications_AlertTones))
             
@@ -797,7 +800,9 @@ private func notificationPeerExceptionEntries(presentationData: PresentationData
                 index += 1
             }
             
-            entries.append(.soundClassicHeader(index: index, theme: presentationData.theme, title: presentationData.strings.Notifications_ClassicTones))
+            if !classicSounds.isEmpty { // ice9: no heading over nothing (#282)
+                entries.append(.soundClassicHeader(index: index, theme: presentationData.theme, title: presentationData.strings.Notifications_ClassicTones))
+            }
             index += 1
             
             for i in 0 ..< classicSounds.count {

@@ -216,6 +216,12 @@ public enum Offered {
     /// payments on the App Store, in that order.
     public static let wallet = false
 
+    /// A person's own notification sounds: "Upload Sound" on the sound screen,
+    /// "Save for Notifications" on an audio message. The server takes no
+    /// uploads (teamgram's licence); the three tones it hands out (Ice9Tones)
+    /// are everybody's and nobody's to delete (#282).
+    public static let uploadedSounds = false
+
     // A round video in a conversation that encrypts used to be switched off
     // here: the one message uploaded while it was still being recorded, which
     // an encrypted upload cannot take. It is offered again since #80 - the

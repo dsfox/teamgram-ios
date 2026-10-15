@@ -42,6 +42,7 @@ public enum CloudSoundBuiltinCategory {
     case classic
     
     public init?(id: Int64) {
+        if Ice9Tones.ids.contains(id) { self = .modern; return } // ice9: the server's tones sit under Alert Tones (#282)
         for (key, value) in cloudSoundMapping {
             if value == id {
                 if key < 50 {
