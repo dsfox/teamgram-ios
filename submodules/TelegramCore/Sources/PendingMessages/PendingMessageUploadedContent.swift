@@ -215,7 +215,7 @@ func messageContentToUpload(accountPeerId: PeerId, network: Network, postbox: Po
 func mediaContentToUpload(accountPeerId: PeerId, network: Network, postbox: Postbox, auxiliaryMethods: AccountAuxiliaryMethods, transformOutgoingMessageMedia: TransformOutgoingMessageMedia?, messageMediaPreuploadManager: MessageMediaPreuploadManager, revalidationContext: MediaReferenceRevalidationContext, forceReupload: Bool, isGrouped: Bool, passFetchProgress: Bool, forceNoBigParts: Bool, peerId: PeerId, media: Media, text: String, autoremoveMessageAttribute: AutoremoveTimeoutMessageAttribute?, autoclearMessageAttribute: AutoclearTimeoutMessageAttribute?, messageId: MessageId?, attributes: [MessageAttribute], mediaReference: AnyMediaReference?, explicitPartialReference: PartialMediaReference?, encrypts: Bool? = nil) -> Signal<PendingMessageUploadedContentResult, PendingMessageUploadError>? {
     // ice9: a new file for an encrypted chat is uploaded encrypted, as a document
     if encrypts ?? MlsRuntime.isEncrypted(peerId: peerId), mediaReference == nil,
-       let content = mlsUploadedMediaContent(network: network, postbox: postbox, peerId: peerId, media: media, text: text) {
+       let content = mlsUploadedMediaContent(network: network, postbox: postbox, peerId: peerId, media: media, text: text, explicitPartialReference: explicitPartialReference) {
         return content
     }
     if encrypts == true, let carried = mlsCarriedInside(media: media, text: text) { return carried } // ice9: a location or a contact goes inside the ciphertext (#267)

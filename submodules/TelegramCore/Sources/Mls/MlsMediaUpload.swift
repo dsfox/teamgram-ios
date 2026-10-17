@@ -93,16 +93,64 @@ private func uploadable(from media: Media) -> MlsUploadable? {
         width: width, height: height, duration: duration)
 }
 
+/// Where the bytes come from when they are not on the phone (#268).
+///
+/// Through the message they came in, when there is one, so a file reference
+/// the server has let expire can be refreshed the way upstream refreshes it -
+/// a document from history, a forward, a file from the recent list.
+///
+/// Never for a file of a chat that encrypts. Refreshing a reference fetches
+/// the message again and stores the server's copy over the one on the phone,
+/// and the server's copy is ciphertext this device opened once and cannot open
+/// again: the message would turn into a lock. Such a file is fetched by its
+/// id and carries its own key, so it has nothing to refresh. Nor for a file
+/// made on the phone, which no server holds.
+func mlsSourceReference(media: Media, resource: MediaResource, explicitPartialReference: PartialMediaReference?) -> MediaResourceReference {
+    if resource is MlsEncryptedFileResource || !(resource is TelegramCloudMediaResourceWithFileReference) {
+        return .standalone(resource: resource)
+    }
+    let partial = (media as? TelegramMediaFile)?.partialReference
+        ?? (media as? TelegramMediaImage)?.partialReference
+        ?? explicitPartialReference
+    guard let partial else {
+        return .standalone(resource: resource)
+    }
+    // A message of a chat that encrypts, whatever the file: the server's copy
+    // of it may be ciphertext, and refreshing would store that over the words.
+    if case let .message(message) = partial, let sourcePeerId = message.id?.peerId, MlsRuntime.isEncrypted(peerId: sourcePeerId) {
+        return .standalone(resource: resource)
+    }
+    return partial.mediaReference(media).resourceReference(resource)
+}
+
+/// How long the bytes may show no sign of life, while the phone is online,
+/// before the message is failed rather than left sending for ever (#268).
+///
+/// A sign of life is any change in the resource's status: a converter's
+/// progress, a part downloaded. A long video being converted keeps moving; a
+/// file nobody can fetch - a copy of our own whose bytes were cleared, a
+/// reference that could not be refreshed - never does, and nothing else would
+/// ever end the wait: the fetch of such a file either never answers or
+/// swallows its own failure.
+let mlsSourceStallLimit: Double = 60.0
+
+/// When the bytes last showed a sign of life, and whether the phone is online.
+private struct MlsSourceWatch {
+    var lastSign = CFAbsoluteTimeGetCurrent()
+    var online = false
+}
+
 /// Uploads the file encrypted and hands back a request that sends it as an
 /// ordinary document, plus what the other side will need to open it.
 ///
 /// Nothing if this media is not a file at all - a contact, a location, a poll -
 /// and then the caller sends it as it always did. Those carry no bytes of their
 /// own; what they do leak is a separate question and a separate issue.
-func mlsUploadedMediaContent(network: Network, postbox: Postbox, peerId: PeerId, media: Media, text: String) -> Signal<PendingMessageUploadedContentResult, PendingMessageUploadError>? {
+func mlsUploadedMediaContent(network: Network, postbox: Postbox, peerId: PeerId, media: Media, text: String, explicitPartialReference: PartialMediaReference? = nil) -> Signal<PendingMessageUploadedContentResult, PendingMessageUploadError>? {
     guard let uploadable = uploadable(from: media) else {
         return nil
     }
+    let source = mlsSourceReference(media: media, resource: uploadable.resource, explicitPartialReference: explicitPartialReference)
 
     // The size of the file as it is on disk, read before anything is sent.
     //
@@ -121,23 +169,52 @@ func mlsUploadedMediaContent(network: Network, postbox: Postbox, peerId: PeerId,
     // waiting for a file nobody was writing. So the fetch is started beside
     // the wait, the way the ordinary outgoing-media path starts it, and both
     // are stopped together.
-    let whole = Signal<MediaResourceData, NoError> { subscriber in
-        let fetch = fetchedMediaResource(mediaBox: postbox.mediaBox, userLocation: .other, userContentType: .video, reference: .standalone(resource: uploadable.resource)).start()
+    //
+    // And neither may wait for ever with nothing to show for it (#268): a
+    // fetch that fails fails the message, and so do bytes that show no sign of
+    // life for `mlsSourceStallLimit` while the phone is online. Either way the
+    // message is marked as not sent, where the person can see it and try again.
+    let resourceName = uploadable.resource.id.stringRepresentation
+    let whole = Signal<MediaResourceData, PendingMessageUploadError> { subscriber in
+        let watch = Atomic(value: MlsSourceWatch())
+        let fetch = fetchedMediaResource(mediaBox: postbox.mediaBox, userLocation: .other, userContentType: .video, reference: source).start(error: { _ in
+            Logger.shared.log("Mls", "the bytes of \(resourceName) could not be fetched, so the message is not sent")
+            subscriber.putError(.generic)
+        })
         let data = postbox.mediaBox.resourceData(uploadable.resource, option: .complete(waitUntilFetchStatus: false)).start(next: { next in
             subscriber.putNext(next)
             if next.complete {
                 subscriber.putCompletion()
             }
         })
+        let life = combineLatest(postbox.mediaBox.resourceStatus(uploadable.resource), network.connectionStatus).start(next: { _, connection in
+            var online = false
+            if case .online = connection {
+                online = true
+            }
+            let _ = watch.modify { _ in MlsSourceWatch(lastSign: CFAbsoluteTimeGetCurrent(), online: online) }
+        })
+        let timer = SwiftSignalKit.Timer(timeout: 5.0, repeat: true, completion: {
+            let now = CFAbsoluteTimeGetCurrent()
+            let stalled = watch.modify { current in
+                current.online ? current : MlsSourceWatch(lastSign: now, online: false)
+            }
+            if now - stalled.lastSign > mlsSourceStallLimit {
+                Logger.shared.log("Mls", "the bytes of \(resourceName) showed no sign of coming for \(Int(mlsSourceStallLimit)) s, so the message is not sent")
+                subscriber.putError(.generic)
+            }
+        }, queue: Queue())
+        timer.start()
         return ActionDisposable {
             fetch.dispose()
             data.dispose()
+            life.dispose()
+            timer.invalidate()
         }
     }
     return whole
     |> filter { $0.complete }
     |> take(1)
-    |> castError(PendingMessageUploadError.self)
     |> mapToSignal { data -> Signal<PendingMessageUploadedContentResult, PendingMessageUploadError> in
         var decryptedSize = uploadable.size
         if let attributes = try? FileManager.default.attributesOfItem(atPath: data.path), let size = attributes[.size] as? NSNumber {
@@ -162,7 +239,7 @@ func mlsUploadedMediaContent(network: Network, postbox: Postbox, peerId: PeerId,
     return multipartUpload(
         network: network,
         postbox: postbox,
-        source: .resource(.standalone(resource: uploadable.resource)),
+        source: .resource(source),
         encrypt: true,
         tag: TelegramMediaResourceFetchTag(statsCategory: .file, userContentType: nil),
         hintFileSize: uploadable.size == 0 ? nil : uploadable.size,
