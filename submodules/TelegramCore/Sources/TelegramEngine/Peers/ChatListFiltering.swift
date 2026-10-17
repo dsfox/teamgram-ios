@@ -1009,7 +1009,7 @@ private func loadAndStorePeerChatInfos(accountPeerId: PeerId, postbox: Postbox, 
                 
                 for message in storeMessages {
                     if case let .Id(id) = message.id {
-                        let _ = transaction.addMessages([message], location: topMessageIds.contains(id) ? .UpperHistoryBlock : .Random)
+                        let _ = transaction.addMessages(mlsKeepingWhatIsReadable([message], transaction: transaction), location: topMessageIds.contains(id) ? .UpperHistoryBlock : .Random) // ice9: a server copy keeps the words already opened (#286)
                     }
                 }
             }

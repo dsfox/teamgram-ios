@@ -853,6 +853,7 @@ func fetchRemoteMessage(accountPeerId: PeerId, postbox: Postbox, source: FetchMe
                 if let message = StoreMessage(apiMessage: message, accountPeerId: accountPeerId, peerIsForum: peerIsForum, namespace: id.namespace), case let .Id(updatedId) = message.id {
                     var addedExisting = false
                     if transaction.getMessage(updatedId) != nil {
+                        let message = mlsKeepingWhatIsReadable([message], transaction: transaction)[0] // ice9: a server copy keeps the words already opened (#286)
                         transaction.updateMessage(updatedId, update: { _ in
                             return .update(message)
                         })

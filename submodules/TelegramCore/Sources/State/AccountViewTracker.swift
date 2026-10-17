@@ -1133,8 +1133,9 @@ public final class AccountViewTracker {
                                         guard case let .Id(id) = storeMessage.id else {
                                             continue
                                         }
+                                        let keptMessage = mlsKeepingWhatIsReadable([storeMessage], transaction: transaction)[0] // ice9: a server copy keeps the words already opened (#286)
                                         transaction.updateMessage(id, update: { _ in
-                                            return .update(storeMessage)
+                                            return .update(keptMessage)
                                         })
                                     }
                                 }

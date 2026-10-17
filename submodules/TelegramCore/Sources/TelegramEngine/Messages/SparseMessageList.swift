@@ -829,7 +829,7 @@ private func loadSparseCalendarPage(account: Account, peer: Peer, messageTag: Me
                 }
 
                 updatePeers(transaction: transaction, accountPeerId: accountPeerId, peers: parsedPeers)
-                let _ = transaction.addMessages(parsedMessages, location: .Random)
+                let _ = transaction.addMessages(mlsKeepingWhatIsReadable(parsedMessages, transaction: transaction), location: .Random) // ice9: a server copy keeps the words already opened (#286)
 
                 var minMessageId: Int32?
                 var messagesByDay: [Int32: SparseMessageCalendar.Entry] = [:]

@@ -167,7 +167,7 @@ func _internal_keepShortcutMessagesUpdated(account: Account) -> Signal<Never, No
                             storeMessages.append(message)
                         }
                     }
-                    let _ = transaction.addMessages(storeMessages, location: .Random)
+                    let _ = transaction.addMessages(mlsKeepingWhatIsReadable(storeMessages, transaction: transaction), location: .Random) // ice9: a server copy keeps the words already opened (#286)
                     var topMessageIds: [Int32: Int32] = [:]
                     
                     for quickReply in quickReplies {

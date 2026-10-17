@@ -3968,12 +3968,13 @@ private func upsertEphemeralReplacement(transaction: Transaction, anchorMessageI
         transaction.deleteMessages([currentAttribute.replacementMessageId], forEachMedia: nil)
     }
 
+    let keptMessage = mlsKeepingWhatIsReadable([message], transaction: transaction)[0] // ice9: a server copy keeps the words already opened (#286)
     if transaction.getMessage(replacementMessageId) != nil {
         transaction.updateMessage(replacementMessageId, update: { _ in
-            return .update(message)
+            return .update(keptMessage)
         })
     } else {
-        let _ = transaction.addMessages([message], location: .Random)
+        let _ = transaction.addMessages([keptMessage], location: .Random)
     }
 
     transaction.updateMessage(anchorMessageId, update: { currentMessage in
@@ -4580,7 +4581,8 @@ func replayFinalState(
                         }
                     }
                 }
-            case let .AddScheduledMessages(messages):
+            case let .AddScheduledMessages(arrived):
+                let messages = mlsKeepingWhatIsReadable(arrived, transaction: transaction) // ice9: a server copy keeps the words already opened (#286)
                 for message in messages {
                     if case let .Id(id) = message.id, let _ = transaction.getMessage(id) {
                         transaction.updateMessage(id) { _ -> PostboxUpdateMessage in
@@ -4590,7 +4592,8 @@ func replayFinalState(
                         let _ = transaction.addMessages(messages, location: .Random)
                     }
                 }
-            case let .AddQuickReplyMessages(messages):
+            case let .AddQuickReplyMessages(arrived):
+                let messages = mlsKeepingWhatIsReadable(arrived, transaction: transaction) // ice9: a server copy keeps the words already opened (#286)
                 for message in messages {
                     if case let .Id(id) = message.id, let _ = transaction.getMessage(id) {
                         transaction.updateMessage(id) { _ -> PostboxUpdateMessage in
