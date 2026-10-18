@@ -1765,6 +1765,8 @@ plist_fragment(
     <string>ice9 sends the numbers and names in your contacts to its server to show you who is already on ice9. Numbers of people who are not on ice9 are not kept.</string>
     <key>NSFaceIDUsageDescription</key>
     <string>You can use Face ID to unlock the app.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>When you send your location to your friends, ice9 needs access to show them a map.</string>
     <key>NSLocationAlwaysUsageDescription</key>
     <string>When you send your location to your friends, ice9 needs access to show them a map. You also need this to send locations from an Apple Watch.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
@@ -1785,11 +1787,6 @@ plist_fragment(
     <array>
         <string>INSendMessageIntent</string>
         <string>RemindAboutChatIntent</string>
-    </array>
-    <key>UIAppFonts</key>
-    <array>
-        <string>AremacFS-Regular.otf</string>
-        <string>AremacFS-Semibold.otf</string>
     </array>
     <key>UIApplicationSceneManifest</key>
     <dict>

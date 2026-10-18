@@ -11,7 +11,7 @@ filegroup(
     srcs = glob([
         "Sounds/**/*",
         "Resources/**/*",
-    ], exclude = ["Sounds/**/.*", "Resources/**/.*"]),
+    ], exclude = ["Sounds/**/.*", "Resources/**/.*", "Resources/Fonts/AremacFS-*"]),  # ice9: Apple's font stays out, ITMS-91198
     visibility = ["//visibility:public"],
 )
 
