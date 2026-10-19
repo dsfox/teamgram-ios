@@ -186,9 +186,11 @@ final class SharePeersContainerNode: ASDisplayNode, ShareContentContainerNode {
             }
             
             var existingPeerIds: Set<EnginePeer.Id> = Set()
+            if Offered.savedMessages { // ice9: Saved Messages is not offered (#284)
             entries.append(SharePeerEntry(index: index, item: .peer(peer: EngineRenderedPeer(peer: accountPeer), presence: nil, topicId: nil, threadData: nil, requiresPremiumForMessaging: false, requiresStars: nil), theme: theme, strings: strings))
-            existingPeerIds.insert(accountPeer.id)
             index += 1
+            }
+            existingPeerIds.insert(accountPeer.id)
             
             for (peer, requiresPremiumForMessaging) in foundPeers.reversed() {
                 if !existingPeerIds.contains(peer.peerId) {

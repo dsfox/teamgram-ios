@@ -528,6 +528,7 @@ final class PeerInfoScreenData {
         self.threadNotificationSettings = threadNotificationSettings
         self.globalNotificationSettings = globalNotificationSettings
         self._isContact = isContact
+        let availablePanes = availablePanes.filter { Offered.savedMessages || ($0 != .savedMessages && $0 != .savedMessagesChats) } // ice9: Saved Messages is not offered (#284)
         self.availablePanes = Offered.stories ? availablePanes : availablePanes.filter { $0 != .stories && $0 != .storyArchive }
         self.groupsInCommon = groupsInCommon
         self.linkedDiscussionPeer = linkedDiscussionPeer

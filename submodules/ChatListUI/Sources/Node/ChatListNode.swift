@@ -1957,7 +1957,7 @@ public final class ChatListNode: ListViewImpl {
         let currentRemovingItemId = self.currentRemovingItemId
         
         let savedMessagesPeer: Signal<EnginePeer?, NoError>
-        if case let .peers(filter, _, _, _, _, _, _) = mode, filter.contains(.onlyWriteable), case .chatList = location, self.chatListFilter == nil {
+        if Offered.savedMessages, case let .peers(filter, _, _, _, _, _, _) = mode, filter.contains(.onlyWriteable), case .chatList = location, self.chatListFilter == nil { // ice9: Saved Messages is not offered (#284)
             savedMessagesPeer = context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: context.account.peerId))
             |> mapToSignal { peer -> Signal<EnginePeer, NoError> in
                 if let peer {
@@ -2219,6 +2219,7 @@ public final class ChatListNode: ListViewImpl {
                 switch entry {
                 case let .PeerEntry(peerEntry):
                     let peer = peerEntry.peer
+                    guard Offered.savedMessages || peer.peerId != currentPeerId else { return false } // ice9: Saved Messages is not offered (#284)
                     
                     switch mode {
                     case .chatList:

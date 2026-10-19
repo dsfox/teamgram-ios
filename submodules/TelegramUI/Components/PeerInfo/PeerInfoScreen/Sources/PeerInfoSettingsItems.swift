@@ -223,9 +223,11 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
         }
     }
     
+    if Offered.savedMessages { // ice9: Saved Messages is not offered (#284)
     items[.shortcuts]!.append(PeerInfoScreenDisclosureItem(id: 1, text: presentationData.strings.Settings_SavedMessages, icon: PresentationResourcesSettings.savedMessages, action: {
         interaction.openSettings(.savedMessages)
     }))
+    }
     // ice9: no Recent Calls row (#14)
     
     let devicesLabel: String

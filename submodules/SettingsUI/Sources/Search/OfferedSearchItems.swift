@@ -38,6 +38,10 @@ private let notOfferedSearchItems: [String: String] = {
     if !Offered.colourIcons {
         table.merge(colourIconSearchItemsWhileOff) { current, _ in current }
     }
+    // The settings row is hidden with the chat itself (#284).
+    if !Offered.savedMessages {
+        table["saved-messages"] = "#284"
+    }
     return table
 }()
 

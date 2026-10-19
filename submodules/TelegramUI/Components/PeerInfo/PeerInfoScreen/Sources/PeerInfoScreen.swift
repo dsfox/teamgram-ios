@@ -7194,7 +7194,7 @@ public final class PeerInfoScreenImpl: ViewController, PeerInfoScreen, KeyShortc
     }
     
     public var keyShortcuts: [KeyShortcut] {
-        if self.isSettings {
+        if self.isSettings && Offered.savedMessages { // ice9: Saved Messages is not offered (#284)
             return [
                 KeyShortcut(
                     input: "0",

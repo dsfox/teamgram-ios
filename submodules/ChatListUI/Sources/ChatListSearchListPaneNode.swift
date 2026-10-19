@@ -2007,7 +2007,7 @@ final class ChatListSearchListPaneNode: ASDisplayNode, ChatListSearchPaneNode {
                             }
                         }
                     }
-                    for peer in peers.reversed() {
+                    for peer in peers.reversed() where Offered.savedMessages || peer.peer.peerId != context.account.peerId { // ice9: Saved Messages is not offered (#284)
                         if !updated.contains(peer.peer.peerId) {
                             updated.insert(peer.peer.peerId, at: 0)
                             result.insert(peer, at: 0)
@@ -3031,6 +3031,7 @@ final class ChatListSearchListPaneNode: ASDisplayNode, ChatListSearchPaneNode {
                     if excludedPeerIds.contains(peer.id) {
                         return false
                     }
+                    guard Offered.savedMessages || peer.id != accountPeer.id else { return false } // ice9: Saved Messages is not offered (#284)
 
                     if let requestPeerType {
                         guard !peer.isDeleted && peer.id != context.account.peerId else {

@@ -1451,7 +1451,7 @@ final class OverlayAudioPlayerControllerNode: ViewControllerTracingNode, ASGestu
         let fileReference: FileMediaReference = message.id.namespace == Namespaces.Message.Local ? .savedMusic(peer: peer, media: file) : .message(message: MessageReference(message), media: file)
         
         let canSaveToProfile = !(self.savedIds?.contains(file.fileId.id) == true)
-        let canSaveToSavedMessages = message.id.peerId != self.context.account.peerId || message.id.namespace == Namespaces.Message.Local
+        let canSaveToSavedMessages = Offered.savedMessages && (message.id.peerId != self.context.account.peerId || message.id.namespace == Namespaces.Message.Local) // ice9: Saved Messages is not offered (#284)
         
         let _ = (context.sharedContext.chatAvailableMessageActions(engine: context.engine, accountPeerId: context.account.peerId, messageIds: [message.id], keepUpdated: false)
         |> deliverOnMainQueue).startStandalone(next: { [weak self] actions in

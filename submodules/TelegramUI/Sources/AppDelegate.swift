@@ -1537,7 +1537,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
                         }
                     } |> mapToSignal { otherAccountName -> Signal<[ApplicationShortcutItem], NoError> in
                         let presentationData = context.context.sharedContext.currentPresentationData.with { $0 }
-                        return .single(applicationShortcutItems(strings: presentationData.strings, otherAccountName: otherAccountName))
+                        return .single(applicationShortcutItems(strings: presentationData.strings, otherAccountName: otherAccountName).filter { Offered.savedMessages || $0.type != .savedMessages }) // ice9: Saved Messages is not offered (#284)
                     }
                 } else {
                     return .single([])

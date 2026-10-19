@@ -175,7 +175,7 @@ public func donateSendMessageIntent(account: Account, sharedContext: SharedAccou
                 var nameComponents = PersonNameComponents()
                 
                 if let peer = peer as? TelegramUser {
-                    if peer.botInfo != nil || peer.flags.contains(.isSupport) {
+                    if peer.botInfo != nil || peer.flags.contains(.isSupport) || (!Offered.savedMessages && peer.id == account.peerId) { // ice9: Saved Messages is not offered (#284)
                         continue
                     }
                     

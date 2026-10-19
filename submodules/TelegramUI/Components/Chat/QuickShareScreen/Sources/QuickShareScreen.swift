@@ -239,7 +239,7 @@ private final class QuickShareScreenComponent: Component {
                         return
                     }
                     if !peers.isEmpty, let accountPeer {
-                        self.peers = Array([accountPeer] + peers.prefix(4))
+                        self.peers = Offered.savedMessages ? Array([accountPeer] + peers.prefix(4)) : Array(peers.prefix(5)) // ice9: Saved Messages is not offered (#284)
                         self.state?.updated()
                         component.ready.set(.single(true))
                     } else {

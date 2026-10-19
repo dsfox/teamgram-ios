@@ -72,6 +72,7 @@ extension PeerInfoScreenNode {
         case .stories:
             push(PeerInfoStoryGridScreen(context: self.context, peerId: self.context.account.peerId, scope: .saved))
         case .savedMessages:
+            guard Offered.savedMessages else { return } // ice9: Saved Messages is not offered (#284)
             let _ = (self.context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: self.context.account.peerId))
             |> deliverOnMainQueue).startStandalone(next: { [weak self] peer in
                 guard let self, let peer = peer else {

@@ -839,7 +839,7 @@ public class BrowserScreen: ViewController, MinimizableController {
                 case let .toggleInstantView(enabled):
                     content.toggleInstantView(enabled)
                 case .addBookmark:
-                    if let content = self.content.last {
+                    if Offered.savedMessages, let content = self.content.last { // ice9: Saved Messages is not offered (#284)
                         self.addBookmark(content.currentState.url, showArrow: true)
                     }
                 case .openBookmarks:
@@ -1157,7 +1157,7 @@ public class BrowserScreen: ViewController, MinimizableController {
         }
         
         func openBookmarks() {
-            guard let url = self.contentState?.url else {
+            guard Offered.savedMessages, let url = self.contentState?.url else { // ice9: Saved Messages is not offered (#284)
                 return
             }
             let controller = BrowserBookmarksScreen(context: self.context, url: url, openUrl: { [weak self] url in
@@ -1319,7 +1319,7 @@ public class BrowserScreen: ViewController, MinimizableController {
                     })))
                 }
                 
-                if toolbarMode != .markdown && [.webPage, .instantPage].contains(contentState.contentType) {
+                if Offered.savedMessages && toolbarMode != .markdown && [.webPage, .instantPage].contains(contentState.contentType) { // ice9: Saved Messages is not offered (#284)
                     items.append(.separator)
                     
                     items.append(.action(ContextMenuActionItem(text: self.presentationData.strings.WebBrowser_AddBookmark, icon: { theme in return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Fave"), color: theme.contextMenu.primaryColor) }, action: { (controller, action) in

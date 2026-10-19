@@ -498,7 +498,7 @@ public final class ChatListSearchContainerNode: SearchDisplayControllerContentNo
             var existingPeerIds = Set<EnginePeer.Id>()
             var peers = peers
             if let accountPeer = accountPeer, let lowercasedQuery = searchQuery?.lowercased(), lowercasedQuery.count > 1 && (presentationData.strings.DialogList_SavedMessages.lowercased().hasPrefix(lowercasedQuery) || "saved messages".hasPrefix(lowercasedQuery)) {
-                peers.insert(accountPeer, at: 0)
+                if Offered.savedMessages { peers.insert(accountPeer, at: 0) } // ice9: Saved Messages is not offered (#284)
             }
             
             if !peers.isEmpty && selectedFilter != .filter(ChatListSearchFilter.chats.id) {

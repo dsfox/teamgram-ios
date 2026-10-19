@@ -371,6 +371,7 @@ final class ShareSearchContainerNode: ASDisplayNode, ShareContentContainerNode {
                     var existingPeerIds = Set<EnginePeer.Id>()
                     
                     let lowercasedQuery = query.lowercased()
+                    if !Offered.savedMessages { existingPeerIds.insert(accountPeer.id) } // ice9: Saved Messages is not offered (#284)
                     if strings.DialogList_SavedMessages.lowercased().hasPrefix(lowercasedQuery) || "saved messages".hasPrefix(lowercasedQuery) {
                         if !existingPeerIds.contains(accountPeer.id) {
                             existingPeerIds.insert(accountPeer.id)
