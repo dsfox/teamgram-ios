@@ -709,6 +709,11 @@ private func compareWithTheList(
         // A channel is broadcasting rather than a conversation (#16).
         return .complete()
     }
+    // Saved Messages holds only this account, whose devices the next pass
+    // lets in; the comparison of people has nobody to compare (#284).
+    guard peerId != accountPeerId else {
+        return .complete()
+    }
     // The comparison goes on after taking dead leaves out, so it can come round
     // again; three times, like every other change here, then it stops.
     guard attempt <= commitAttempts else {

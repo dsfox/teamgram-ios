@@ -352,12 +352,11 @@ public final class MlsRuntime {
     /// A channel is not one: broadcasting is a different thing and none of it
     /// is built (#16).
     ///
-    /// Saved Messages is excluded for a harder reason: a conversation with
-    /// oneself would be one where every message is written by the only person
-    /// who cannot read it back, and the notes would go in unreadable.
+    /// Saved Messages is a conversation of this account's own devices, and with
+    /// one device a group of one (#284).
     private func worthEncrypting(to peerId: PeerId) -> Bool {
         // The service account has no device and sends the login codes: never asked about (#256).
-        let isPerson = peerId.namespace == Namespaces.Peer.CloudUser && peerId != self.accountPeerId
+        let isPerson = peerId.namespace == Namespaces.Peer.CloudUser
             && peerId.id._internalGetInt64Value() != 777000
         let isGroup = peerId.namespace == Namespaces.Peer.CloudGroup
         guard isPerson || isGroup else {
@@ -376,8 +375,9 @@ public final class MlsRuntime {
     /// updated does not cost a round trip on every message sent to them.
     private var withoutDevices: [Int64: Double] = [:]
 
-    /// Whether messages in this chat are encrypted at all (#256): a person other
-    /// than this account who is not a bot or the service account, or a basic
+    /// Whether messages in this chat are encrypted at all (#256): a person who
+    /// is not a bot or the service account - this account too, whose Saved
+    /// Messages is a conversation of its own devices (#284) - or a basic
     /// group. Such a chat sends nothing in the clear - what cannot be encrypted
     /// yet waits for its conversation. A peer this device knows nothing about
     /// counts as one that encrypts: waiting can be undone, a word in the clear
@@ -385,7 +385,10 @@ public final class MlsRuntime {
     public static func encrypts(peer: Peer?, peerId: PeerId, accountPeerId: PeerId) -> Bool {
         switch peerId.namespace {
         case Namespaces.Peer.CloudUser:
-            if peerId == accountPeerId || peerId.id._internalGetInt64Value() == 777000 {
+            if peerId == accountPeerId {
+                return true
+            }
+            if peerId.id._internalGetInt64Value() == 777000 {
                 return false
             }
             if let user = peer as? TelegramUser {
@@ -432,6 +435,20 @@ public final class MlsRuntime {
                 self.startConversation(with: peerId)
             }
             return nil
+        }
+        if peerId == self.accountPeerId {
+            let prefix = "\(peerId.id._internalGetInt64Value())/"
+            let strangers = group.memberNames().filter { !String(decoding: $0, as: UTF8.self).hasPrefix(prefix) }
+            if !strangers.isEmpty {
+                // A note from before #284 filed a chat between two under this
+                // account (#155). Saved Messages never goes there; its own is built.
+                Logger.shared.log("Mls", "Saved Messages was written down as a conversation holding somebody else; building this account's own")
+                self.conversationIds[peerId.mlsKey] = nil
+                if !MlsRuntime.inAnExtension {
+                    self.startConversation(with: peerId)
+                }
+                return nil
+            }
         }
         if let groupId = self.conversationIds[peerId.mlsKey] {
             Logger.shared.log("Mls", "sending to \(peerId.id._internalGetInt64Value()) in conversation \(mlsShortId(groupId)) at epoch \(group.epoch)")

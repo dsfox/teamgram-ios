@@ -279,6 +279,9 @@ public enum MlsConversations {
             // them or none sent a whole group into the clear for one person,
             // and with nothing in the clear it would keep the group waiting.
             // Nobody else with a device, and there is no conversation yet.
+            // The server hands out this device's package too; in Saved
+            // Messages it would be a second leaf of this device with no keys (#284).
+            let own = identity.name()
             return combineLatest(members.map { member in
                 network.request(Api.functions.mls.claimKeyPackages(userId: member.id._internalGetInt64Value()))
                 |> map(Optional.init)
@@ -298,8 +301,19 @@ public enum MlsConversations {
                         }
                         continue
                     }
-                    packages.append(contentsOf: answer.packages.map { $0.makeData() })
+                    let theirs = answer.packages.map { $0.makeData() }.filter { keyPackage in
+                        members[index] != accountPeerId || (try? MlsGroup.name(ofKeyPackage: keyPackage)) != own
+                    }
+                    if theirs.isEmpty {
+                        continue
+                    }
+                    packages.append(contentsOf: theirs)
                     reached.append(members[index])
+                }
+                if peerId == accountPeerId && reached.isEmpty {
+                    // Saved Messages on the only device: a group of one, and the
+                    // others are let in as they publish (#284).
+                    return build(postbox: postbox, accountPeerId: accountPeerId, network: network, identity: identity, peerId: peerId, members: [], packages: [])
                 }
                 guard !reached.isEmpty else {
                     Logger.shared.log("Mls", "nobody in \(peerId) has a device, so this waits")
@@ -320,7 +334,8 @@ public enum MlsConversations {
                 // has set a phone up more than once, most of those rows belong
                 // to devices that no longer exist. Both sides then held a
                 // conversation the other was not in.
-                let welcome = try group.addMembers(
+                // Saved Messages on its only device has nobody to add (#284).
+                let welcome = packages.isEmpty ? Data() : try group.addMembers(
                     identity: identity,
                     keyPackages: packages).welcome
                 // Taken here and not asked about, which is the one place that
@@ -331,7 +346,9 @@ public enum MlsConversations {
                 // Without this the creator stays at the epoch before its own
                 // commit while everybody it invited lands at the epoch after,
                 // and not one message opens. It compiles perfectly.
-                try group.acceptCommit(identity: identity)
+                if !packages.isEmpty {
+                    try group.acceptCommit(identity: identity)
+                }
 
                 let groupId = try group.id
                 let state = try identity.export()

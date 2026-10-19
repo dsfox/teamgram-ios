@@ -222,11 +222,10 @@ public enum Offered {
     /// are everybody's and nobody's to delete (#282).
     public static let uploadedSounds = false
 
-    /// Saved Messages, the chat with oneself. The server keeps nothing in it
-    /// (#271): a note there would be the one thing stored in the clear, and
-    /// a forward of an encrypted message would arrive as a lock nobody can
-    /// open. It comes back once it is encrypted for one's own devices (#284).
-    public static let savedMessages = false
+    /// Saved Messages, the chat with oneself. The server keeps nothing
+    /// readable in it (#271): it takes only the ciphertext of a conversation
+    /// between this account's own devices (#284), kept like any other.
+    public static let savedMessages = true
 
     // A round video in a conversation that encrypts used to be switched off
     // here: the one message uploaded while it was still being recorded, which
