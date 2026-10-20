@@ -4,6 +4,7 @@ import SwiftSignalKit
 import TelegramApi
 import ImageCompression
 import UIKit
+import AVFoundation
 
 /// Sending a file into an encrypted conversation.
 ///
@@ -123,6 +124,28 @@ func mlsSourceReference(media: Media, resource: MediaResource, explicitPartialRe
     return partial.mediaReference(media).resourceReference(resource)
 }
 
+/// The first frame of a video on disk, small: what its placeholder is made of.
+///
+/// The file has no extension, and AVFoundation will not read one without it,
+/// so it is linked under one first - the way the cached first frame is made
+/// in FetchCachedRepresentations.
+func mlsFirstFrame(path: String) -> UIImage? {
+    let linked = NSTemporaryDirectory() + "mls-frame-\(Int64.random(in: 0 ... Int64.max)).mp4"
+    guard (try? FileManager.default.linkItem(atPath: path, toPath: linked)) != nil else {
+        return nil
+    }
+    defer { let _ = try? FileManager.default.removeItem(atPath: linked) }
+    let asset = AVURLAsset(url: URL(fileURLWithPath: linked))
+    let generator = AVAssetImageGenerator(asset: asset)
+    generator.maximumSize = CGSize(width: 160.0, height: 160.0)
+    generator.appliesPreferredTrackTransform = true
+    guard let frame = try? generator.copyCGImage(at: CMTime(seconds: 0.0, preferredTimescale: 600), actualTime: nil) else {
+        Logger.shared.log("Mls", "no first frame could be read from the video, so it travels without a preview")
+        return nil
+    }
+    return UIImage(cgImage: frame)
+}
+
 /// How long the bytes may show no sign of life, while the phone is online,
 /// before the message is failed rather than left sending for ever (#268).
 ///
@@ -228,11 +251,14 @@ func mlsUploadedMediaContent(network: Network, postbox: Postbox, peerId: PeerId,
         // - it is holding noise. A couple of hundred bytes, which is why it fits
         // inside the message rather than travelling as a file of its own.
         //
-        // Only for a picture: pulling a frame out of a video needs the media
-        // pipeline and belongs with the rest of the video work.
+        // For a video, its first frame: without it a video over the size
+        // fetched unasked is an empty bubble until it is opened.
         var thumbnail = Data()
         if uploadable.kind == .image, let image = UIImage(contentsOfFile: data.path),
            let mini = compressImageMiniThumbnail(image) {
+            thumbnail = mini
+        } else if uploadable.kind == .video || uploadable.kind == .roundVideo || uploadable.kind == .animation,
+                  let frame = mlsFirstFrame(path: data.path), let mini = compressImageMiniThumbnail(frame) {
             thumbnail = mini
         }
 
