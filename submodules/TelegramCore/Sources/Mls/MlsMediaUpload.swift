@@ -284,15 +284,19 @@ func mlsUploadedMediaContent(network: Network, postbox: Postbox, peerId: PeerId,
             // to do with it: sending it would put the file up in the clear.
             return .fail(.generic)
         case let .inputSecretFile(file, containerSize, key):
-            guard case let .inputEncryptedFileUploaded(uploaded) = file else {
-                return .fail(.generic)
-            }
-
             // The same parts that were just uploaded, named as an ordinary
             // file. `inputEncryptedFileUploaded` differs only in what it is
-            // handed to, and what it is handed to lives in secret chats.
-            let inputFile = Api.InputFile.inputFile(.init(
-                id: uploaded.id, parts: uploaded.parts, name: "file", md5Checksum: ""))
+            // handed to, and what it is handed to lives in secret chats. Past
+            // 10 MB the parts are big ones, and so is the plain twin (#265).
+            let inputFile: Api.InputFile
+            switch file {
+            case let .inputEncryptedFileUploaded(uploaded):
+                inputFile = .inputFile(.init(id: uploaded.id, parts: uploaded.parts, name: "file", md5Checksum: ""))
+            case let .inputEncryptedFileBigUploaded(uploaded):
+                inputFile = .inputFileBig(.init(id: uploaded.id, parts: uploaded.parts, name: "file"))
+            default:
+                return .fail(.generic)
+            }
 
             // No mime type, no name, no dimensions, no thumbnail: every one of
             // those describes what the server is not allowed to see.
