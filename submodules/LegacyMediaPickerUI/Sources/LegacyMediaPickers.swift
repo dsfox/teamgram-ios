@@ -35,7 +35,7 @@ public func configureLegacyAssetPicker(_ controller: TGMediaAssetsController, co
         }
         controller.hasSilentPosting = hasSilentPosting
     }
-    controller.hasSchedule = hasSchedule
+    controller.hasSchedule = hasSchedule && Offered.scheduledMessages // ice9: scheduling is not offered (#273)
     controller.reminder = peer.id == context.account.peerId
     if let channel = peer as? TelegramChannel, case .broadcast = channel.info {
         controller.hasCoverButton = true

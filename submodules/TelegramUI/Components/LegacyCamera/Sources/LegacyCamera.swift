@@ -109,7 +109,7 @@ public func presentedLegacyCamera(context: AccountContext, peer: EnginePeer?, ch
             controller.hasSilentPosting = !editingMedia
         }
     }
-    controller.hasSchedule = hasSchedule
+    controller.hasSchedule = hasSchedule && Offered.scheduledMessages // ice9: scheduling is not offered (#273)
     controller.reminder = peer?.id == context.account.peerId
     
     let screenSize = parentController.view.bounds.size

@@ -262,7 +262,7 @@ public func legacyMediaEditor(
             activateInput: mode == .caption,
             isGif: isGif,
             hasSilentPosting: hasSilentPosting,
-            hasSchedule: hasSchedule,
+            hasSchedule: hasSchedule && Offered.scheduledMessages, // ice9: scheduling is not offered (#273)
             reminder: reminder,
             presentSchedulePicker: schedulePicker,
             appeared: appeared,

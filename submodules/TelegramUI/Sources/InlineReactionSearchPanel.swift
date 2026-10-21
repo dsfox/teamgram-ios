@@ -127,7 +127,7 @@ private final class InlineReactionSearchStickersNode: ASDisplayNode, ASScrollVie
                                 })))
                             }
                         
-                            if strongSelf.currentInterfaceState?.sendPaidMessageStars == nil {
+                            if strongSelf.currentInterfaceState?.sendPaidMessageStars == nil && Offered.scheduledMessages { // ice9: scheduling is not offered (#273)
                                 menuItems.append(.action(ContextMenuActionItem(text: strongSelf.strings.Conversation_SendMessage_ScheduleMessage, icon: { theme in
                                     return generateTintedImage(image: UIImage(bundleImageName: "Chat/Input/Menu/ScheduleIcon"), color: theme.actionSheet.primaryTextColor)
                                 }, action: { _, f in

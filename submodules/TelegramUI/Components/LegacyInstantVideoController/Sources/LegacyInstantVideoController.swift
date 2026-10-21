@@ -163,7 +163,7 @@ public func legacyInstantVideoController(theme: PresentationTheme, forStory: Boo
                 let node = ChatSendButtonRadialStatusView(color: theme.chat.inputPanel.panelControlAccentColor)
                 node.slowmodeState = slowmodeState
                 return node
-            }, canSendSilently: !isSecretChat, canSchedule: hasSchedule, reminder: peerId == context.account.peerId)!
+            }, canSendSilently: !isSecretChat, canSchedule: hasSchedule && Offered.scheduledMessages, reminder: peerId == context.account.peerId)! // ice9: scheduling is not offered (#273)
             controller.presentScheduleController = { done in
                 presentSchedulePicker { time, silentPosting in
                     done?(time, silentPosting)

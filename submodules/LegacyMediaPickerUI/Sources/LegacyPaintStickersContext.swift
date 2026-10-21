@@ -636,7 +636,7 @@ public func makeLegacyMediaPickerSendActionMenuPresenter(
             })))
         }
 
-        if canSchedule {
+        if canSchedule && Offered.scheduledMessages { // ice9: scheduling is not offered (#273)
             items.append(.action(ContextMenuActionItem(text: reminder ? presentationData.strings.Conversation_SendMessage_SetReminder : presentationData.strings.Conversation_SendMessage_ScheduleMessage, icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Input/Menu/ScheduleIcon"), color: theme.contextMenu.primaryColor)
             }, action: { _, f in

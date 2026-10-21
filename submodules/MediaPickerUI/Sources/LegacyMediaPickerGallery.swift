@@ -314,7 +314,7 @@ func presentLegacyMediaPickerGallery(
     if !isScheduledMessages && peer != nil {
         model.interfaceView.doneLongPressed = { [weak selectionContext, weak editingContext, weak legacyController, weak model, weak paintStickersContext] item, sourceView in
             if let legacyController = legacyController, let item = item as? TGMediaPickerGalleryItem, let model = model, let selectionContext = selectionContext {
-                var effectiveHasSchedule = hasSchedule
+                var effectiveHasSchedule = hasSchedule && Offered.scheduledMessages // ice9: scheduling is not offered (#273)
                 
                 if let editingContext = editingContext {
                     if let timer = editingContext.timer(for: item.asset)?.intValue, timer > 0 {
