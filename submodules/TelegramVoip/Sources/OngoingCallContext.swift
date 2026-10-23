@@ -932,6 +932,7 @@ public final class OngoingCallContext {
     private var signalingConnectionManager: QueueLocalObject<CallSignalingConnectionManager>?
     
     private let audioDevice: AudioDevice?
+    private let ice9Audio: Ice9CallAudio // ice9: what the call did with sound (#288)
     
     public static func versions(includeExperimental: Bool, includeReference: Bool) -> [(version: String, supportsVideo: Bool)] {
         var result: [(version: String, supportsVideo: Bool)] = []
@@ -952,6 +953,8 @@ public final class OngoingCallContext {
         let logPath = self.logPath
         
         self.audioDevice = audioDevice
+        self.ice9Audio = Ice9CallAudio(callId: callId.id, isOutgoing: isOutgoing) // ice9: what the call did with sound (#288)
+        let ice9Audio = self.ice9Audio
         
         let _ = try? FileManager.default.createDirectory(atPath: callLogsPath(account: account), withIntermediateDirectories: true, attributes: nil)
         
@@ -967,6 +970,7 @@ public final class OngoingCallContext {
         |> take(1)
         |> deliverOn(queue)).start(next: { [weak self, callSessionManager] _ in
             if let strongSelf = self {
+                ice9Audio.audioSessionActivated() // ice9: what the call did with sound (#288)
                 var allowP2P = allowP2P
                 
                 var voipProxyServer: VoipProxyServerWebrtc?
@@ -1138,6 +1142,7 @@ public final class OngoingCallContext {
                             return
                         }
                         let mappedState = OngoingCallContextState.State(state)
+                        if case .connected = mappedState { ice9Audio.established() } // ice9: what the call did with sound (#288)
                         let mappedVideoState: OngoingCallContextState.VideoState
                         switch videoState {
                         case .inactive:
@@ -1191,6 +1196,7 @@ public final class OngoingCallContext {
                 }
                 context.audioLevelUpdated = { level in
                     self?.audioLevelPromise.set(.single(level))
+                    ice9Audio.peerLevel(level) // ice9: what the call did with sound (#288)
                 }
                 
                 if audioDevice == nil {
@@ -1303,7 +1309,8 @@ public final class OngoingCallContext {
                     let _ = try? FileManager.default.moveItem(atPath: tempStatsLogPath, toPath: statsLogPath)
                 }
                 
-                if !statsLogPath.isEmpty, let data = try? Data(contentsOf: URL(fileURLWithPath: statsLogPath)), let dataString = String(data: data, encoding: .utf8) {
+                if !statsLogPath.isEmpty, let data = try? Data(contentsOf: URL(fileURLWithPath: statsLogPath)), let fileString = String(data: data, encoding: .utf8) {
+                    let dataString = self.ice9Audio.into(fileString) // ice9: what the call did with sound (#288)
                     debugLogValue.set(.single(dataString))
                     let engine = TelegramEngine(account: self.account)
                     let _ = engine.calls.saveCallDebugLog(callId: callId, log: dataString).start(next: { result in
@@ -1326,6 +1333,7 @@ public final class OngoingCallContext {
     }
     
     public func setIsMuted(_ value: Bool) {
+        self.ice9Audio.setMuted(value) // ice9: what the call did with sound (#288)
         self.withContext { context in
             context.nativeSetIsMuted(value)
         }
