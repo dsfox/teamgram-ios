@@ -864,6 +864,7 @@ private final class NotificationServiceHandler {
         } else {
             incomingCallMessage = "is calling you"
         }
+        let localizedNewMessage = ice9LocalizedNewMessage(rootPath: rootPath) // ice9: the server's "New message" in the app's language (#289)
 
         Logger.shared.log("NotificationService \(episode)", "Begin processing payload")
 
@@ -1235,7 +1236,7 @@ private final class NotificationServiceHandler {
                                     content.title = alert["title"] as? String
                                 }
                                 content.subtitle = alert["subtitle"] as? String
-                                content.body = alert["body"] as? String
+                                content.body = localizedNewMessage ?? alert["body"] as? String // ice9: the server's "New message" in the app's language (#289)
                             } else if let alert = aps["alert"] as? String {
                                 content.body = alert
                             } else {
@@ -3212,3 +3213,13 @@ extension Customoji {
         return sizes
     }
 }
+
+// ice9: the app's PUSH_LOCKED_MESSAGE, written for the extension, in place of the server's English "New message" (#289)
+private func ice9LocalizedNewMessage(rootPath: String) -> String? {
+    guard let data = try? Data(contentsOf: URL(fileURLWithPath: notificationsPresentationDataPath(rootPath: rootPath))), let value = try? JSONDecoder().decode(NotificationsPresentationData.self, from: data) else {
+        return nil
+    }
+    let text = value.applicationLockedMessageString.trimmingCharacters(in: .whitespacesAndNewlines)
+    return text.isEmpty ? nil : text
+}
+
