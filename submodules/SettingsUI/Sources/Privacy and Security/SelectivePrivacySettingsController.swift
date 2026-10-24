@@ -1893,7 +1893,7 @@ public func selectivePrivacySettingsController(
             } else if case .presence = kind {
                 updated(settings, nil, phoneDiscoveryEnabled, updatedGlobalSettings)
             } else if case .voiceCalls = kind, let dataSaving = callDataSaving, let callP2PSettings = callP2PSettings, let systemIntegrationEnabled = callIntegrationEnabled {
-                updated(settings, (callP2PSettings, VoiceCallSettings(dataSaving: dataSaving, enableSystemIntegration: systemIntegrationEnabled)), phoneDiscoveryEnabled, nil)
+                updated(settings, (callP2PSettings, VoiceCallSettings(dataSaving: dataSaving, enableSystemIntegration: systemIntegrationEnabled, catchUpAfterPause: callSettings?.1.catchUpAfterPause ?? false)), phoneDiscoveryEnabled, nil)
             } else {
                 updated(settings, nil, phoneDiscoveryEnabled, nil)
             }

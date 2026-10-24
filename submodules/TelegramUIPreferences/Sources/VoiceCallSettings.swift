@@ -31,14 +31,16 @@ public enum VoiceCallDataSaving: Int32 {
 public struct VoiceCallSettings: Codable, Equatable {
     public var dataSaving: VoiceCallDataSaving
     public var enableSystemIntegration: Bool
+    public var catchUpAfterPause: Bool // ice9: catch up after a pause is a setting, off by default (#290)
     
     public static var defaultSettings: VoiceCallSettings {
         return VoiceCallSettings(dataSaving: .default, enableSystemIntegration: true)
     }
     
-    public init(dataSaving: VoiceCallDataSaving, enableSystemIntegration: Bool) {
+    public init(dataSaving: VoiceCallDataSaving, enableSystemIntegration: Bool, catchUpAfterPause: Bool = false) {
         self.dataSaving = dataSaving
         self.enableSystemIntegration = enableSystemIntegration
+        self.catchUpAfterPause = catchUpAfterPause // ice9: catch up after a pause is a setting, off by default (#290)
     }
     
     public init(from decoder: Decoder) throws {
@@ -46,6 +48,7 @@ public struct VoiceCallSettings: Codable, Equatable {
 
         self.dataSaving = VoiceCallDataSaving(rawValue: try container.decode(Int32.self, forKey: "ds")) ?? .default
         self.enableSystemIntegration = (try container.decode(Int32.self, forKey: "enableSystemIntegration")) != 0
+        self.catchUpAfterPause = (try container.decodeIfPresent(Int32.self, forKey: "ice9CatchUp") ?? 0) != 0 // ice9: catch up after a pause is a setting, off by default (#290)
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -53,6 +56,7 @@ public struct VoiceCallSettings: Codable, Equatable {
 
         try container.encode(self.dataSaving.rawValue, forKey: "ds")
         try container.encode((self.enableSystemIntegration ? 1 : 0) as Int32, forKey: "enableSystemIntegration")
+        try container.encode((self.catchUpAfterPause ? 1 : 0) as Int32, forKey: "ice9CatchUp") // ice9: catch up after a pause is a setting, off by default (#290)
     }
     
     public static func ==(lhs: VoiceCallSettings, rhs: VoiceCallSettings) -> Bool {
@@ -60,6 +64,9 @@ public struct VoiceCallSettings: Codable, Equatable {
             return false
         }
         if lhs.enableSystemIntegration != rhs.enableSystemIntegration {
+            return false
+        }
+        if lhs.catchUpAfterPause != rhs.catchUpAfterPause { // ice9: catch up after a pause is a setting, off by default (#290)
             return false
         }
         return true

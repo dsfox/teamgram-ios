@@ -301,6 +301,7 @@ public final class PresentationCallManagerImpl: PresentationCallManager {
         |> deliverOnMainQueue).start(next: { [weak self] sharedData in
             if let strongSelf = self {
                 strongSelf.callSettings = sharedData.entries[ApplicationSpecificSharedDataKeys.voiceCallSettings]?.get(VoiceCallSettings.self) ?? .defaultSettings
+                OngoingCallContext.AudioDevice.setCatchUpAfterPause(strongSelf.callSettings?.catchUpAfterPause ?? false) // ice9: catch up after a pause is a setting, off by default (#290)
             }
         })
     }

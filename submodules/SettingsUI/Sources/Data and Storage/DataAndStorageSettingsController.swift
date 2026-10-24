@@ -27,6 +27,7 @@ private final class DataAndStorageControllerArguments {
     let openAutomaticDownloadConnectionType: (AutomaticDownloadConnectionType) -> Void
     let resetAutomaticDownload: () -> Void
     let toggleVoiceUseLessData: (Bool) -> Void
+    var toggleCatchUpAfterPause: (Bool) -> Void = { _ in } // ice9: catch up after a pause is a setting, off by default (#290)
     let openSaveIncoming: (AutomaticSaveIncomingPeerType) -> Void
     let toggleSaveEditedPhotos: (Bool) -> Void
     let togglePauseMusicOnRecording: (Bool) -> Void
@@ -113,6 +114,8 @@ private enum DataAndStorageEntry: ItemListNodeEntry {
     
     case useLessVoiceData(PresentationTheme, String, Bool)
     case useLessVoiceDataInfo(PresentationTheme, String)
+    case catchUpAfterPause(String, Bool) // ice9: catch up after a pause is a setting, off by default (#290)
+    case catchUpAfterPauseInfo(String)
     case otherHeader(PresentationTheme, String)
     case shareSheet(PresentationTheme, String)
     case saveEditedPhotos(PresentationTheme, String, Bool)
@@ -136,7 +139,7 @@ private enum DataAndStorageEntry: ItemListNodeEntry {
                 return DataAndStorageSection.autoSave.rawValue
             case .downloadInBackground, .downloadInBackgroundInfo:
                 return DataAndStorageSection.backgroundDownload.rawValue
-            case .useLessVoiceData, .useLessVoiceDataInfo:
+            case .useLessVoiceData, .useLessVoiceDataInfo, .catchUpAfterPause, .catchUpAfterPauseInfo: // ice9: catch up after a pause is a setting, off by default (#290)
                 return DataAndStorageSection.voiceCalls.rawValue
             case .otherHeader, .shareSheet, .saveEditedPhotos, .pauseMusicOnRecording, .raiseToListen, .raiseToListenInfo:
                 return DataAndStorageSection.other.rawValue
@@ -175,6 +178,10 @@ private enum DataAndStorageEntry: ItemListNodeEntry {
                 return 23
             case .useLessVoiceDataInfo:
                 return 24
+            case .catchUpAfterPause: // ice9: catch up after a pause is a setting, off by default (#290)
+                return 25
+            case .catchUpAfterPauseInfo:
+                return 26
             case .otherHeader:
                 return 29
             case .shareSheet:
@@ -262,6 +269,18 @@ private enum DataAndStorageEntry: ItemListNodeEntry {
                 }
             case let .useLessVoiceDataInfo(lhsTheme, lhsText):
                 if case let .useLessVoiceDataInfo(rhsTheme, rhsText) = rhs, lhsTheme === rhsTheme, lhsText == rhsText {
+                    return true
+                } else {
+                    return false
+                }
+            case let .catchUpAfterPause(lhsText, lhsValue): // ice9: catch up after a pause is a setting, off by default (#290)
+                if case let .catchUpAfterPause(rhsText, rhsValue) = rhs, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
+            case let .catchUpAfterPauseInfo(lhsText):
+                if case let .catchUpAfterPauseInfo(rhsText) = rhs, lhsText == rhsText {
                     return true
                 } else {
                     return false
@@ -398,6 +417,12 @@ private enum DataAndStorageEntry: ItemListNodeEntry {
                     arguments.toggleVoiceUseLessData(value)
                 }, tag: DataAndStorageEntryTag.useLessVoiceData)
             case let .useLessVoiceDataInfo(_, text):
+                return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+            case let .catchUpAfterPause(text, value): // ice9: catch up after a pause is a setting, off by default (#290)
+                return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: text, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                    arguments.toggleCatchUpAfterPause(value)
+                })
+            case let .catchUpAfterPauseInfo(text):
                 return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
             case let .otherHeader(_, text):
                 return ItemListSectionHeaderItem(presentationData: presentationData, text: text, sectionId: self.section)
@@ -635,6 +660,8 @@ private func dataAndStorageControllerEntries(context: AccountContext, state: Dat
         let dataSaving = effectiveDataSaving(for: data.voiceCallSettings, autodownloadSettings: data.autodownloadSettings)
         entries.append(.useLessVoiceData(presentationData.theme, presentationData.strings.ChatSettings_UseLessDataForCalls, dataSaving != .never))
         entries.append(.useLessVoiceDataInfo(presentationData.theme, presentationData.strings.CallSettings_UseLessDataLongDescription))
+        entries.append(.catchUpAfterPause(presentationData.strings.Ice9_CallCatchUpAfterPause, data.voiceCallSettings.catchUpAfterPause)) // ice9: catch up after a pause is a setting, off by default (#290)
+        entries.append(.catchUpAfterPauseInfo(presentationData.strings.Ice9_CallCatchUpAfterPauseInfo))
     }
     
     entries.append(.otherHeader(presentationData.theme, presentationData.strings.ChatSettings_Other))
@@ -919,6 +946,13 @@ public func dataAndStorageController(context: AccountContext, focusOnItemTag: Da
             update()
         }
     })
+    arguments.toggleCatchUpAfterPause = { value in // ice9: catch up after a pause is a setting, off by default (#290)
+        let _ = updateVoiceCallSettingsSettingsInteractively(accountManager: context.sharedContext.accountManager, { current in
+            var current = current
+            current.catchUpAfterPause = value
+            return current
+        }).start()
+    }
     
     let preferences = context.engine.data.subscribe(TelegramEngine.EngineData.Item.Configuration.ApplicationSpecificPreference(key: ApplicationSpecificPreferencesKeys.mediaAutoSaveSettings))
     |> map { entry -> MediaAutoSaveSettings in

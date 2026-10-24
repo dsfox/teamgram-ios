@@ -88,5 +88,9 @@
 "RichText.PremiumToastText" = "Sending a message with this formatting will require [Premium]().";
 "Ice9.MessageFromAnotherDevice" = "🔒 Message from another device";
 
+/* Calls: what is said while iOS holds the call's sound (an alarm) (#290). */
+"Ice9.CallCatchUpAfterPause" = "Catch Up After a Pause";
+"Ice9.CallCatchUpAfterPauseInfo" = "When an alarm or another app interrupts a call, play what was said meanwhile faster until the call is live again. Off: the call resumes live, at normal speed.";
+
 /* The passcode guards no wallet here (#278); upstream's text says it does. */
 "PasscodeSettings.TurnOffWalletProtectionWarning" = "This also turns off biometric unlocking.";

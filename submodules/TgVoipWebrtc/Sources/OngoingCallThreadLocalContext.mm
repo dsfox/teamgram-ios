@@ -31,6 +31,7 @@
 
 #include "platform/darwin/iOS/RTCAudioSession.h"
 #include "platform/darwin/iOS/RTCAudioSessionConfiguration.h"
+#import "Ice9PlayoutPause.h" // ice9: catch up after a pause is a setting, off by default (#290)
 
 #endif
 
@@ -620,6 +621,7 @@ public:
                     elapsed_time_ms,
                     ntp_time_ms
                 );
+                _ice9LastRealPullMs = rtc::TimeMillis(); if (elapsed_time_ms) ice9::playoutStats().played(*elapsed_time_ms, _ice9LastRealPullMs); // ice9: catch up after a pause is a setting, off by default (#290)
             }
         } else {
             nSamplesOut = 0;
@@ -750,6 +752,8 @@ public:
     virtual void setIsActive(bool isActive) override {
     }
     
+    #include "Ice9PlayoutDrain.h" // ice9: catch up after a pause is a setting, off by default (#290)
+
     virtual void ActualStop() {
         RTC_LOG(LS_WARNING) << "SharedAudioDeviceModule: stopping the audio device (wasStarted=" << _isStarted << ")";
         _isStarted = false;
@@ -932,6 +936,8 @@ static std::atomic<bool> sharedCallAudioDeviceLegacyBehavior{false};
     return sharedCallAudioDeviceLegacyBehavior.load();
 }
 
+#include "Ice9SharedCallAudioDevice.h" // ice9: catch up after a pause is a setting, off by default (#290)
+
 - (instancetype _Nonnull)initWithDisableRecording:(bool)disableRecording enableSystemMute:(bool)enableSystemMute {
     self = [super init];
     if (self != nil) {
@@ -951,6 +957,7 @@ static std::atomic<bool> sharedCallAudioDeviceLegacyBehavior{false};
         _audioDeviceModule.reset(new tgcalls::ThreadLocalObject<tgcalls::SharedAudioDeviceModule>(tgcalls::StaticThreads::getThreads()->getWorkerThread(), [disableRecording, enableSystemMute, legacyBehavior, onStartResult]() mutable {
             return std::static_pointer_cast<tgcalls::SharedAudioDeviceModule>(std::make_shared<SharedAudioDeviceModuleImpl>(disableRecording, enableSystemMute, legacyBehavior, onStartResult));
         }));
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(ice9Interruption:) name:AVAudioSessionInterruptionNotification object:nil]; // ice9: catch up after a pause is a setting, off by default (#290)
     }
     return self;
 }

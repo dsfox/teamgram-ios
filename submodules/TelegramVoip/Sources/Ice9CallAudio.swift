@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import UIKit
 import TelegramCore
+import TgVoipWebrtc
 
 /// What a private call did with sound, on this phone (#288).
 ///
@@ -47,6 +48,11 @@ final class Ice9CallAudio {
         self.incoming = !isOutgoing
         self.processAgeMs = Ice9CallAudio.processAgeMs()
         Logger.shared.log("Ice9CallAudio", "call \(callId) \(isOutgoing ? "outgoing" : "incoming"), process up \(self.processAgeMs) ms, \(Ice9CallAudio.sessionLine())")
+        // How fast the other side was played, and what was dropped while iOS held the sound (#290).
+        SharedCallAudioDevice.ice9ResetPlayoutStats()
+        #if DEBUG
+        Ice9DebugInterruption.install()
+        #endif
 
         let center = NotificationCenter.default
         self.observers.append(center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: nil) { [weak self] note in
@@ -136,7 +142,9 @@ final class Ice9CallAudio {
                 "samples": audio.samples,
                 "peer_max": Double(audio.peerMax),
                 "peer_heard": audio.peerHeard,
-                "peer_first_ms": audio.peerFirstMs
+                "peer_first_ms": audio.peerFirstMs,
+                "playout_max_speed": Int(SharedCallAudioDevice.ice9PlayoutMaxSpeedPercent()),
+                "playout_discarded_ms": Int(SharedCallAudioDevice.ice9PlayoutDiscardedMs())
             ]
             for (key, value) in session {
                 o[key] = value
@@ -158,7 +166,7 @@ final class Ice9CallAudio {
     }
 
     private func summaryLine() -> String {
-        return "call \(self.callId) samples=\(self.samples) peer max=\(self.peerMax) heard=\(self.peerHeard) first=\(self.peerFirstMs)ms, muted=\(self.muted) interruptions=\(self.interruptions) routeChanges=\(self.routeChanges)"
+        return "call \(self.callId) samples=\(self.samples) peer max=\(self.peerMax) heard=\(self.peerHeard) first=\(self.peerFirstMs)ms, muted=\(self.muted) interruptions=\(self.interruptions) routeChanges=\(self.routeChanges) playoutMaxSpeed=\(SharedCallAudioDevice.ice9PlayoutMaxSpeedPercent())% discarded=\(SharedCallAudioDevice.ice9PlayoutDiscardedMs())ms"
     }
 
     @discardableResult
@@ -231,3 +239,37 @@ final class Ice9CallAudio {
         return Int64((Date().timeIntervalSince1970 - started) * 1000.0)
     }
 }
+
+#if DEBUG
+/// Debug builds only: an audio interruption on demand, for the walk that cannot
+/// make a simulator ring an alarm (#290). `simctl spawn <udid> notifyutil -p
+/// app.ice9.debug.interruption.began` (and `.ended`) posts what iOS posts, so
+/// tgcalls and the app take the same path as for a real alarm.
+enum Ice9DebugInterruption {
+    private static var installed = false
+
+    static func install() {
+        if installed {
+            return
+        }
+        installed = true
+        let center = CFNotificationCenterGetDarwinNotifyCenter()
+        for (name, type) in [("app.ice9.debug.interruption.began", AVAudioSession.InterruptionType.began), ("app.ice9.debug.interruption.ended", AVAudioSession.InterruptionType.ended)] {
+            let callback: CFNotificationCallback = { _, _, cfName, _, _ in
+                let isBegan = (cfName?.rawValue as String?)?.hasSuffix("began") ?? false
+                let type: AVAudioSession.InterruptionType = isBegan ? .began : .ended
+                DispatchQueue.main.async {
+                    Logger.shared.log("Ice9CallAudio", "debug: posting an audio interruption \(isBegan ? "began" : "ended")")
+                    var info: [AnyHashable: Any] = [AVAudioSessionInterruptionTypeKey: type.rawValue]
+                    if !isBegan {
+                        info[AVAudioSessionInterruptionOptionKey] = AVAudioSession.InterruptionOptions.shouldResume.rawValue
+                    }
+                    NotificationCenter.default.post(name: AVAudioSession.interruptionNotification, object: AVAudioSession.sharedInstance(), userInfo: info)
+                }
+            }
+            _ = type
+            CFNotificationCenterAddObserver(center, nil, callback, name as CFString, nil, .deliverImmediately)
+        }
+    }
+}
+#endif

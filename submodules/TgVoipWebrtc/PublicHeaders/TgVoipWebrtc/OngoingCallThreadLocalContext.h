@@ -64,6 +64,12 @@
 + (void)setLegacyBehaviorEnabled:(bool)enabled;
 + (bool)legacyBehaviorEnabled;
 
+// ice9: catch up after a pause is a setting, off by default; the playout measured (#290)
++ (void)ice9SetCatchUpAfterPause:(bool)catchUp NS_SWIFT_NAME(ice9SetCatchUpAfterPause(_:));
++ (int)ice9PlayoutMaxSpeedPercent;
++ (int)ice9PlayoutDiscardedMs;
++ (void)ice9ResetPlayoutStats;
+
 /// Called on the WebRTC worker thread after every attempt to start the real audio unit. `started`
 /// is false while attempts fail (`failure` names the failed step) and true once the device runs,
 /// with `failedAttempts` counting the failures that preceded it.

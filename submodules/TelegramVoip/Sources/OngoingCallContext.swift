@@ -845,6 +845,10 @@ public final class OngoingCallContext {
             SharedCallAudioDevice.setLegacyBehaviorEnabled(enabled)
         }
         
+        public static func setCatchUpAfterPause(_ catchUp: Bool) { // ice9: catch up after a pause is a setting, off by default (#290)
+            SharedCallAudioDevice.ice9SetCatchUpAfterPause(catchUp)
+        }
+        
         private init(impl: SharedCallAudioDevice) {
             self.impl = impl
             // The start outcome used to be invisible: RTC logs only reach the app log while a
