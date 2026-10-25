@@ -1011,6 +1011,7 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
                     }
                     
                     attributes.append(contentsOf: outgoingMessageAttributes(requestedAttributes: requestedAttributes, isSecretChat: peer is TelegramSecretChat, peerAutoremoveTimeout: peerAutoremoveTimeout))
+                    MlsLinks.mark(text: text, attributes: &attributes, peer: peer, peerId: peerId, accountPeerId: account.peerId) // ice9: links in an encrypted chat are marked by the sender (#292)
 
                     if let replyToMessageId = replyToMessageId {
                         var threadMessageId: MessageId?
