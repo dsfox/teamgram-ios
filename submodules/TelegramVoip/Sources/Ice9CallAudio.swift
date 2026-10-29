@@ -50,6 +50,8 @@ final class Ice9CallAudio {
         Logger.shared.log("Ice9CallAudio", "call \(callId) \(isOutgoing ? "outgoing" : "incoming"), process up \(self.processAgeMs) ms, \(Ice9CallAudio.sessionLine())")
         // How fast the other side was played, and what was dropped while iOS held the sound (#290).
         SharedCallAudioDevice.ice9ResetPlayoutStats()
+        // Whether the speaker asked for sound and the microphone gave it, and whether the call began with the sound held (#293).
+        SharedCallAudioDevice.ice9ResetDeviceCounters()
         #if DEBUG
         Ice9DebugInterruption.install()
         #endif
@@ -93,7 +95,7 @@ final class Ice9CallAudio {
                 audio.inputPortsAtConnect = ports
             }
         }
-        Logger.shared.log("Ice9CallAudio", "established, \(Ice9CallAudio.sessionLine())")
+        Logger.shared.log("Ice9CallAudio", "established, \(Ice9CallAudio.sessionLine()), device \(Ice9CallAudio.deviceLine())")
     }
 
     func setMuted(_ value: Bool) {
@@ -149,6 +151,9 @@ final class Ice9CallAudio {
             for (key, value) in session {
                 o[key] = value
             }
+            for (key, value) in SharedCallAudioDevice.ice9DeviceCounters() {
+                o[key] = value.intValue
+            }
             return (o, audio.summaryLine())
         }
         Logger.shared.log("Ice9CallAudio", "ended, \(line)")
@@ -166,7 +171,12 @@ final class Ice9CallAudio {
     }
 
     private func summaryLine() -> String {
-        return "call \(self.callId) samples=\(self.samples) peer max=\(self.peerMax) heard=\(self.peerHeard) first=\(self.peerFirstMs)ms, muted=\(self.muted) interruptions=\(self.interruptions) routeChanges=\(self.routeChanges) playoutMaxSpeed=\(SharedCallAudioDevice.ice9PlayoutMaxSpeedPercent())% discarded=\(SharedCallAudioDevice.ice9PlayoutDiscardedMs())ms"
+        return "call \(self.callId) samples=\(self.samples) peer max=\(self.peerMax) heard=\(self.peerHeard) first=\(self.peerFirstMs)ms, muted=\(self.muted) interruptions=\(self.interruptions) routeChanges=\(self.routeChanges) playoutMaxSpeed=\(SharedCallAudioDevice.ice9PlayoutMaxSpeedPercent())% discarded=\(SharedCallAudioDevice.ice9PlayoutDiscardedMs())ms, device \(Ice9CallAudio.deviceLine())"
+    }
+
+    /// The shared audio device's counters for this call, as one line (#293).
+    static func deviceLine() -> String {
+        return SharedCallAudioDevice.ice9DeviceCounters().sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value.intValue)" }.joined(separator: " ")
     }
 
     @discardableResult

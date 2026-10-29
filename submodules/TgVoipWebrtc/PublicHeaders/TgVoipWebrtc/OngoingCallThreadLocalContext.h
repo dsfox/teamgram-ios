@@ -69,6 +69,9 @@
 + (int)ice9PlayoutMaxSpeedPercent;
 + (int)ice9PlayoutDiscardedMs;
 + (void)ice9ResetPlayoutStats;
+// ice9: what the device did in a call: speaker pulls, mic frames, transports, holds (#293)
++ (void)ice9ResetDeviceCounters;
++ (NSDictionary<NSString *, NSNumber *> * _Nonnull)ice9DeviceCounters;
 
 /// Called on the WebRTC worker thread after every attempt to start the real audio unit. `started`
 /// is false while attempts fail (`failure` names the failed step) and true once the device runs,

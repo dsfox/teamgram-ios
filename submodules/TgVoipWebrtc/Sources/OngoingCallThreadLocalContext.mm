@@ -496,6 +496,7 @@ public:
         uint32_t& newMicLevel
     ) override {
         _mutex.Lock();
+        ice9::deviceCounters().micFrame(); // ice9: what the device did in a call, counted (#293)
         if (!_audioTransports.empty()) {
             for (size_t i = 0; i < _audioTransports.size(); i++) {
                 _audioTransports[i].first->RecordedDataIsAvailable(
@@ -530,6 +531,7 @@ public:
         absl::optional<int64_t> estimatedCaptureTimeNS
     ) override {
         _mutex.Lock();
+        ice9::deviceCounters().micFrame(); // ice9: what the device did in a call, counted (#293)
         if (!_audioTransports.empty()) {
             for (size_t i = 0; i < _audioTransports.size(); i++) {
                 _audioTransports[i].first->RecordedDataIsAvailable(
@@ -564,6 +566,7 @@ public:
     ) override {
         _mutex.Lock();
         
+        _ice9LastRealPullMs = rtc::TimeMillis(); ice9::deviceCounters().speakerPulled(_audioTransports.size()); // ice9: every speaker pull ends a hold, whatever the transports (#293)
         int32_t result = 0;
         if (!_audioTransports.empty()) {
             if (_audioTransports.size() > 1) {
@@ -621,7 +624,7 @@ public:
                     elapsed_time_ms,
                     ntp_time_ms
                 );
-                _ice9LastRealPullMs = rtc::TimeMillis(); if (elapsed_time_ms) ice9::playoutStats().played(*elapsed_time_ms, _ice9LastRealPullMs); // ice9: catch up after a pause is a setting, off by default (#290)
+                if (elapsed_time_ms) ice9::playoutStats().played(*elapsed_time_ms, _ice9LastRealPullMs); // ice9: catch up after a pause is a setting, off by default (#290)
             }
         } else {
             nSamplesOut = 0;
@@ -1030,6 +1033,7 @@ static std::atomic<bool> sharedCallAudioDeviceLegacyBehavior{false};
     if (isTransition) {
         RTC_LOG(LS_WARNING) << "SharedCallAudioDevice: audio session active -> " << isAudioSessionActive;
         if (isAudioSessionActive) {
+            [self ice9ActivatedFromOutside]; // ice9: an activation ends a hold, as it ends upstream's interruption (#293)
             [[RTCAudioSession sharedInstance] audioSessionDidActivate:[AVAudioSession sharedInstance]];
         } else if (wasActive) {
             [[RTCAudioSession sharedInstance] audioSessionDidDeactivate:[AVAudioSession sharedInstance]];

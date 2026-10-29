@@ -10,6 +10,7 @@ void ice9HoldPlayout(bool held) {
         return;
     }
     _ice9Held = held;
+    ice9::deviceCounters().setHeld(held);
     _ice9DrainedUntilMs = rtc::TimeMillis();
     _ice9HeldSinceMs = _ice9DrainedUntilMs;
     RTC_LOG(LS_WARNING) << "ice9: call sound " << (held ? "held" : "back") << ", catch up " << ice9::catchUpAfterPause().load();
@@ -19,6 +20,18 @@ void ice9HoldPlayout(bool held) {
     } else if (_ice9Safety) {
         _ice9Safety->SetNotAlive();
         _ice9Safety = nullptr;
+    }
+}
+
+// The audio session was activated from outside (CallKit handing it over).
+// Upstream treats that as the end of any interruption, because CallKit often
+// sends a "began" with no "ended" (#293); the hold ends with it, or it would
+// drain the other side for the whole call.
+void ice9ActivatedFromOutside() {
+    if (_ice9Held) {
+        RTC_LOG(LS_WARNING) << "ice9: the audio session was activated, the hold is over";
+        ice9::deviceCounters().holdEndedByActivation();
+        ice9HoldPlayout(false);
     }
 }
 
@@ -33,6 +46,7 @@ void ice9DrainTick() {
     if (_ice9LastRealPullMs > _ice9HeldSinceMs + 100) {
         RTC_LOG(LS_WARNING) << "ice9: the speaker pulls again, the hold is over";
         _ice9Held = false;
+        ice9::deviceCounters().setHeld(false);
         _ice9Safety = nullptr;
         return;
     }

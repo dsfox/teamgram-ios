@@ -83,6 +83,75 @@ inline PlayoutStats &playoutStats() {
     return stats;
 }
 
+// What the shared audio device did during one call (#293). A callee once
+// heard nothing and was not heard, and the summary could not say whether the
+// speaker ever asked for sound, whether the microphone gave frames, or how
+// many calls' transports the device carried - so it counts them. Reset when
+// the call's summary begins; `held` is the hold's state, not a count, so it
+// survives the reset and says whether the call began with the sound held.
+class DeviceCounters {
+public:
+    void speakerPulled(size_t transports) {
+        _speakerPulls.fetch_add(1);
+        if (transports == 0) {
+            _pullsWithoutTransport.fetch_add(1);
+        }
+        int count = (int)transports;
+        int seen = _transportsMax.load();
+        while (count > seen && !_transportsMax.compare_exchange_weak(seen, count)) {
+        }
+    }
+
+    void micFrame() {
+        _micFrames.fetch_add(1);
+    }
+
+    void setHeld(bool held) {
+        _held.store(held);
+        if (held) {
+            _holds.fetch_add(1);
+        }
+    }
+
+    void holdEndedByActivation() {
+        _holdsEndedByActivation.fetch_add(1);
+    }
+
+    void reset() {
+        _heldAtStart.store(_held.load());
+        _speakerPulls.store(0);
+        _pullsWithoutTransport.store(0);
+        _transportsMax.store(0);
+        _micFrames.store(0);
+        _holds.store(0);
+        _holdsEndedByActivation.store(0);
+    }
+
+    int speakerPulls() const { return _speakerPulls.load(); }
+    int pullsWithoutTransport() const { return _pullsWithoutTransport.load(); }
+    int transportsMax() const { return _transportsMax.load(); }
+    int micFrames() const { return _micFrames.load(); }
+    int holds() const { return _holds.load(); }
+    int holdsEndedByActivation() const { return _holdsEndedByActivation.load(); }
+    bool heldAtStart() const { return _heldAtStart.load(); }
+    bool held() const { return _held.load(); }
+
+private:
+    std::atomic<int> _speakerPulls{0};
+    std::atomic<int> _pullsWithoutTransport{0};
+    std::atomic<int> _transportsMax{0};
+    std::atomic<int> _micFrames{0};
+    std::atomic<int> _holds{0};
+    std::atomic<int> _holdsEndedByActivation{0};
+    std::atomic<bool> _held{false};
+    std::atomic<bool> _heldAtStart{false};
+};
+
+inline DeviceCounters &deviceCounters() {
+    static DeviceCounters counters;
+    return counters;
+}
+
 }
 
 #endif
