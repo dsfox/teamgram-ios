@@ -582,6 +582,10 @@ icloud_fragment = "" if not telegram_enable_icloud else """
 # would ask for entitlements our provisioning profile does not carry, and the
 # build would stop at signing.
 #
+# ice9.ru beside it hands the app /server alone, for networks where i.ice9.app
+# cannot be reached (#245); its association file says so, and the rest of that
+# site stays a site.
+#
 # One name, no wildcard: i.ice9.app has no subdomains and never will. No
 # webcredentials either - nothing on that host asks for a password, and passkeys
 # take their relying party from the server rather than from here.
@@ -593,6 +597,7 @@ associated_domains_fragment = """
 <key>com.apple.developer.associated-domains</key>
 <array>
     <string>applinks:i.ice9.app</string>
+    <string>applinks:ice9.ru</string>
 </array>
 """
 

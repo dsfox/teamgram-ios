@@ -20,6 +20,7 @@
 "InviteText.URL" = "https://ice9.app";
 "InviteText.SingleContact" = "Hi! Get ice9: %@\nI left you a message there.";
 "Invite.CodeLine" = "Your invitation code: %@";
+"Invite.ServerLine" = "Then open this link, and the app opens with my server already filled in: %@";
 "Invite.AlreadyHere" = "This person is already on ice9 — just write to them.";
 "Invite.NoCode" = "Could not get an invitation code. Try again later.";
 "Invite.CodeHint" = "The code is in the SMS from whoever invited you.";

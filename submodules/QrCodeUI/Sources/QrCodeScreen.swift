@@ -182,6 +182,9 @@ private final class SheetContent: CombinedComponent {
             case .proxy:
                 titleString = ""
                 textString = strings.SocksProxySetup_ShareQRCodeInfo
+            case let .server(_, text):
+                titleString = ""
+                textString = text
             default:
                 titleString = ""
                 textString = ""
@@ -480,6 +483,8 @@ public final class QrCodeScreen: ViewControllerComponentContainer {
         case invite(invite: ExportedInvitation, type: SubjectType)
         case chatFolder(slug: String)
         case proxy(server: ProxyServerSettings, externalLink: Bool)
+        // ice9: a server of one's own, handed on by its link (#245)
+        case server(link: String, text: String)
         
         var link: String {
             switch self {
@@ -516,19 +521,21 @@ public final class QrCodeScreen: ViewControllerComponentContainer {
                     link = webProxySettingsLink(server) ?? ""
                 }
                 return link
+            case let .server(link, _):
+                return link
             }
         }
         
         var ecl: String {
             switch self {
-            case .peer, .invite, .chatFolder, .proxy:
+            case .peer, .invite, .chatFolder, .proxy, .server:
                 return "Q"
             }
         }
 
         var icon: QrCodeIcon {
             switch self {
-            case .peer, .invite, .chatFolder:
+            case .peer, .invite, .chatFolder, .server:
                 return .custom(UIImage(bundleImageName: "Chat/Links/QrLogo"))
             case .proxy:
                 return .proxy

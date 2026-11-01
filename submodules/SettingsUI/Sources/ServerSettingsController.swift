@@ -9,6 +9,7 @@ import PresentationDataUtils
 import AccountContext
 import AlertUI
 import DebugSettingsUI
+import QrCodeUI
 
 /// The wording for the server row and the screen behind it (ice9 #65).
 ///
@@ -111,6 +112,24 @@ func serverSettingsSameServer(_ strings: PresentationStrings) -> String {
         : "This phone already talks to this server."
 }
 
+/// Handing a server of one's own on from the phone (#245), so a member does
+/// not need the owner's terminal: the same link the installer prints.
+func serverSettingsShare(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings) ? "Поделиться сервером" : "Share this server"
+}
+
+func serverSettingsShareInfo(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings)
+        ? "Ссылка и QR-код, по которым ice9 откроется с уже вписанным этим сервером и его кодом."
+        : "A link and a QR code that open ice9 with this server and its code already filled in."
+}
+
+/// The link a phone hands its server on by: through ice9.ru when the app speaks
+/// Russian, since i.ice9.app is often unreachable on Russian networks.
+public func serverSettingsShareLink(_ strings: PresentationStrings, address: ServerAddress) -> String {
+    return ServerLink.make(host: address.host, port: address.port, code: address.code ?? "", russian: serverSettingsIsRussian(strings))
+}
+
 /// A server link opened while signed in (#244): the same question Settings >
 /// Server asks, because changing servers is a sign-out here too. Confirmed, the
 /// question comes back after the sign-out with the link's server filled in.
@@ -140,12 +159,14 @@ public func serverLinkWhileSignedInController(context: AccountContext, link: Ser
 
 private struct ServerSettingsArguments {
     let change: () -> Void
+    let share: () -> Void
     let sendLogs: () -> Void
     let openSourceCode: () -> Void
 }
 
 private enum ServerSettingsSection: Int32 {
     case current
+    case share
     case change
     case logs
     case source
@@ -154,6 +175,8 @@ private enum ServerSettingsSection: Int32 {
 private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
     case current(PresentationTheme, String)
     case codeInfo(PresentationTheme, String)
+    case share(PresentationTheme, String)
+    case shareInfo(PresentationTheme, String)
     case change(PresentationTheme, String)
     case changeInfo(PresentationTheme, String)
     case sendLogs(PresentationTheme, String)
@@ -165,6 +188,8 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
         switch self {
         case .current, .codeInfo:
             return ServerSettingsSection.current.rawValue
+        case .share, .shareInfo:
+            return ServerSettingsSection.share.rawValue
         case .change, .changeInfo:
             return ServerSettingsSection.change.rawValue
         case .sendLogs, .sendLogsInfo:
@@ -192,6 +217,10 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
             return 6
         case .sourceCodeInfo:
             return 7
+        case .share:
+            return 9
+        case .shareInfo:
+            return 10
         }
     }
 
@@ -203,6 +232,13 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
     private var order: Int32 {
         if case .codeInfo = self {
             return 3
+        }
+        // Sharing sits between the address and changing it.
+        if case .share = self {
+            return 4
+        }
+        if case .shareInfo = self {
+            return 5
         }
         return self.stableId * 2
     }
@@ -220,7 +256,11 @@ private enum ServerSettingsEntry: ItemListNodeEntry, Equatable {
             return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: title, kind: .destructive, alignment: .natural, sectionId: self.section, style: .blocks, action: {
                 arguments.change()
             })
-        case let .changeInfo(_, text), let .codeInfo(_, text):
+        case let .share(_, title):
+            return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: title, kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
+                arguments.share()
+            })
+        case let .changeInfo(_, text), let .codeInfo(_, text), let .shareInfo(_, text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         case let .sendLogs(_, title):
             return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: title, kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
@@ -244,6 +284,11 @@ private func serverSettingsEntries(presentationData: PresentationData, address: 
     ]
     if let code = address.code {
         entries.append(.codeInfo(presentationData.theme, serverSettingsCodeInfo(presentationData.strings, code: ServerCode.grouped(code))))
+    }
+    // Ours needs no link: the app reaches it by itself.
+    if !address.isOurs {
+        entries.append(.share(presentationData.theme, serverSettingsShare(presentationData.strings)))
+        entries.append(.shareInfo(presentationData.theme, serverSettingsShareInfo(presentationData.strings)))
     }
     return entries + [
         .change(presentationData.theme, serverSettingsChange(presentationData.strings)),
@@ -286,6 +331,11 @@ public func serverSettingsController(context: AccountContext) -> ViewController 
                 dismissImpl?()
             })
         ]), nil)
+    }, share: {
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+        let link = serverSettingsShareLink(presentationData.strings, address: store.effective)
+        Logger.shared.log("Server", "sharing the server as \(link)")
+        presentControllerImpl?(QrCodeScreen(context: context, subject: .server(link: link, text: serverSettingsShareInfo(presentationData.strings))), nil)
     }, sendLogs: {
         let _ = updateLoggingSettings(accountManager: context.sharedContext.accountManager, {
             $0.withUpdatedLogToFile(true)

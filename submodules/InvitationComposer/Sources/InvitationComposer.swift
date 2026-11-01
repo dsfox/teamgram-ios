@@ -63,8 +63,19 @@ public final class InvitationComposer: NSObject, MFMessageComposeViewControllerD
             // A +7 number is usually on a Russian network that cannot reach
             // ice9.app (Cloudflare); ice9.ru is served from our own machine and
             // opens there (#178). Everyone else keeps the CDN-backed link.
-            let inviteURL = phone.replacingOccurrences(of: " ", with: "").hasPrefix("+7") ? "https://ice9.ru" : strings.InviteText_URL
-            composer.body = strings.InviteText_SingleContact(inviteURL).string + "\n" + strings.Invite_CodeLine(code).string
+            let russian = phone.replacingOccurrences(of: " ", with: "").hasPrefix("+7")
+            let inviteURL = russian ? "https://ice9.ru" : strings.InviteText_URL
+            var lines = [strings.InviteText_SingleContact(inviteURL).string]
+            // From a server of one's own the app alone would land on ours: the
+            // link fills this server in on the first screen (#245).
+            let server = ServerAddressStore(rootPath: context.sharedContext.basePath).effective
+            if !server.isOurs {
+                let link = ServerLink.make(host: server.host, port: server.port, code: server.code ?? "", russian: russian)
+                Logger.shared.log("Invite", "the SMS hands on the server as \(link)")
+                lines.append(strings.Invite_ServerLine(link).string)
+            }
+            lines.append(strings.Invite_CodeLine(code).string)
+            composer.body = lines.joined(separator: "\n")
             one.composer = composer
             window.rootViewController?.present(composer, animated: true)
         }, error: { [weak controller] error in

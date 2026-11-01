@@ -127,7 +127,14 @@ public enum ServerLink: Equatable {
     case link(host: String, port: Int32, code: String)
     case malformed
 
-    private static let prefixes = ["https://i.ice9.app/server#", "http://i.ice9.app/server#", "tg2://server#"]
+    private static let prefixes = ["https://i.ice9.app/server#", "http://i.ice9.app/server#", "https://ice9.ru/server#", "http://ice9.ru/server#", "tg2://server#"]
+
+    /// The link to hand a server on by (#245): through ice9.ru for a number on
+    /// a Russian network, which often cannot reach i.ice9.app.
+    public static func make(host: String, port: Int32, code: String, russian: Bool) -> String {
+        let base = russian ? "https://ice9.ru/server#" : "https://i.ice9.app/server#"
+        return base + "\(host):\(port)" + (code.isEmpty ? "" : "/\(code)")
+    }
 
     /// The server a link names, .malformed for a server link that cannot be
     /// read, nil for any other link.
