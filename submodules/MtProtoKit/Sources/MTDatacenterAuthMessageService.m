@@ -581,6 +581,11 @@ static NSData *encryptRSAModernPadding(id<EncryptionProvider> encryptionProvider
                 if (MTLogEnabled()) {
                     MTLog(@"[MTDatacenterAuthMessageService#%p couldn't find valid server public key%@]", self, mtProto.context.serverPublicKey != nil ? @" - the server does not offer the key this phone holds for it" : @"");
                 }
+                // ice9: the app asks for the server's new code (#245)
+                void (^serverKeyRefused)(void) = mtProto.context.serverKeyRefused;
+                if (mtProto.context.serverPublicKey != nil && serverKeyRefused != nil) {
+                    serverKeyRefused();
+                }
                 [self fail:mtProto];
             }
             else

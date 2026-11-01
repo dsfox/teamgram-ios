@@ -268,6 +268,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
     private let authContextDisposable = MetaDisposable()
     
     private let logoutDisposable = MetaDisposable()
+    private let serverKeyRefusalDisposable = MetaDisposable()
     
     private let openNotificationSettingsWhenReadyDisposable = MetaDisposable()
     private let openChatWhenReadyDisposable = MetaDisposable()
@@ -1374,6 +1375,14 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
                 contextValue.context.account.shouldKeepBackgroundDownloadConnections.set(.single(false))
             }
             self.contextValue = context
+            // ice9: a server with a new key asks for its new code (#245)
+            self.serverKeyRefusalDisposable.set((ServerKeyRefusal.shared.signal
+            |> deliverOnMainQueue).start(next: { [weak self] in
+                guard let context = self?.contextValue?.context, let controller = serverKeyChangedController(context: context) else {
+                    return
+                }
+                context.sharedContext.presentGlobalController(controller, nil)
+            }))
             if let context = context {
                 setupLegacyComponents(context: context.context)
                 let isReady = context.isReady.get()

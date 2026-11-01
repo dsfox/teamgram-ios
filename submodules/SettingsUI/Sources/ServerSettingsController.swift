@@ -10,6 +10,9 @@ import AccountContext
 import AlertUI
 import DebugSettingsUI
 import QrCodeUI
+import ComponentFlow
+import AlertComponent
+import AlertInputFieldComponent
 
 /// The wording for the server row and the screen behind it (ice9 #65).
 ///
@@ -128,6 +131,111 @@ func serverSettingsShareInfo(_ strings: PresentationStrings) -> String {
 /// Russian, since i.ice9.app is often unreachable on Russian networks.
 public func serverSettingsShareLink(_ strings: PresentationStrings, address: ServerAddress) -> String {
     return ServerLink.make(host: address.host, port: address.port, code: address.code ?? "", russian: serverSettingsIsRussian(strings))
+}
+
+/// A server of one's own that stopped offering the key this phone holds
+/// (#245). It used to say "Connecting" for good; now it says the server has a
+/// new key and takes the new code from its owner without a sign-out. The code
+/// is the whole defence against somebody posing as the server, so the window
+/// says not to type one that did not come from the owner.
+func serverKeyChangedTitle(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings) ? "У сервера новый ключ" : "The server has a new key"
+}
+
+func serverKeyChangedText(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings)
+        ? "У этого сервера больше нет ключа, которому доверяет этот телефон, поэтому приложение не может до него достучаться. Узнайте новый код у владельца сервера и впишите его сюда — на телефоне ничего не пропадёт. Не вписывайте код, полученный не от владельца."
+        : "This server no longer has the key this phone trusts, so the app cannot reach it. Ask the server's owner for its new code and type it here - nothing on this phone is lost. Do not type a code that did not come from the owner."
+}
+
+func serverKeyChangedPlaceholder(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings) ? "Новый код сервера, 24 цифры" : "New server code, 24 digits"
+}
+
+func serverKeyChangedCheck(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings) ? "Проверить" : "Check"
+}
+
+func serverKeyChangedMismatch(_ strings: PresentationStrings) -> String {
+    return serverSettingsIsRussian(strings)
+        ? "У сервера другой код. Проверьте код у владельца."
+        : "The server has a different code. Check the code with its owner."
+}
+
+/// Asked once until answered: MTProto says so on every refused handshake.
+private var serverKeyChangedShown = false
+
+public func serverKeyChangedController(context: AccountContext) -> ViewController? {
+    let store = ServerAddressStore(rootPath: context.sharedContext.basePath)
+    let address = store.effective
+    if serverKeyChangedShown || address.key == nil {
+        return nil
+    }
+    serverKeyChangedShown = true
+    Logger.shared.log("Server", "the server does not offer the key this phone holds; asking for its new code")
+    let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+    let strings = presentationData.strings
+    let inputState = AlertInputFieldComponent.ExternalState()
+    let inProgress = ValuePromise<Bool>(false)
+    var applyImpl: (() -> Void)?
+    let content: [AnyComponentWithIdentity<AlertComponentEnvironment>] = [
+        AnyComponentWithIdentity(id: "title", component: AnyComponent(AlertTitleComponent(title: serverKeyChangedTitle(strings)))),
+        AnyComponentWithIdentity(id: "text", component: AnyComponent(AlertTextComponent(content: .plain(serverKeyChangedText(strings))))),
+        AnyComponentWithIdentity(id: "input", component: AnyComponent(AlertInputFieldComponent(
+            context: context,
+            initialValue: nil,
+            placeholder: serverKeyChangedPlaceholder(strings),
+            characterLimit: 40,
+            hasClearButton: true,
+            keyboardType: .numberPad,
+            autocapitalizationType: .none,
+            autocorrectionType: .no,
+            isInitiallyFocused: true,
+            externalState: inputState,
+            returnKeyAction: {
+                applyImpl?()
+            }
+        ))),
+    ]
+    var dismissImpl: (() -> Void)?
+    let controller = AlertScreen(
+        configuration: AlertScreen.Configuration(allowInputInset: true),
+        content: content,
+        actions: [
+            .init(title: strings.Common_Cancel, action: {
+                serverKeyChangedShown = false
+            }),
+            .init(title: serverKeyChangedCheck(strings), type: .default, action: {
+                applyImpl?()
+            }, autoDismiss: false, progress: inProgress.get())
+        ],
+        updatedPresentationData: (presentationData, context.sharedContext.presentationData)
+    )
+    dismissImpl = { [weak controller] in
+        controller?.dismiss()
+    }
+    applyImpl = {
+        guard let code = ServerCode.digits(inputState.value), !code.isEmpty else {
+            inputState.animateError()
+            return
+        }
+        inProgress.set(true)
+        let _ = (ServerKey.fetch(address)
+        |> deliverOnMainQueue).start(next: { answer in
+            inProgress.set(false)
+            guard case let .key(der) = answer, ServerCode.code(der) == code else {
+                Logger.shared.log("Server", "the new code was refused")
+                inputState.animateError()
+                return
+            }
+            store.replaceKey(der)
+            context.account.network.context.serverPublicKey = ServerCode.pem(der)
+            Logger.shared.log("Server", "kept the server's new key with the code \(code)")
+            serverKeyChangedShown = false
+            dismissImpl?()
+        })
+    }
+    return controller
 }
 
 /// A server link opened while signed in (#244): the same question Settings >

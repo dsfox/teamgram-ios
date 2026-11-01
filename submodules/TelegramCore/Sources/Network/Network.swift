@@ -567,6 +567,9 @@ func initializedNetwork(accountId: AccountRecordId, arguments: NetworkInitializa
             Logger.shared.log("Network", "seeding datacenter 1 from \(seedAddress.described)\(seedAddress.key != nil ? " with the server's own key" : "")")
             // ice9: an own server is reached with its own key, in every process (#244)
             context.serverPublicKey = seedAddress.publicKeyPem
+            context.serverKeyRefused = {
+                ServerKeyRefusal.shared.refused()
+            }
             context.setSeedAddressSetForDatacenterWithId(1, seedAddressSet: MTDatacenterAddressSet(addressList: [
                 MTDatacenterAddress(ip: seedAddress.host, port: UInt16(seedAddress.port), preferForMedia: false, restrictToTcp: false, cdn: false, preferForProxy: false, secret: nil)
             ]))

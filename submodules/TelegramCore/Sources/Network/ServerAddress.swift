@@ -177,6 +177,20 @@ public final class ServerAddressStore {
         self.write([effective.described] + self.keyLines(effective))
     }
 
+    /// A new key for the same server, checked against the code its owner gave
+    /// (#245). Whether the question was answered stays as it was.
+    public func replaceKey(_ key: Data) {
+        guard ServerCode.isAcceptable(key) else {
+            return
+        }
+        let lines = self.lines
+        guard let first = lines.first else {
+            return
+        }
+        let answered = lines.count > 1 && lines[1] == ServerAddressStore.answered
+        self.write([first] + (answered ? [ServerAddressStore.answered] : []) + [ServerAddressStore.keyLine + key.base64EncodedString()])
+    }
+
     private func keyLines(_ address: ServerAddress) -> [String] {
         guard let key = address.key else {
             return []
@@ -190,6 +204,22 @@ public final class ServerAddressStore {
         } catch let error {
             Logger.shared.log("ServerAddress", "could not keep \(lines.first ?? ""): \(error)")
         }
+    }
+}
+
+/// The server stopped offering the key this phone holds for it (#245): told by
+/// MTProto from its queue, heard by the app, which asks for the new code.
+public final class ServerKeyRefusal {
+    public static let shared = ServerKeyRefusal()
+
+    private let pipe = ValuePipe<Void>()
+
+    public var signal: Signal<Void, NoError> {
+        return self.pipe.signal()
+    }
+
+    func refused() {
+        self.pipe.putNext(Void())
     }
 }
 

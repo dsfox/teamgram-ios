@@ -95,6 +95,8 @@
 @property (nonatomic, readonly) bool isTestingEnvironment;
 /// ice9: the only key a handshake with this server may use, nil for the built-in one (#244)
 @property (atomic, copy) NSString * _Nullable serverPublicKey;
+/// ice9: called when the server no longer offers serverPublicKey (#245)
+@property (atomic, copy) void (^ _Nullable serverKeyRefused)(void);
 @property (nonatomic, readonly) bool useTempAuthKeys;
 @property (nonatomic) int32_t tempKeyExpiration;
 // Replaces bound temporary keys this process uses before they expire. Off by default; app extensions keep it off.
