@@ -86,7 +86,11 @@ public final class InvitationComposer: NSObject, MFMessageComposeViewControllerD
             let text: String
             switch error {
             case .alreadyHere:
-                text = chat != nil ? strings.Invite_AlreadyHereAdd : strings.Invite_AlreadyHere
+                if chat == nil {
+                    offerToWrite(context: context, phone: phone, from: controller)
+                    return
+                }
+                text = strings.Invite_AlreadyHereAdd
             case .notInGroup:
                 text = strings.Invite_NotInGroup
             case .generic:
@@ -94,6 +98,41 @@ public final class InvitationComposer: NSObject, MFMessageComposeViewControllerD
             }
             controller.present(textAlertController(context: context, title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strings.Common_OK, action: {})]), in: .window(.root))
         }))
+    }
+
+    /// The number already has an account: say so, and offer the chat instead
+    /// of an OK that left nowhere to go (#296). The phone had sent that number
+    /// to the server once, while nobody held it, so the person is not among
+    /// the contacts; Write finds them by the number, makes them a contact and
+    /// opens the chat.
+    private static func offerToWrite(context: AccountContext, phone: String, from controller: ViewController) {
+        let strings = context.sharedContext.currentPresentationData.with { $0 }.strings
+        let write = TextAlertAction(type: .defaultAction, title: strings.Conversation_ContextMenuSendMessage, action: { [weak controller] in
+            // Asked afresh: a number looked up before the person came in is
+            // remembered as nobody's for two days.
+            let _ = (context.engine.peers.resolvePeerByPhone(phone: phone, ageLimit: 0)
+            |> deliverOnMainQueue).startStandalone(next: { peer in
+                guard let peer, case let .user(user) = peer else {
+                    Logger.shared.log("Invite", "already here, and the number finds nobody")
+                    controller?.present(textAlertController(context: context, title: nil, text: strings.Invite_NoCode, actions: [TextAlertAction(type: .defaultAction, title: strings.Common_OK, action: {})]), in: .window(.root))
+                    return
+                }
+                let _ = (context.engine.data.get(TelegramEngine.EngineData.Item.Peer.IsContact(id: peer.id))
+                |> deliverOnMainQueue).startStandalone(next: { isContact in
+                    if !isContact {
+                        let _ = context.engine.contacts.addContactInteractively(peerId: peer.id, firstName: user.firstName ?? "", lastName: user.lastName ?? "", phoneNumber: user.phone ?? phone, noteText: "", noteEntities: [], addToPrivacyExceptions: false).startStandalone()
+                    }
+                    // The walks read this line: the alert led to this person's chat.
+                    Logger.shared.log("Invite", "already here, opening the chat with \(peer.id.id._internalGetInt64Value())")
+                    guard let navigationController = controller?.navigationController as? NavigationController ?? context.sharedContext.mainWindow?.viewController as? NavigationController else {
+                        return
+                    }
+                    context.sharedContext.navigateToChatController(NavigateToChatControllerParams(navigationController: navigationController, context: context, chatLocation: .peer(peer)))
+                })
+            })
+        })
+        let cancel = TextAlertAction(type: .genericAction, title: strings.Common_Cancel, action: {})
+        controller.present(textAlertController(context: context, title: nil, text: strings.Invite_AlreadyHere, actions: [cancel, write]), in: .window(.root))
     }
 
     /// Asks for the number to invite in a window with one field for it.
