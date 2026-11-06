@@ -210,6 +210,22 @@ public extension Api.functions {
             })
         }
 
+        /// mls.getKeyLog user_id:long known_size:long = mls.KeyLog;
+        ///
+        /// Which signature keys the server has said are this person's, in a
+        /// log that only grows, with the proofs (#44). knownSize is the size
+        /// of the log this phone kept last, or 0.
+        public static func getKeyLog(userId: Int64, knownSize: Int64) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.KeyLog>) {
+            let buffer = Buffer()
+            buffer.appendInt32(1641178120)
+            serializeInt64(userId, buffer: buffer, boxed: false)
+            serializeInt64(knownSize, buffer: buffer, boxed: false)
+            return (FunctionDescription(name: "mls.getKeyLog", parameters: [("userId", ConstructorParameterDescription(userId))]), buffer, DeserializeFunctionResponse { (buffer: Buffer) -> Api.mls.KeyLog? in
+                let reader = BufferReader(buffer)
+                return Api.mls.KeyLog.parse(reader)
+            })
+        }
+
         /// mls.claimKeyPackages user_id:long = mls.KeyPackages;
         public static func claimKeyPackages(userId: Int64) -> (FunctionDescription, Buffer, DeserializeFunctionResponse<Api.mls.KeyPackages>) {
             let buffer = Buffer()
@@ -495,6 +511,90 @@ public extension Api {
                     wanting.append(who)
                 }
                 return Members(epoch: epoch, holds: holds, wanting: wanting)
+            }
+        }
+
+        /// mls.keyLogHead size:long root:bytes date:int log_key:bytes signature:bytes = mls.KeyLogHead;
+        public struct KeyLogHead {
+            public let size: Int64
+            public let root: Buffer
+            public let date: Int32
+            public let logKey: Buffer
+            public let signature: Buffer
+
+            public static func parse(_ reader: BufferReader) -> KeyLogHead? {
+                guard let signature = reader.readInt32(), signature == 1654801443 else {
+                    return nil
+                }
+                guard let size = reader.readInt64(), let root = parseBytes(reader), let date = reader.readInt32(),
+                      let logKey = parseBytes(reader), let headSignature = parseBytes(reader) else {
+                    return nil
+                }
+                return KeyLogHead(size: size, root: root, date: date, logKey: logKey, signature: headSignature)
+            }
+        }
+
+        static func parseHashes(_ reader: BufferReader) -> [Buffer]? {
+            guard let vector = reader.readInt32(), vector == 481674261, let count = reader.readInt32(), count >= 0, count <= 128 else {
+                return nil
+            }
+            var hashes: [Buffer] = []
+            for _ in 0 ..< count {
+                guard let item = parseBytes(reader) else {
+                    return nil
+                }
+                hashes.append(item)
+            }
+            return hashes
+        }
+
+        /// mls.keyLogEntry index:long name:bytes signature_key:bytes proof:Vector<bytes> = mls.KeyLogEntry;
+        public struct KeyLogEntry {
+            public let index: Int64
+            public let name: Buffer
+            public let signatureKey: Buffer
+            public let proof: [Buffer]
+
+            public static func parse(_ reader: BufferReader) -> KeyLogEntry? {
+                guard let signature = reader.readInt32(), signature == 1287681784 else {
+                    return nil
+                }
+                guard let index = reader.readInt64(), let name = parseBytes(reader), let signatureKey = parseBytes(reader),
+                      let proof = parseHashes(reader) else {
+                    return nil
+                }
+                return KeyLogEntry(index: index, name: name, signatureKey: signatureKey, proof: proof)
+            }
+        }
+
+        /// mls.keyLog head:mls.KeyLogHead entries:Vector<mls.KeyLogEntry> consistency:Vector<bytes> = mls.KeyLog;
+        public struct KeyLog {
+            public let head: KeyLogHead
+            public let entries: [KeyLogEntry]
+            /// That the head's tree holds the one of the size asked about.
+            public let consistency: [Buffer]
+
+            public static func parse(_ reader: BufferReader) -> KeyLog? {
+                guard let signature = reader.readInt32(), signature == 1042434330 else {
+                    return nil
+                }
+                guard let head = KeyLogHead.parse(reader) else {
+                    return nil
+                }
+                guard let vector = reader.readInt32(), vector == 481674261, let count = reader.readInt32(), count >= 0, count <= 1000 else {
+                    return nil
+                }
+                var entries: [KeyLogEntry] = []
+                for _ in 0 ..< count {
+                    guard let entry = KeyLogEntry.parse(reader) else {
+                        return nil
+                    }
+                    entries.append(entry)
+                }
+                guard let consistency = parseHashes(reader) else {
+                    return nil
+                }
+                return KeyLog(head: head, entries: entries, consistency: consistency)
             }
         }
 

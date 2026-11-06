@@ -493,7 +493,8 @@ final class ContactsControllerNode: ASDisplayNode, ASGestureRecognizerDelegate {
         self.isSearchDisplayControllerActive = ChatListNavigationBar.ActiveSearch(isExternal: placeholderNode == nil)
         self.storiesUnlocked = false
         
-        self.searchDisplayController = SearchDisplayController(presentationData: self.presentationData, mode: .navigation, contentNode: ContactsSearchContainerNode(context: self.context, glass: true, externalSearchBar: true, onlyWriteable: false, categories: [.cloudContacts, .global, .deviceContacts], addContact: { [weak self] phoneNumber in
+        // ice9: the search lists only people in ice9 (#297)
+        self.searchDisplayController = SearchDisplayController(presentationData: self.presentationData, mode: .navigation, contentNode: ContactsSearchContainerNode(context: self.context, glass: true, externalSearchBar: true, onlyWriteable: false, categories: Offered.addressBookInContactsSearch ? [.cloudContacts, .global, .deviceContacts] : [.cloudContacts, .global], addContact: { [weak self] phoneNumber in
             if let requestAddContact = self?.requestAddContact {
                 requestAddContact(phoneNumber)
             }

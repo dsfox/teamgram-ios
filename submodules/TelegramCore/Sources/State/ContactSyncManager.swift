@@ -241,6 +241,7 @@ private func pushDeviceContacts(accountPeerId: PeerId, postbox: Postbox, network
         var updatedDataIdentifiers = Set<TelegramDeviceContactImportIdentifier>()
         var addedIdentifiers = Set<TelegramDeviceContactImportIdentifier>()
         var retryLaterIdentifiers = Set<TelegramDeviceContactImportIdentifier>()
+        var unheldIdentifiers = Set<TelegramDeviceContactImportIdentifier>()
         
         addedIdentifiers.formUnion(importableContacts.keys.map(TelegramDeviceContactImportIdentifier.phoneNumber))
         transaction.enumerateDeviceContactImportInfoItems({ key, value in
@@ -251,9 +252,11 @@ private func pushDeviceContacts(accountPeerId: PeerId, postbox: Postbox, network
                         if let updatedData = importableContacts[number] {
                             if let value = value as? TelegramDeviceContactImportedData {
                                 switch value {
-                                    case let .imported(data, _, _):
+                                    case let .imported(data, _, peerId):
                                         if data != updatedData {
                                            updatedDataIdentifiers.insert(identifier)
+                                        } else if peerId == nil {
+                                            unheldIdentifiers.insert(identifier) // ice9: a number nobody held (#297)
                                         }
                                     case .retryLater:
                                         retryLaterIdentifiers.insert(identifier)
@@ -273,6 +276,9 @@ private func pushDeviceContacts(accountPeerId: PeerId, postbox: Postbox, network
         
         for identifier in noLongerImportedIdentifiers {
             transaction.setDeviceContactImportInfo(identifier.key, value: nil)
+        }
+        if !unheldIdentifiers.isEmpty && Ice9ContactReask.take(accountPeerId: accountPeerId.id._internalGetInt64Value()) { // ice9: asked again once a day (#297)
+            retryLaterIdentifiers.formUnion(unheldIdentifiers)
         }
         
         var orderedPushIdentifiers: [TelegramDeviceContactImportIdentifier] = []
