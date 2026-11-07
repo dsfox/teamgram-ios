@@ -75,6 +75,11 @@ public final class MlsIdentity {
         return try? take(mls_identity_name(self.handle), "no name")
     }
 
+    /// The key this device signs with, which the key log holds for it (#44).
+    public func signatureKey() -> Data? {
+        return try? take(mls_identity_signature_key(self.handle), "no key")
+    }
+
     /// What somebody else needs in order to add this device to a conversation.
     /// Published to the server, handed out on request, used once.
     public func keyPackage() throws -> Data {

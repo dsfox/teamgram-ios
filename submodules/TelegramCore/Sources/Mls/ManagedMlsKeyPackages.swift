@@ -132,6 +132,14 @@ func managedMlsKeyPackages(postbox: Postbox, network: Network, accountPeerId: Pe
             if let result = result {
                 runtime.noteDevices(result.devices)
                 Logger.shared.log("Mls", "published \(result.added), \(result.available) available")
+                // And whether a key this account's phones never made has
+                // appeared in the key log (#44), on the same round.
+                if let (name, key) = runtime.withState({ identity -> (Data, Data)? in
+                    guard let name = identity.name(), let key = identity.signatureKey() else { return nil }
+                    return (name, key)
+                }) ?? nil {
+                    let _ = MlsKeyLog.watchOwn(network: network, accountPeerId: accountPeerId.id._internalGetInt64Value(), myName: name, myKey: key).start()
+                }
             } else {
                 Logger.shared.log("Mls", "the server did not take the key packages")
             }

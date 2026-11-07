@@ -269,6 +269,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
     
     private let logoutDisposable = MetaDisposable()
     private let serverKeyRefusalDisposable = MetaDisposable()
+    private let newDeviceKeyDisposable = MetaDisposable() // ice9: the new-device warning (#44)
     
     private let openNotificationSettingsWhenReadyDisposable = MetaDisposable()
     private let openChatWhenReadyDisposable = MetaDisposable()
@@ -1382,6 +1383,16 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
                     return
                 }
                 context.sharedContext.presentGlobalController(controller, nil)
+            }))
+            // ice9: a key none of this account's phones made appeared in the key log (#44)
+            self.newDeviceKeyDisposable.set((MlsNewDeviceKey.shared.signal
+            |> deliverOnMainQueue).start(next: { [weak self] in
+                guard let context = self?.contextValue?.context else {
+                    return
+                }
+                let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+                let russian = presentationData.strings.baseLanguageCode.hasPrefix("ru")
+                context.sharedContext.presentGlobalController(textAlertController(context: context, title: MlsNewDeviceKey.title(russian: russian), text: MlsNewDeviceKey.text(russian: russian), actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]), nil)
             }))
             if let context = context {
                 setupLegacyComponents(context: context.context)
