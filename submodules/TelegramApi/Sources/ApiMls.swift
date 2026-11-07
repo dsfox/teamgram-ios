@@ -604,6 +604,11 @@ public extension Api {
             /// silent device must not stop a conversation with the rest.
             public let packages: [Buffer]
 
+            /// The answer cut down to what the key log vouches for (#44).
+            public init(packages: [Buffer]) {
+                self.packages = packages
+            }
+
             public static func parse(_ reader: BufferReader) -> KeyPackages? {
                 guard let signature = reader.readInt32(), signature == -548140819 else {
                     return nil

@@ -442,7 +442,7 @@ private func letInMyOtherDevices(
         }
         Logger.shared.log("Mls", "this account has \(devices) device(s) and \(here.count) of them are in \(mlsShortId(groupId))")
 
-        return network.request(Api.functions.mls.claimKeyPackages(userId: self64))
+        return MlsKeyLog.claim(network: network, userId: self64)
         |> map(Optional.init)
         |> `catch` { _ -> Signal<Api.mls.KeyPackages?, NoError> in .single(nil) }
         |> mapToSignal { answer -> Signal<Void, NoError> in
@@ -912,7 +912,7 @@ private func compareWithTheList(
             // than stopping it: the others should not wait for a client that has
             // not published anything yet, and the comparison runs again later.
             return combineLatest(wanting.map { member in
-                network.request(Api.functions.mls.claimKeyPackages(userId: member.id._internalGetInt64Value()))
+                MlsKeyLog.claim(network: network, userId: member.id._internalGetInt64Value())
                 |> map(Optional.init)
                 |> `catch` { _ -> Signal<Api.mls.KeyPackages?, NoError> in .single(nil) }
             })

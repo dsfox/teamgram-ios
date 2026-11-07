@@ -283,7 +283,7 @@ public enum MlsConversations {
             // Messages it would be a second leaf of this device with no keys (#284).
             let own = identity.name()
             return combineLatest(members.map { member in
-                network.request(Api.functions.mls.claimKeyPackages(userId: member.id._internalGetInt64Value()))
+                MlsKeyLog.claim(network: network, userId: member.id._internalGetInt64Value())
                 |> map(Optional.init)
                 |> `catch` { _ -> Signal<Api.mls.KeyPackages?, NoError> in .single(nil) }
             })

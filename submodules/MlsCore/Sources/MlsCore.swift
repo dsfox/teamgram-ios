@@ -423,6 +423,47 @@ public final class MlsGroup {
     }
 }
 
+/// The key log's checks (#44): which signature key is whose, in a log the
+/// server can only add to. Written once in the core, as the server's are in Go.
+public enum MlsKeyLogCheck {
+    /// The key a key package's device signs with, which the log holds for it.
+    public static func signatureKey(ofKeyPackage keyPackage: Data) throws -> Data {
+        let buffer = keyPackage.withUnsafeBytes { raw -> MlsBuffer in
+            mls_key_package_signature_key(raw.bindMemory(to: UInt8.self).baseAddress, UInt(keyPackage.count))
+        }
+        return try take(buffer, "that key package carries no key")
+    }
+
+    /// Whether the head is signed by the log's key.
+    public static func headIsSigned(size: UInt64, root: Data, date: Int32, logKey: Data, signature: Data) -> Bool {
+        return root.withUnsafeBytes { r in logKey.withUnsafeBytes { k in signature.withUnsafeBytes { s in
+            mls_key_log_head_is_signed(size, r.bindMemory(to: UInt8.self).baseAddress, UInt(root.count), date,
+                                       k.bindMemory(to: UInt8.self).baseAddress, UInt(logKey.count),
+                                       s.bindMemory(to: UInt8.self).baseAddress, UInt(signature.count))
+        } } }
+    }
+
+    /// Whether the log of size with root holds, at index, this key for this
+    /// device of userId. The proof is its hashes laid end to end.
+    public static func provesInclusion(userId: Int64, name: Data, signatureKey: Data, index: UInt64, size: UInt64, proof: Data, root: Data) -> Bool {
+        return name.withUnsafeBytes { n in signatureKey.withUnsafeBytes { k in proof.withUnsafeBytes { p in root.withUnsafeBytes { r in
+            mls_key_log_proves_inclusion(userId, n.bindMemory(to: UInt8.self).baseAddress, UInt(name.count),
+                                         k.bindMemory(to: UInt8.self).baseAddress, UInt(signatureKey.count),
+                                         index, size, p.bindMemory(to: UInt8.self).baseAddress, UInt(proof.count),
+                                         r.bindMemory(to: UInt8.self).baseAddress, UInt(root.count))
+        } } } }
+    }
+
+    /// Whether the log of second with secondRoot holds the log of first with firstRoot.
+    public static func provesConsistency(first: UInt64, second: UInt64, firstRoot: Data, secondRoot: Data, proof: Data) -> Bool {
+        return firstRoot.withUnsafeBytes { f in secondRoot.withUnsafeBytes { s in proof.withUnsafeBytes { p in
+            mls_key_log_proves_consistency(first, second, f.bindMemory(to: UInt8.self).baseAddress, UInt(firstRoot.count),
+                                           s.bindMemory(to: UInt8.self).baseAddress, UInt(secondRoot.count),
+                                           p.bindMemory(to: UInt8.self).baseAddress, UInt(proof.count))
+        } } }
+    }
+}
+
 /// The words that get an account back, and what they stand for.
 ///
 /// Made here, on the device. The server is told only `authSecret` - enough to
