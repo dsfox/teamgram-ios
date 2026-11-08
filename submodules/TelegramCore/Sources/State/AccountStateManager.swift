@@ -221,6 +221,7 @@ public final class AccountStateManager {
         
         private let peerInputActivityManager: PeerInputActivityManager?
         let auxiliaryMethods: AccountAuxiliaryMethods
+        private let ignoresShortSentMessages: Bool
         var transformOutgoingMessageMedia: TransformOutgoingMessageMedia?
         
         private var updateService: UpdateMessageService?
@@ -462,6 +463,7 @@ public final class AccountStateManager {
             shouldKeepOnlinePresence: Signal<Bool, NoError>,
             peerInputActivityManager: PeerInputActivityManager?,
             auxiliaryMethods: AccountAuxiliaryMethods,
+            ignoresShortSentMessages: Bool,
             updateConfigRequested: (() -> Void)?,
             isPremiumUpdated: (() -> Void)?,
             messagesRemovedContext: MessagesRemovedContext
@@ -476,6 +478,7 @@ public final class AccountStateManager {
             self.shouldKeepOnlinePresence = shouldKeepOnlinePresence
             self.peerInputActivityManager = peerInputActivityManager
             self.auxiliaryMethods = auxiliaryMethods
+            self.ignoresShortSentMessages = ignoresShortSentMessages
             self.updateConfigRequested = updateConfigRequested
             self.isPremiumUpdated = isPremiumUpdated
             self.messagesRemovedContext = messagesRemovedContext
@@ -505,7 +508,7 @@ public final class AccountStateManager {
         public func reset() {
             self.queue.async { [self] in
                 if self.updateService == nil {
-                    self.updateService = UpdateMessageService(peerId: self.accountPeerId)
+                    self.updateService = UpdateMessageService(peerId: self.accountPeerId, ignoresShortSentMessages: self.ignoresShortSentMessages)
                     self.updateServiceDisposable.set(self.updateService!.pipe.signal().start(next: { [weak self] groups in
                         if let strongSelf = self {
                             strongSelf.addUpdateGroups(groups)
@@ -2203,7 +2206,8 @@ public final class AccountStateManager {
         addIsContactUpdates: @escaping ([(PeerId, Bool)]) -> Void,
         shouldKeepOnlinePresence: Signal<Bool, NoError>,
         peerInputActivityManager: PeerInputActivityManager?,
-        auxiliaryMethods: AccountAuxiliaryMethods
+        auxiliaryMethods: AccountAuxiliaryMethods,
+        ignoresShortSentMessages: Bool
     ) {
         let queue = Queue(name: "AccountStateManager")
         
@@ -2229,6 +2233,7 @@ public final class AccountStateManager {
                 shouldKeepOnlinePresence: shouldKeepOnlinePresence,
                 peerInputActivityManager: peerInputActivityManager,
                 auxiliaryMethods: auxiliaryMethods,
+                ignoresShortSentMessages: ignoresShortSentMessages,
                 updateConfigRequested: {
                     updateConfigRequestedImpl?()
                 },
