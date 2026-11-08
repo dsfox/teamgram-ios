@@ -36,5 +36,5 @@ public func directMessagesMessageLink(exportedLink: String?, messageId: EngineMe
     if let exportedLink {
         return exportedLink
     }
-    return "https://t.me/c/\(messageId.peerId.id._internalGetInt64Value())/\(messageId.id)"
+    return "https://i.ice9.app/c/\(messageId.peerId.id._internalGetInt64Value())/\(messageId.id)"
 }
