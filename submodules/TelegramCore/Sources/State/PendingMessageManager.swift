@@ -1,7 +1,7 @@
 import Foundation
 import Postbox
 import SwiftSignalKit
-import TelegramApi
+internal import TelegramApi
 import MtProtoKit
 
 public struct PendingMessageStatus: Equatable {
@@ -1544,34 +1544,9 @@ public final class PendingMessageManager {
                             replyFlags |= 1 << 1
                         }
                         
-                        var quoteText: String?
-                        var quoteEntities: [Api.MessageEntity]?
-                        var quoteOffset: Int32?
                         // ice9: no reply quote in an encrypted chat, it would be sent in the clear
-                        if let replyQuote = replyQuote, !MlsRuntime.isEncrypted(peerId: messages[0].0.id.peerId) {
-                            replyFlags |= 1 << 2
-                            quoteText = replyQuote.text
-                            quoteOffset = replyQuote.offset.flatMap { Int32.init(clamping: $0) }
-                            
-                            if !replyQuote.entities.isEmpty {
-                                replyFlags |= 1 << 3
-                                var associatedPeers = SimpleDictionary<PeerId, Peer>()
-                                for entity in replyQuote.entities {
-                                    for associatedPeerId in entity.associatedPeerIds {
-                                        if associatedPeers[associatedPeerId] == nil {
-                                            if let associatedPeer = transaction.getPeer(associatedPeerId) {
-                                                associatedPeers[associatedPeerId] = associatedPeer
-                                            }
-                                        }
-                                    }
-                                }
-                                quoteEntities = apiEntitiesFromMessageTextEntities(replyQuote.entities, associatedPeers: associatedPeers)
-                            }
-                            
-                            if quoteOffset != nil {
-                                replyFlags |= 1 << 4
-                            }
-                        }
+                        let quoteFields = apiReplyQuoteFields(MlsRuntime.isEncrypted(peerId: messages[0].0.id.peerId) ? nil : replyQuote, peer: { transaction.getPeer($0) })
+                        replyFlags |= quoteFields.flags
                         
                         if let _ = replyTodoItemId {
                             replyFlags |= 1 << 6
@@ -1580,7 +1555,7 @@ public final class PendingMessageManager {
                             replyFlags |= 1 << 7
                         }
                         
-                        replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyMessageId, topMsgId: topMsgId, replyToPeerId: replyToPeerId, quoteText: quoteText, quoteEntities: quoteEntities, quoteOffset: quoteOffset, monoforumPeerId: monoforumPeerId, todoItemId: replyTodoItemId, pollOption: replyPollOption))
+                        replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyMessageId, topMsgId: topMsgId, replyToPeerId: replyToPeerId, quoteText: quoteFields.text, quoteEntities: quoteFields.entities, quoteOffset: quoteFields.offset, monoforumPeerId: monoforumPeerId, todoItemId: replyTodoItemId, pollOption: replyPollOption, quoteRich: quoteFields.rich))
                     } else if let replyToStoryId {
                         if let inputPeer = transaction.getPeer(replyToStoryId.peerId).flatMap(apiInputPeer) {
                             flags |= 1 << 0
@@ -1959,34 +1934,9 @@ public final class PendingMessageManager {
                                 replyFlags |= 1 << 1
                             }
                             
-                            var quoteText: String?
-                            var quoteEntities: [Api.MessageEntity]?
-                            var quoteOffset: Int32?
                             // ice9: no reply quote in an encrypted chat, it would be sent in the clear
-                            if let replyQuote = replyQuote, !MlsRuntime.isEncrypted(peerId: messageId.peerId) {
-                                replyFlags |= 1 << 2
-                                quoteText = replyQuote.text
-                                quoteOffset = replyQuote.offset.flatMap { Int32.init(clamping: $0) }
-                                
-                                if !replyQuote.entities.isEmpty {
-                                    replyFlags |= 1 << 3
-                                    var associatedPeers = SimpleDictionary<PeerId, Peer>()
-                                    for entity in replyQuote.entities {
-                                        for associatedPeerId in entity.associatedPeerIds {
-                                            if associatedPeers[associatedPeerId] == nil {
-                                                if let associatedPeer = transaction.getPeer(associatedPeerId) {
-                                                    associatedPeers[associatedPeerId] = associatedPeer
-                                                }
-                                            }
-                                        }
-                                    }
-                                    quoteEntities = apiEntitiesFromMessageTextEntities(replyQuote.entities, associatedPeers: associatedPeers)
-                                }
-                                
-                                if quoteOffset != nil {
-                                    replyFlags |= 1 << 4
-                                }
-                            }
+                            let quoteFields = apiReplyQuoteFields(MlsRuntime.isEncrypted(peerId: messageId.peerId) ? nil : replyQuote, peer: { transaction.getPeer($0) })
+                            replyFlags |= quoteFields.flags
                             
                             if let _ = replyTodoItemId {
                                 replyFlags |= 1 << 6
@@ -1994,7 +1944,7 @@ public final class PendingMessageManager {
                             if let _ = replyPollOption {
                                 replyFlags |= 1 << 7
                             }
-                            replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyMessageId, topMsgId: topMsgId, replyToPeerId: replyToPeerId, quoteText: quoteText, quoteEntities: quoteEntities, quoteOffset: quoteOffset, monoforumPeerId: monoforumPeerId, todoItemId: replyTodoItemId, pollOption: replyPollOption))
+                            replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyMessageId, topMsgId: topMsgId, replyToPeerId: replyToPeerId, quoteText: quoteFields.text, quoteEntities: quoteFields.entities, quoteOffset: quoteFields.offset, monoforumPeerId: monoforumPeerId, todoItemId: replyTodoItemId, pollOption: replyPollOption, quoteRich: quoteFields.rich))
                         } else if let replyToStoryId = replyToStoryId {
                             if let inputPeer = transaction.getPeer(replyToStoryId.peerId).flatMap(apiInputPeer) {
                                 flags |= 1 << 0
@@ -2065,34 +2015,9 @@ public final class PendingMessageManager {
                                 replyFlags |= 1 << 1
                             }
                             
-                            var quoteText: String?
-                            var quoteEntities: [Api.MessageEntity]?
-                            var quoteOffset: Int32?
                             // ice9: no reply quote in an encrypted chat, it would be sent in the clear
-                            if let replyQuote = replyQuote, !MlsRuntime.isEncrypted(peerId: messageId.peerId) {
-                                replyFlags |= 1 << 2
-                                quoteText = replyQuote.text
-                                
-                                quoteOffset = replyQuote.offset.flatMap { Int32.init(clamping: $0) }
-                                if quoteOffset != nil {
-                                    replyFlags |= 1 << 4
-                                }
-                                
-                                if !replyQuote.entities.isEmpty {
-                                    replyFlags |= 1 << 3
-                                    var associatedPeers = SimpleDictionary<PeerId, Peer>()
-                                    for entity in replyQuote.entities {
-                                        for associatedPeerId in entity.associatedPeerIds {
-                                            if associatedPeers[associatedPeerId] == nil {
-                                                if let associatedPeer = transaction.getPeer(associatedPeerId) {
-                                                    associatedPeers[associatedPeerId] = associatedPeer
-                                                }
-                                            }
-                                        }
-                                    }
-                                    quoteEntities = apiEntitiesFromMessageTextEntities(replyQuote.entities, associatedPeers: associatedPeers)
-                                }
-                            }
+                            let quoteFields = apiReplyQuoteFields(MlsRuntime.isEncrypted(peerId: messageId.peerId) ? nil : replyQuote, peer: { transaction.getPeer($0) })
+                            replyFlags |= quoteFields.flags
 
                             if let _ = replyTodoItemId {
                                 replyFlags |= 1 << 6
@@ -2100,7 +2025,7 @@ public final class PendingMessageManager {
                             if let _ = replyPollOption {
                                 replyFlags |= 1 << 7
                             }
-                            replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyMessageId, topMsgId: topMsgId, replyToPeerId: replyToPeerId, quoteText: quoteText, quoteEntities: quoteEntities, quoteOffset: quoteOffset, monoforumPeerId: monoforumPeerId, todoItemId: replyTodoItemId, pollOption: replyPollOption))
+                            replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyMessageId, topMsgId: topMsgId, replyToPeerId: replyToPeerId, quoteText: quoteFields.text, quoteEntities: quoteFields.entities, quoteOffset: quoteFields.offset, monoforumPeerId: monoforumPeerId, todoItemId: replyTodoItemId, pollOption: replyPollOption, quoteRich: quoteFields.rich))
                         } else if let replyToStoryId = replyToStoryId {
                             if let inputPeer = transaction.getPeer(replyToStoryId.peerId).flatMap(apiInputPeer) {
                                 flags |= 1 << 0
@@ -2225,34 +2150,9 @@ public final class PendingMessageManager {
                                 replyFlags |= 1 << 1
                             }
                             
-                            var quoteText: String?
-                            var quoteEntities: [Api.MessageEntity]?
-                            var quoteOffset: Int32?
                             // ice9: no reply quote in an encrypted chat, it would be sent in the clear
-                            if let replyQuote = replyQuote, !MlsRuntime.isEncrypted(peerId: messageId.peerId) {
-                                replyFlags |= 1 << 2
-                                quoteText = replyQuote.text
-                                
-                                quoteOffset = replyQuote.offset.flatMap { Int32.init(clamping: $0) }
-                                if quoteOffset != nil {
-                                    replyFlags |= 1 << 4
-                                }
-                                
-                                if !replyQuote.entities.isEmpty {
-                                    replyFlags |= 1 << 3
-                                    var associatedPeers = SimpleDictionary<PeerId, Peer>()
-                                    for entity in replyQuote.entities {
-                                        for associatedPeerId in entity.associatedPeerIds {
-                                            if associatedPeers[associatedPeerId] == nil {
-                                                if let associatedPeer = transaction.getPeer(associatedPeerId) {
-                                                    associatedPeers[associatedPeerId] = associatedPeer
-                                                }
-                                            }
-                                        }
-                                    }
-                                    quoteEntities = apiEntitiesFromMessageTextEntities(replyQuote.entities, associatedPeers: associatedPeers)
-                                }
-                            }
+                            let quoteFields = apiReplyQuoteFields(MlsRuntime.isEncrypted(peerId: messageId.peerId) ? nil : replyQuote, peer: { transaction.getPeer($0) })
+                            replyFlags |= quoteFields.flags
 
                             if let _ = replyTodoItemId {
                                 replyFlags |= 1 << 6
@@ -2260,7 +2160,7 @@ public final class PendingMessageManager {
                             if let _ = replyPollOption {
                                 replyFlags |= 1 << 7
                             }
-                            replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyMessageId, topMsgId: message.threadId.flatMap(Int32.init(clamping:)), replyToPeerId: replyToPeerId, quoteText: quoteText, quoteEntities: quoteEntities, quoteOffset: quoteOffset, monoforumPeerId: monoforumPeerId, todoItemId: replyTodoItemId, pollOption: replyPollOption))
+                            replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyMessageId, topMsgId: message.threadId.flatMap(Int32.init(clamping:)), replyToPeerId: replyToPeerId, quoteText: quoteFields.text, quoteEntities: quoteFields.entities, quoteOffset: quoteFields.offset, monoforumPeerId: monoforumPeerId, todoItemId: replyTodoItemId, pollOption: replyPollOption, quoteRich: quoteFields.rich))
                         } else if let replyToStoryId = replyToStoryId {
                             if let inputPeer = transaction.getPeer(replyToStoryId.peerId).flatMap(apiInputPeer) {
                                 flags |= 1 << 0
@@ -2292,18 +2192,18 @@ public final class PendingMessageManager {
                     
                         if let replyMessageId = replyMessageId {
                             let replyFlags: Int32 = 0
-                            replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyMessageId, topMsgId: nil, replyToPeerId: nil, quoteText: nil, quoteEntities: nil, quoteOffset: nil, monoforumPeerId: nil, todoItemId: nil, pollOption: nil))
+                            replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: replyMessageId, topMsgId: nil, replyToPeerId: nil, quoteText: nil, quoteEntities: nil, quoteOffset: nil, monoforumPeerId: nil, todoItemId: nil, pollOption: nil, quoteRich: nil))
                         } else if let replyToStoryId = replyToStoryId {
                             if let inputPeer = transaction.getPeer(replyToStoryId.peerId).flatMap(apiInputPeer) {
                                 flags |= 1 << 0
                                 replyTo = .inputReplyToStory(.init(peer: inputPeer, storyId: replyToStoryId.id))
                             } else {
                                 let replyFlags: Int32 = 0
-                                replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: 0, topMsgId: nil, replyToPeerId: nil, quoteText: nil, quoteEntities: nil, quoteOffset: nil, monoforumPeerId: monoforumPeerId, todoItemId: nil, pollOption: nil))
+                                replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: 0, topMsgId: nil, replyToPeerId: nil, quoteText: nil, quoteEntities: nil, quoteOffset: nil, monoforumPeerId: monoforumPeerId, todoItemId: nil, pollOption: nil, quoteRich: nil))
                             }
                         } else {
                             let replyFlags: Int32 = 0
-                            replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: 0, topMsgId: nil, replyToPeerId: nil, quoteText: nil, quoteEntities: nil, quoteOffset: nil, monoforumPeerId: monoforumPeerId, todoItemId: nil, pollOption: nil))
+                            replyTo = .inputReplyToMessage(.init(flags: replyFlags, replyToMsgId: 0, topMsgId: nil, replyToPeerId: nil, quoteText: nil, quoteEntities: nil, quoteOffset: nil, monoforumPeerId: monoforumPeerId, todoItemId: nil, pollOption: nil, quoteRich: nil))
                         }
                     
                         sendMessageRequest = network.request(Api.functions.messages.sendScreenshotNotification(peer: inputPeer, replyTo: replyTo, randomId: uniqueId))
