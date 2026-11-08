@@ -220,8 +220,8 @@ public final class ChatMessageWidgetBubbleContentNode: ChatMessageBubbleContentN
                 // The polling follows `onPublicDataPollingChange`, which the same change has reported.
                 break
             case let .openTelegramLink(url):
-                // widget-sandbox v0.3.0 (SDK v1 §5.2, "Telegram links open without a confirmation"): as a tapped t.me
-                // link in a message, with no "Open link?" of the widget's own; the chat's own t.me handling keeps the
+                // widget-sandbox v0.3.0 (SDK v1 §5.2, "Telegram links open without a confirmation"): as a tapped i.ice9.app
+                // link in a message, with no "Open link?" of the widget's own; the chat's own i.ice9.app handling keeps the
                 // confirmations it has (joining a chat, a proxy, a login). The runtime lets only Telegram's hosts here,
                 // one call per tap.
                 item.controllerInteraction.openUrl(ChatControllerInteraction.OpenUrl(url: url, concealed: false, message: item.message))

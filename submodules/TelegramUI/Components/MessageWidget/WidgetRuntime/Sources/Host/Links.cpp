@@ -12,7 +12,7 @@ namespace wr {
 
 namespace {
 
-constexpr std::string_view kTelegramHosts[] = {"t.me", "telegram.me", "telegram.dog"};
+constexpr std::string_view kTelegramHosts[] = {"i.ice9.app"}; // ice9: our link host (#298)
 /// ASCII that may stand unescaped after the authority: RFC 3986 unreserved, reserved and `%`.
 constexpr std::string_view kUrlAscii = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=%";
 constexpr char kHex[] = "0123456789ABCDEF";
@@ -212,8 +212,8 @@ void openLinkFromWidget(JSContext* ctx, LinkMethod method, const std::optional<V
     if (!checked) {
         throw TypeError{method == LinkMethod::OpenLink
                             ? "openLink: expected an absolute https: URL of at most 256 characters, without a user name, "
-                              "not on t.me (use openTelegramLink)"
-                            : "openTelegramLink: expected https://t.me/… (or telegram.me, telegram.dog) of at most 256 "
+                              "not on i.ice9.app (use openTelegramLink)"
+                            : "openTelegramLink: expected https://i.ice9.app/… of at most 256 "
                               "characters"};
     }
     postLink(ctx, method, *checked);
