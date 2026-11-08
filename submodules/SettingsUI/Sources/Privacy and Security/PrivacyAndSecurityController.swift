@@ -1411,7 +1411,7 @@ public func privacyAndSecurityController(
                     }, action: { _, f in
                         f(.default)
                         timeoutAction(value)
-                    }))
+                    }, accessibilityIsSelected: privacySettingsValue.accountRemovalTimeout == value))
                 }
                 timeoutItems.append(.separator)
                 timeoutItems.append(.action(ContextMenuActionItem(text: presentationData.strings.PrivacySettings_DeleteAccountNow, textColor: .destructive, icon: { _ in

@@ -54,7 +54,18 @@ final class ComposeControllerNode: ASDisplayNode {
                 openCreateNewChannelImpl?()
             }))
         }
-        self.contactListNode = ContactListNode(context: context, presentation: .single(.natural(options: composeOptions, includeChatList: false, topPeers: .none)), onlyWriteable: false, isGroupInvitation: false, displayPermissionPlaceholder: false)
+        let options = composeOptions
+        // The contacts follow the sort order the Sort button sets, as the Contacts screen's do.
+        let presentation = contactsSortOrder(context: context)
+        |> map { sortOrder -> ContactListPresentation in
+            switch sortOrder {
+            case .presence:
+                return .orderedByPresence(options: options)
+            case .natural:
+                return .natural(options: options, includeChatList: false, topPeers: .none)
+            }
+        }
+        self.contactListNode = ContactListNode(context: context, presentation: presentation, onlyWriteable: false, isGroupInvitation: false, displayPermissionPlaceholder: false)
         
         super.init()
         
@@ -145,9 +156,12 @@ final class ComposeControllerNode: ASDisplayNode {
                 }
             }
         }, placeholder: placeholderNode)
+        // The search results cover the list: VoiceOver must not read the list behind them.
+        self.contactListNode.accessibilityElementsHidden = true
     }
     
     func deactivateSearch(placeholderNode: SearchBarPlaceholderNode) {
+        self.contactListNode.accessibilityElementsHidden = false
         if let searchDisplayController = self.searchDisplayController {
             searchDisplayController.deactivate(placeholder: placeholderNode)
             self.searchDisplayController = nil

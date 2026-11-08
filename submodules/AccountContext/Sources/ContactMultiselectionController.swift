@@ -112,6 +112,9 @@ public final class ContactMultiselectionControllerParams {
     public let initialSelectedPeers: [EnginePeer]
     /// What a typed number that nobody on ice9 holds does when tapped (#164).
     public let inviteByNumber: ((String) -> Void)?
+    /// `.groupCreation(isCall: true)`: the participants the call already has, which count against its participant
+    /// limit before the selection does. A new call has the account itself; an ongoing one, everyone in it.
+    public let existingCallParticipantCount: Int
     
     public init(
         context: AccountContext,
@@ -131,6 +134,7 @@ public final class ContactMultiselectionControllerParams {
         sendMessage: ((EnginePeer) -> Void)? = nil,
         initialSelectedPeers: [EnginePeer] = [],
         inviteByNumber: ((String) -> Void)? = nil
+        existingCallParticipantCount: Int = 1
     ) {
         self.context = context
         self.updatedPresentationData = updatedPresentationData
@@ -149,6 +153,7 @@ public final class ContactMultiselectionControllerParams {
         self.sendMessage = sendMessage
         self.initialSelectedPeers = initialSelectedPeers
         self.inviteByNumber = inviteByNumber
+        self.existingCallParticipantCount = existingCallParticipantCount
     }
 }
 

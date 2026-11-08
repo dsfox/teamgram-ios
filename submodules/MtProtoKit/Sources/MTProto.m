@@ -1989,6 +1989,7 @@ static uint32_t parsedBodyConstructor(NSData *data, NSUInteger bodyOffset) {
                         strongSelf->_unthrottleConnectionTimer = nil;
                         [strongSelf requestTransportTransaction];
                     } queue:[MTProto managerQueue].nativeQueue];
+                    [_unthrottleConnectionTimer start];
                 }
             } else {
                 if (currentTransport == _transport) {
