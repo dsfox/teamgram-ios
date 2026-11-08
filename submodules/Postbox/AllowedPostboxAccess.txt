@@ -205,7 +205,6 @@ submodules/TelegramUI/Sources/ApplicationContext.swift
 submodules/TelegramUI/Sources/Chat/ChatControllerLoadDisplayNode.swift
 submodules/TelegramUI/Sources/Chat/ChatControllerOpenLinkContextMenu.swift
 submodules/TelegramUI/Sources/Chat/ChatControllerPaste.swift
-submodules/TelegramUI/Sources/Chat/ChatControllerQuickShare.swift
 submodules/TelegramUI/Sources/Chat/ChatMessageActionOptions.swift
 submodules/TelegramUI/Sources/ChatController.swift
 submodules/TelegramUI/Sources/ChatControllerContentData.swift
