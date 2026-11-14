@@ -13,7 +13,7 @@ import WalletContext
 /// labels and ignores every argument.
 
 public final class WalletScreen: ViewController {
-    public init(context: AccountContext, walletContext: WalletContext) {
+    public init(context: AccountContext, walletContext: WalletContext, opensCollectibles: Bool = false) {
         super.init(navigationBarPresentationData: nil)
     }
 

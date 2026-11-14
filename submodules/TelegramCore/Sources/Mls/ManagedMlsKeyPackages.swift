@@ -1,7 +1,7 @@
 import Foundation
 import Postbox
 import SwiftSignalKit
-import TelegramApi
+internal import TelegramApi
 import MlsCore
 
 /// Keeps this device reachable for encrypted conversations.

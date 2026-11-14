@@ -1,7 +1,7 @@
 import Foundation
 import MtProtoKit
 import SwiftSignalKit
-import TelegramApi
+internal import TelegramApi
 
 /// Which server this phone talks to (ice9 #65).
 ///

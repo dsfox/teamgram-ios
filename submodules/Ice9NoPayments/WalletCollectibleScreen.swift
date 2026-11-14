@@ -13,7 +13,7 @@ import WalletContext
 /// labels and ignores every argument.
 
 public final class WalletCollectibleScreen: ViewController {
-    public init(context: AccountContext, walletContext: WalletContext, collectible: WalletContext.Collectible, collectibleSent: @escaping (String) -> Void) {
+    public init(context: AccountContext, walletContext: WalletContext, collectible: WalletContext.Collectible, stickerHost: WalletCollectibleStickerHost? = nil, collectibleSent: @escaping (String) -> Void, moveToGifts: ((WalletContext.Collectible, ViewController, @escaping () -> Void) -> Void)? = nil) {
         super.init(navigationBarPresentationData: nil)
     }
 

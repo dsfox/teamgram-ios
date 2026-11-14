@@ -1,7 +1,7 @@
 import Foundation
 import Postbox
 import SwiftSignalKit
-import TelegramApi
+internal import TelegramApi
 
 // What arrives from the server, read the way an encrypted conversation needs.
 // StoreMessage_Telegram, ApplyUpdateMessage, AccountStateManagementUtils and

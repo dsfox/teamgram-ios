@@ -13,7 +13,7 @@ import WalletContext
 /// labels and ignores every argument.
 
 public final class WalletReceiveScreen: ViewController {
-    public init(context: AccountContext, address: String, appeared: (() -> Void)? = nil) {
+    public init(context: AccountContext, address: String, isOwnWallet: Bool = true, appeared: (() -> Void)? = nil) {
         super.init(navigationBarPresentationData: nil)
     }
 

@@ -502,10 +502,10 @@ public class ShareRootControllerImpl {
                                 accountManager: accountManager,
                                 networkArguments: networkArguments,
                                 id: id,
-                                encryptionParameters: ValueBoxEncryptionParameters(
+                                encryptionParameters: EngineValueBoxEncryptionParameters(
                                     forceEncryptionIfNoSet: false,
-                                    key: ValueBoxEncryptionParameters.Key(data: initializationData.encryptionParameters.0)!,
-                                    salt: ValueBoxEncryptionParameters.Salt(data: initializationData.encryptionParameters.1)!
+                                    key: EngineValueBoxEncryptionParameters.Key(data: initializationData.encryptionParameters.0)!,
+                                    salt: EngineValueBoxEncryptionParameters.Salt(data: initializationData.encryptionParameters.1)!
                                 ),
                                 supplementary: true,
                                 isSupportUser: false,
@@ -523,7 +523,7 @@ public class ShareRootControllerImpl {
                             |> take(1)
                         }
                         
-                        let sentItems: ([PeerId], [PeerId: Int64], [PeerId: StarsAmount], [PreparedShareItemContent], ShareControllerAccountContext, Bool, String) -> Signal<ShareControllerExternalStatus, NoError> = { [weak self] peerIds, threadIds, requireStars, contents, account, silently, additionalText in
+                        let sentItems: ([EnginePeer.Id], [EnginePeer.Id: Int64], [EnginePeer.Id: StarsAmount], [PreparedShareItemContent], ShareControllerAccountContext, Bool, String) -> Signal<ShareControllerExternalStatus, NoError> = { [weak self] peerIds, threadIds, requireStars, contents, account, silently, additionalText in
                             return sendingAccount(account.accountId)
                             |> castError(MlsSharedSendingError.self)
                             |> mapToSignal { sending -> Signal<Float, MlsSharedSendingError> in

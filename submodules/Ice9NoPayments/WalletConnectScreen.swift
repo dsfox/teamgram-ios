@@ -43,7 +43,7 @@ public final class WalletConnectScreen: ViewController {
 public final class WalletTransferScreen: ViewController {
     public var tonConnectClosed: (() -> Void)?
 
-    public init(context: AccountContext, walletContext: WalletContext, request: WalletContext.TonConnectOperationRequest, cancelled: @escaping () -> Void, confirm: @escaping (@escaping (Result<Void, WalletContext.WalletError>) -> Void) -> Void) {
+    public init(context: AccountContext, walletContext: WalletContext, request: WalletContext.TonConnectOperationRequest, requester: EnginePeer? = nil, ignoresTouchesFor: Double = 0.0, cancelled: @escaping () -> Void, confirm: @escaping (@escaping (Result<Void, WalletContext.WalletError>) -> Void) -> Void) {
         super.init(navigationBarPresentationData: nil)
     }
 

@@ -1,7 +1,7 @@
 import Foundation
 import MtProtoKit
 import SwiftSignalKit
-import TelegramApi
+internal import TelegramApi
 import MlsCore
 
 /// A claimed key package is added only when the key log holds its key (#44).

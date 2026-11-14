@@ -90,3 +90,14 @@ public final class WalletSendScreen: ViewController, AttachmentContainable {
         }
     }
 }
+
+/// Who "Send Money" on a GRAM transfer message would send to: nobody here, so
+/// the action is never offered.
+public enum WalletTransferMessageRecipient: Equatable {
+    case peer(EnginePeer)
+    case address(String)
+}
+
+public func walletTransferMessageRecipient(chatPeer: EnginePeer?, accountPeerId: EnginePeer.Id, peerAddress: String) -> WalletTransferMessageRecipient? {
+    return nil
+}

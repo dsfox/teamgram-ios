@@ -133,7 +133,7 @@ public final class ContactMultiselectionControllerParams {
         openProfile: ((EnginePeer) -> Void)? = nil,
         sendMessage: ((EnginePeer) -> Void)? = nil,
         initialSelectedPeers: [EnginePeer] = [],
-        inviteByNumber: ((String) -> Void)? = nil
+        inviteByNumber: ((String) -> Void)? = nil,
         existingCallParticipantCount: Int = 1
     ) {
         self.context = context

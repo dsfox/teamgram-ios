@@ -1,7 +1,7 @@
 import Foundation
 import Postbox
 import SwiftSignalKit
-import TelegramApi
+internal import TelegramApi
 import MlsCore
 
 /// Encrypted conversations, from the client's side.
@@ -454,7 +454,7 @@ public enum MlsConversations {
     /// The formatting goes inside rather than beside it. An entity - bold, a
     /// link, a mention - is a pair of offsets into the text, and next to a
     /// ciphertext they point at nothing.
-    public static func encrypt(postbox: Postbox, accountPeerId: PeerId, identity: MlsIdentity, group: MlsGroup, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded?, media: Api.mls.Content.Media?, inside: Api.mls.Content.Inside? = nil, transaction: Transaction? = nil) -> String? {
+    static func encrypt(postbox: Postbox, accountPeerId: PeerId, identity: MlsIdentity, group: MlsGroup, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded?, media: Api.mls.Content.Media?, inside: Api.mls.Content.Inside? = nil, transaction: Transaction? = nil) -> String? {
         do {
             let ciphertext = try group.encrypt(identity: identity, plaintext: Api.mls.Content.encode(text: text, entities: entities, forwarded: forwarded, media: media, inside: inside))
             let state = try identity.export()
@@ -613,14 +613,14 @@ public struct MlsMessageContent {
     /// one here - the server copies a message by its id into a conversation
     /// whose members could never read it - so it is sent as a new message that
     /// says inside itself where it came from.
-    public let forwarded: Api.mls.Content.Forwarded?
+    let forwarded: Api.mls.Content.Forwarded?
     /// What the file in this message actually is, when there is one. The server
     /// is holding it as a blob of random bytes and knows nothing else about it.
-    public let media: Api.mls.Content.Media?
+    let media: Api.mls.Content.Media?
     /// The location or the contact it carries inside (#267).
-    public let inside: Api.mls.Content.Inside?
+    let inside: Api.mls.Content.Inside?
 
-    public init(text: String, entities: [MessageTextEntity], forwarded: Api.mls.Content.Forwarded? = nil, media: Api.mls.Content.Media? = nil, inside: Api.mls.Content.Inside? = nil) {
+    init(text: String, entities: [MessageTextEntity], forwarded: Api.mls.Content.Forwarded? = nil, media: Api.mls.Content.Media? = nil, inside: Api.mls.Content.Inside? = nil) {
         self.text = text
         self.entities = entities
         self.forwarded = forwarded

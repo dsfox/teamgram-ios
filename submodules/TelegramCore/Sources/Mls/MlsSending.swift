@@ -1,7 +1,7 @@
 import Foundation
 import Postbox
 import SwiftSignalKit
-import TelegramApi
+internal import TelegramApi
 
 /// What leaves this device in place of a message's text. PendingMessageManager
 /// and RequestEditMessage, upstream's files, call these and keep only the call

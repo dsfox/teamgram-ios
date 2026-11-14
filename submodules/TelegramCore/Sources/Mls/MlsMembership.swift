@@ -1,7 +1,7 @@
 import Foundation
 import Postbox
 import SwiftSignalKit
-import TelegramApi
+internal import TelegramApi
 import MlsCore
 
 /// Making the conversation hold the people the chat holds (#40).

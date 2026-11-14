@@ -1,7 +1,7 @@
 import Foundation
 import Postbox
 import SwiftSignalKit
-import TelegramApi
+internal import TelegramApi
 import MlsCore
 
 /// The encryption, held in memory so the message path can reach it.
@@ -405,7 +405,7 @@ public final class MlsRuntime {
     /// What to send instead of this message, or nothing when this conversation
     /// cannot carry it - and then it waits for one (#256), unless the chat does
     /// not encrypt at all.
-    public func encrypt(peerId: PeerId, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded? = nil, media: Api.mls.Content.Media? = nil, inside: Api.mls.Content.Inside? = nil, transaction: Transaction? = nil) -> String? {
+    func encrypt(peerId: PeerId, text: String, entities: [Api.MessageEntity], forwarded: Api.mls.Content.Forwarded? = nil, media: Api.mls.Content.Media? = nil, inside: Api.mls.Content.Inside? = nil, transaction: Transaction? = nil) -> String? {
         // An empty text is nothing to encrypt - unless something else has to
         // travel inside the message anyway: the key to a picture sent without a
         // caption, or the attribution of a forward.
@@ -1138,7 +1138,7 @@ public final class MlsRuntime {
     ///
     /// The id when it is known, the name when the account is hidden and a name
     /// is all there is to show.
-    public static func forwarded(from message: Message) -> Api.mls.Content.Forwarded? {
+    static func forwarded(from message: Message) -> Api.mls.Content.Forwarded? {
         guard let info = message.forwardInfo else {
             return nil
         }
